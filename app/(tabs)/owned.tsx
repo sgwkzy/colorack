@@ -10,6 +10,7 @@ import { getDB, getDefaultBoxId, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { glossLabel } from '../../lib/gloss';
+import { paintName } from '../../lib/paintLabel';
 import AddPaintModal from '../../components/AddPaint';
 import AdBanner from '../../components/AdBanner';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
@@ -21,7 +22,7 @@ interface InventoryItem {
   id: number;
   paint_id: number;
   name_ja: string;
-  name_en: string;
+  name_en: string | null;
   code: string;
   brand: string;
   hex: string;
@@ -56,20 +57,21 @@ export default function OwnedScreen() {
   const [statuses, setStatuses] = useState<PaintStatus[]>(['owned', 'in_use']);
   const [filter, setFilter] = useState<PaintFilter>(EMPTY_FILTER);
   const [sort, setSort] = useState<Sort>('added');
-  const [filterOptions, setFilterOptions] = useState<{ brand: string; series: string; gloss: string | null; paint_type: string | null }[]>([]);
+  const [filterOptions, setFilterOptions] = useState<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }[]>([]);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const swipeRefs = useRef(new Map<number, Swipeable>());
+  const initializedRef = useRef(false);
 
   const load = useCallback(async (sel: Selected, sf: PaintStatus[], f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
     setBoxes(await db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'));
     setDefaultBoxId(await getDefaultBoxId());
     // 絞り込み候補(所有塗料の brand/series)
-    setFilterOptions(await db.getAllAsync<{ brand: string; series: string; gloss: string | null; paint_type: string | null }>(
-      'SELECT DISTINCT c.brand, c.series, c.gloss, c.paint_type FROM inventory i'
+    setFilterOptions(await db.getAllAsync<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }>(
+      'SELECT DISTINCT c.brand, c.series, c.series_en, c.gloss, c.paint_type FROM inventory i'
       + ' JOIN catalog_paints c ON i.paint_id = c.id'
     ));
 
@@ -116,6 +118,16 @@ export default function OwnedScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => {
+    // 初回オープン時は「一覧」ではなくデフォルトのボックスを初期表示にする。
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      getDefaultBoxId().then((id) => {
+        const initial: Selected = id ?? 'all';
+        setSelected(initial);
+        load(initial, statuses, filter, sort);
+      });
+      return;
+    }
     load(selected, statuses, filter, sort);
   }, [load, selected, statuses, filter, sort]));
 
@@ -270,7 +282,7 @@ export default function OwnedScreen() {
             <View style={[styles.row, { borderLeftColor: item.hex, borderLeftWidth: 8 }]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.name}>
-                  {item.name_ja}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}
+                  {paintName(item.name_ja, item.name_en)}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}
                 </Text>
                 <View style={styles.subRow}>
                   <TypeIcon paintType={item.paint_type} />

@@ -9,12 +9,13 @@ import { rgb_to_lab, delta_e, hex_to_rgb } from '../../lib/color';
 import { t } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { glossLabel } from '../../lib/gloss';
+import { paintName } from '../../lib/paintLabel';
 import TypeIcon from '../TypeIcon';
 
 interface Paint {
   id: number;
   name_ja: string;
-  name_en: string;
+  name_en: string | null;
   code: string;
   brand: string;
   hex: string;
@@ -90,7 +91,7 @@ export default function ColorMatcher({ onSelect }: Props) {
         renderItem={({ item }) => (
           <View style={[styles.row, { borderLeftColor: item.hex, borderLeftWidth: 8 }]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{item.name_ja}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}</Text>
+              <Text style={styles.name}>{paintName(item.name_ja, item.name_en)}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}</Text>
               <View style={styles.subRow}>
                 <TypeIcon paintType={item.paint_type} />
                 <Text style={styles.sub}>{brandLabel(item.brand)}{item.gloss ? ` · ${glossLabel(item.gloss)}` : ''} · ΔE={item.de.toFixed(1)}</Text>

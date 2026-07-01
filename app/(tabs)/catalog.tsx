@@ -9,13 +9,14 @@ import { getDB } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { glossLabel } from '../../lib/gloss';
+import { paintName, seriesLabel } from '../../lib/paintLabel';
 import TypeIcon from '../../components/TypeIcon';
 import AdBanner from '../../components/AdBanner';
 import ClearableInput from '../../components/ClearableInput';
 import PaintFormModal, { EditablePaint } from '../../components/PaintFormModal';
 import SwipeBack from '../../components/SwipeBack';
 
-interface Paint extends EditablePaint { source: string | null; }
+interface Paint extends EditablePaint { name_en: string | null; source: string | null; series_en: string | null; }
 
 // 階層を横断して「すべて」を表す番兵。
 const ALL = 'ALL';
@@ -24,7 +25,7 @@ export default function CatalogScreen() {
   useLocale();
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
-  const [seriesList, setSeriesList] = useState<string[]>([]);
+  const [seriesList, setSeriesList] = useState<{ series: string; series_en: string | null }[]>([]);
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
   const [paints, setPaints] = useState<Paint[]>([]);
   const [nameFilter, setNameFilter] = useState('');
@@ -39,8 +40,10 @@ export default function CatalogScreen() {
 
   const loadSeries = useCallback(async (brand: string) => {
     const db = getDB();
-    const rows = await db.getAllAsync<{ series: string }>('SELECT DISTINCT series FROM catalog_paints WHERE brand = ? ORDER BY series', [brand]);
-    setSeriesList(rows.map((r) => r.series));
+    setSeriesList(await db.getAllAsync<{ series: string; series_en: string | null }>(
+      'SELECT series, MAX(series_en) AS series_en FROM catalog_paints WHERE brand = ? GROUP BY series ORDER BY series',
+      [brand]
+    ));
   }, []);
 
   const loadPaints = useCallback(async (brand: string, series: string) => {
@@ -49,7 +52,7 @@ export default function CatalogScreen() {
     const args: string[] = [];
     if (brand !== ALL) { where.push('brand = ?'); args.push(brand); }
     if (series !== ALL) { where.push('series = ?'); args.push(series); }
-    const sql = 'SELECT id, name_ja, brand, series, code, hex, gloss, paint_type, source FROM catalog_paints'
+    const sql = 'SELECT id, name_ja, name_en, brand, series, series_en, code, hex, gloss, paint_type, source FROM catalog_paints'
       + (where.length ? ' WHERE ' + where.join(' AND ') : '')
       + ' ORDER BY name_ja';
     setPaints(await db.getAllAsync<Paint>(sql, args));
@@ -81,7 +84,7 @@ export default function CatalogScreen() {
   };
 
   const remove = (p: Paint) => {
-    Alert.alert(p.name_ja, t('deletePaintConfirm'), [
+    Alert.alert(paintName(p.name_ja, p.name_en), t('deletePaintConfirm'), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('delete'), style: 'destructive',
@@ -136,11 +139,11 @@ export default function CatalogScreen() {
             <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
           </TouchableOpacity>
           <FlatList
-            data={[ALL, ...seriesList]}
-            keyExtractor={(s) => s || '(none)'}
+            data={[{ series: ALL, series_en: null }, ...seriesList]}
+            keyExtractor={(s) => s.series || '(none)'}
             renderItem={({ item }) => (
-              <TouchableOpacity style={[styles.navItem, item === ALL && styles.allItem]} onPress={() => openSeries(item)}>
-                <Text style={[styles.navText, item === ALL && styles.allText]}>{item === ALL ? t('all') : (item || '—')}</Text>
+              <TouchableOpacity style={[styles.navItem, item.series === ALL && styles.allItem]} onPress={() => openSeries(item.series)}>
+                <Text style={[styles.navText, item.series === ALL && styles.allText]}>{item.series === ALL ? t('all') : seriesLabel(item.series || '—', item.series_en)}</Text>
                 <Text style={styles.arrow}>›</Text>
               </TouchableOpacity>
             )}
@@ -154,13 +157,14 @@ export default function CatalogScreen() {
 
   // --- 塗料一覧 ---
   const q = nameFilter.trim().toLowerCase();
-  const shown = q ? paints.filter((p) => p.name_ja.toLowerCase().includes(q) || (p.code ?? '').toLowerCase().includes(q)) : paints;
+  const shown = q ? paints.filter((p) => p.name_ja.toLowerCase().includes(q) || (p.name_en ?? '').toLowerCase().includes(q) || (p.code ?? '').toLowerCase().includes(q)) : paints;
+  const currentSeries = paints.find((p) => p.series === selectedSeries);
   return (
     <SwipeBack enabled onBack={backFromPaints}>
     <View style={styles.container}>
       <TouchableOpacity style={styles.back} onPress={backFromPaints}>
         <IconChevronLeft color="#4a90d9" size={18} />
-        <Text style={styles.backText}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : (selectedSeries || '—')}</Text>
+        <Text style={styles.backText}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries || '—', currentSeries?.series_en)}</Text>
       </TouchableOpacity>
       <ClearableInput style={styles.filterInput} placeholder={t('colorName')} value={nameFilter} onChangeText={setNameFilter} />
       <FlatList
@@ -177,7 +181,7 @@ export default function CatalogScreen() {
               disabled={!manual}
             >
               <View style={{ flex: 1 }}>
-                <Text style={styles.name}>{item.name_ja}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}</Text>
+                <Text style={styles.name}>{paintName(item.name_ja, item.name_en)}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}</Text>
                 <View style={styles.subRow}>
                   <TypeIcon paintType={item.paint_type} />
                   <Text style={styles.sub}>{brandLabel(item.brand)}{item.gloss ? ` · ${glossLabel(item.gloss)}` : ''}</Text>

@@ -8,6 +8,7 @@ import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { glossLabel } from '../../lib/gloss';
+import { paintName } from '../../lib/paintLabel';
 import AddPaintModal from '../../components/AddPaint';
 import TypeIcon from '../../components/TypeIcon';
 
@@ -15,6 +16,7 @@ interface ListItem {
   id: number;
   paint_id: number;
   name_ja: string;
+  name_en: string | null;
   code: string;
   brand: string;
   hex: string;
@@ -29,7 +31,7 @@ export default function FavoritesScreen() {
   const load = useCallback(async () => {
     const db = getDB();
     const rows = await db.getAllAsync<ListItem>(
-      'SELECT l.id, l.paint_id, c.name_ja, c.code, c.brand, c.hex, c.gloss, c.paint_type'
+      'SELECT l.id, l.paint_id, c.name_ja, c.name_en, c.code, c.brand, c.hex, c.gloss, c.paint_type'
       + ' FROM lists l JOIN catalog_paints c ON l.paint_id = c.id'
       + " WHERE l.type = 'favorites' ORDER BY l.added_at DESC"
     );
@@ -59,7 +61,7 @@ export default function FavoritesScreen() {
           >
             <View style={[styles.row, { borderLeftColor: item.hex, borderLeftWidth: 8 }]}>
               <Text style={styles.name}>
-                {item.name_ja}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}
+                {paintName(item.name_ja, item.name_en)}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}
               </Text>
               <View style={styles.subRow}>
                 <TypeIcon paintType={item.paint_type} />

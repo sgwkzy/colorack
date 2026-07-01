@@ -7,7 +7,7 @@ export type ListType = 'favorites' | 'wishlist';
 
 // シード内容を更新したら上げる。catalog_paints を作り直して再シードする。
 // (INSERT OR IGNORE のため既存行は更新されない。過去の壊れた名前を一掃する用途も兼ねる)
-const SEED_VERSION = 7;
+const SEED_VERSION = 9;
 
 let _db: SQLite.SQLiteDatabase | null = null;
 
@@ -24,7 +24,7 @@ export async function initDB(): Promise<void> {
     'PRAGMA journal_mode = WAL;' +
     'CREATE TABLE IF NOT EXISTS catalog_paints (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  brand TEXT, series TEXT, code TEXT UNIQUE,' +
+    '  brand TEXT, series TEXT, series_en TEXT, code TEXT UNIQUE,' +
     '  name_ja TEXT, name_en TEXT, hex TEXT,' +
     '  r INTEGER, g INTEGER, b INTEGER,' +
     '  l REAL, a_star REAL, b_star REAL, barcode TEXT, gloss TEXT, paint_type TEXT, source TEXT' +
@@ -55,11 +55,15 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN gloss TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN paint_type TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN source TEXT'); } catch { /* 既にある */ }
+  try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN series_en TEXT'); } catch { /* 既にある */ }
 
-  // 初期ボックス「ボックス」を用意し、デフォルトに設定(ボックスが無い時だけ)
+  // 旧デフォルト名「ボックス」の既存端末を「Box」へ一度だけ移行。
+  await db.runAsync("UPDATE boxes SET name = 'Box' WHERE name = 'ボックス'");
+
+  // 初期ボックス「Box」を用意し、デフォルトに設定(ボックスが無い時だけ)
   const boxCount = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM boxes');
   if ((boxCount?.n ?? 0) === 0) {
-    const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', ['ボックス']);
+    const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', ['Box']);
     await db.runAsync(
       'INSERT INTO app_settings (key, value) VALUES (?, ?)'
       + ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
@@ -68,7 +72,7 @@ export async function initDB(): Promise<void> {
   }
 
   type SeedRow = {
-    brand: string; series: string; code: string;
+    brand: string; series: string; series_en: string | null; code: string;
     name_ja: string; name_en: string | null; hex: string | null;
     rgb_r: number | null; rgb_g: number | null; rgb_b: number | null;
     lab_l: number | null; lab_a: number | null; lab_b: number | null;
@@ -88,15 +92,15 @@ export async function initDB(): Promise<void> {
     for (const p of seed) {
       await db.runAsync(
         'INSERT INTO catalog_paints' +
-        ' (brand,series,code,name_ja,name_en,hex,r,g,b,l,a_star,b_star,barcode,gloss,paint_type,source)' +
-        ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)' +
+        ' (brand,series,series_en,code,name_ja,name_en,hex,r,g,b,l,a_star,b_star,barcode,gloss,paint_type,source)' +
+        ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)' +
         ' ON CONFLICT(code) DO UPDATE SET' +
-        '  brand=excluded.brand, series=excluded.series,' +
+        '  brand=excluded.brand, series=excluded.series, series_en=excluded.series_en,' +
         '  name_ja=excluded.name_ja, name_en=excluded.name_en, hex=excluded.hex,' +
         '  r=excluded.r, g=excluded.g, b=excluded.b,' +
         '  l=excluded.l, a_star=excluded.a_star, b_star=excluded.b_star,' +
         '  gloss=excluded.gloss, paint_type=excluded.paint_type, source=excluded.source',
-        [p.brand, p.series, p.code, p.name_ja, p.name_en, p.hex,
+        [p.brand, p.series, p.series_en, p.code, p.name_ja, p.name_en, p.hex,
          p.rgb_r, p.rgb_g, p.rgb_b, p.lab_l, p.lab_a, p.lab_b, p.barcode ?? null, p.gloss ?? null, p.paint_type ?? null, 'catalog']
       );
     }

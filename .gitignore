@@ -43,6 +43,9 @@ data/
 # npm cache override
 .npm-cache/
 
+# scratch working files
+tmp/
+
 # python
 __pycache__/
 

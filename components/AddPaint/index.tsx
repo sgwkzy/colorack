@@ -5,6 +5,7 @@ import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { getDB, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
+import { paintName } from '../../lib/paintLabel';
 import TextSearch from './TextSearch';
 import HierarchyBrowser from './HierarchyBrowser';
 import ColorMatcher from './ColorMatcher';
@@ -13,7 +14,7 @@ import ManualEntry from './ManualEntry';
 interface Paint {
   id: number;
   name_ja: string;
-  name_en: string;
+  name_en: string | null;
   brand: string;
   hex: string;
 }
@@ -49,7 +50,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
         [paint.id, opts?.status ?? defaultStatus, opts?.boxId !== undefined ? opts.boxId : boxId]
       );
     }
-    setToast(paint.name_ja + t('addedToast'));
+    setToast(paintName(paint.name_ja, paint.name_en) + t('addedToast'));
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 1800);
   };

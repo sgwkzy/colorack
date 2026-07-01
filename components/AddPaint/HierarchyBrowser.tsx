@@ -7,16 +7,18 @@ import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { glossLabel } from '../../lib/gloss';
+import { paintName, seriesLabel } from '../../lib/paintLabel';
 import TypeIcon from '../TypeIcon';
 import SwipeBack from '../SwipeBack';
 
 interface Paint {
   id: number;
   name_ja: string;
-  name_en: string;
+  name_en: string | null;
   code: string;
   brand: string;
   series: string;
+  series_en: string | null;
   hex: string;
   gloss: string | null;
   paint_type: string | null;
@@ -32,7 +34,7 @@ const ALL = 'ALL';
 export default function HierarchyBrowser({ onSelect }: Props) {
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
-  const [seriesList, setSeriesList] = useState<string[]>([]);
+  const [seriesList, setSeriesList] = useState<{ series: string; series_en: string | null }[]>([]);
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
   const [paints, setPaints] = useState<Paint[]>([]);
   const [nameFilter, setNameFilter] = useState('');
@@ -49,7 +51,7 @@ export default function HierarchyBrowser({ onSelect }: Props) {
     const args: string[] = [];
     if (brand !== ALL) { where.push('brand = ?'); args.push(brand); }
     if (series !== ALL) { where.push('series = ?'); args.push(series); }
-    const sql = 'SELECT id, name_ja, name_en, code, brand, series, hex, gloss, paint_type FROM catalog_paints'
+    const sql = 'SELECT id, name_ja, name_en, code, brand, series, series_en, hex, gloss, paint_type FROM catalog_paints'
       + (where.length ? ' WHERE ' + where.join(' AND ') : '')
       + ' ORDER BY name_ja';
     setPaints(await getDB().getAllAsync<Paint>(sql, args));
@@ -61,11 +63,11 @@ export default function HierarchyBrowser({ onSelect }: Props) {
     setPaints([]);
     if (brand === ALL) { setSelectedSeries(ALL); loadPaints(ALL, ALL); return; }
     setSelectedSeries(null);
-    const rows = await getDB().getAllAsync<{ series: string }>(
-      'SELECT DISTINCT series FROM catalog_paints WHERE brand = ? ORDER BY series',
+    const rows = await getDB().getAllAsync<{ series: string; series_en: string | null }>(
+      'SELECT series, MAX(series_en) AS series_en FROM catalog_paints WHERE brand = ? GROUP BY series ORDER BY series',
       [brand]
     );
-    setSeriesList(rows.map((r) => r.series));
+    setSeriesList(rows);
   };
 
   const selectSeries = (series: string) => {
@@ -110,11 +112,11 @@ export default function HierarchyBrowser({ onSelect }: Props) {
             <Text style={styles.backText}>‹ {brandLabel(selectedBrand)}</Text>
           </TouchableOpacity>
           <FlatList
-            data={[ALL, ...seriesList]}
-            keyExtractor={(s) => s}
+            data={[{ series: ALL, series_en: null }, ...seriesList]}
+            keyExtractor={(s) => s.series}
             renderItem={({ item }) => (
-              <TouchableOpacity style={[styles.item, item === ALL && styles.allItem]} onPress={() => selectSeries(item)}>
-                <Text style={[styles.itemText, item === ALL && styles.allText]}>{item === ALL ? t('all') : item}</Text>
+              <TouchableOpacity style={[styles.item, item.series === ALL && styles.allItem]} onPress={() => selectSeries(item.series)}>
+                <Text style={[styles.itemText, item.series === ALL && styles.allText]}>{item.series === ALL ? t('all') : seriesLabel(item.series, item.series_en)}</Text>
                 <Text style={styles.arrow}>›</Text>
               </TouchableOpacity>
             )}
@@ -128,7 +130,7 @@ export default function HierarchyBrowser({ onSelect }: Props) {
     <SwipeBack enabled onBack={backFromPaints}>
     <View style={styles.container}>
       <TouchableOpacity style={styles.back} onPress={backFromPaints}>
-        <Text style={styles.backText}>‹ {selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : selectedSeries}</Text>
+        <Text style={styles.backText}>‹ {selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries, paints.find((p) => p.series === selectedSeries)?.series_en)}</Text>
       </TouchableOpacity>
       <ClearableInput
         style={styles.filterInput}
@@ -144,7 +146,7 @@ export default function HierarchyBrowser({ onSelect }: Props) {
         renderItem={({ item }) => (
           <View style={[styles.item, { borderLeftColor: item.hex, borderLeftWidth: 8 }]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{item.name_ja}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}</Text>
+              <Text style={styles.name}>{paintName(item.name_ja, item.name_en)}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}</Text>
               <View style={styles.subRow}>
                 <TypeIcon paintType={item.paint_type} />
                 <Text style={styles.sub}>{brandLabel(item.brand)}{item.gloss ? ` · ${glossLabel(item.gloss)}` : ''}</Text>

@@ -8,6 +8,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { t } from '../lib/i18n';
 import { brandLabel } from '../lib/brands';
 import { glossLabel } from '../lib/gloss';
+import { seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
 
 export interface PaintFilter {
@@ -21,7 +22,7 @@ export interface PaintFilter {
 interface Props {
   visible: boolean;
   // 絞り込み候補(所有塗料の brand/series/gloss/paint_type 組)
-  options: { brand: string; series: string; gloss: string | null; paint_type: string | null }[];
+  options: { brand: string; series: string; series_en?: string | null; gloss: string | null; paint_type: string | null }[];
   initial: PaintFilter;
   onApply: (f: PaintFilter) => void;
   onClose: () => void;
@@ -55,6 +56,13 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
     const rel = options.filter((o) => brands.length === 0 || brands.includes(o.brand));
     return Array.from(new Set(rel.map((o) => o.series).filter(Boolean))).sort();
   }, [options, brands]);
+  const seriesNames = useMemo(() => {
+    const names = new Map<string, string | null | undefined>();
+    options.forEach((o) => {
+      if (o.series && !names.has(o.series)) names.set(o.series, o.series_en);
+    });
+    return names;
+  }, [options]);
   const glossOptions = useMemo(
     () => Array.from(new Set(options.map((o) => o.gloss).filter((g): g is string => !!g))).sort(),
     [options]
@@ -126,7 +134,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
             <View style={styles.checkList}>
               {seriesOptions.length === 0
                 ? <Text style={styles.emptyOpt}>{t('noResults')}</Text>
-                : seriesOptions.map((s) => checkRow(s, s, series.includes(s), () => toggle(series, s, setSeries)))}
+                : seriesOptions.map((s) => checkRow(s, seriesLabel(s, seriesNames.get(s)), series.includes(s), () => toggle(series, s, setSeries)))}
             </View>
           )}
 

@@ -133,6 +133,17 @@ def connect(db_path: Path) -> sqlite3.Connection:
         );
         CREATE INDEX IF NOT EXISTS idx_official_products_brand ON official_products(brand);
         CREATE INDEX IF NOT EXISTS idx_official_products_product_no ON official_products(product_no);
+        CREATE TABLE IF NOT EXISTS official_series (
+          brand TEXT NOT NULL,
+          series_ja TEXT NOT NULL,
+          series_en TEXT,
+          source TEXT,
+          review_note TEXT,
+          product_count INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (brand, series_ja)
+        );
+        CREATE INDEX IF NOT EXISTS idx_official_series_brand ON official_series(brand);
         """
     )
     try:
@@ -1168,6 +1179,23 @@ def load_gsi_csv_lineup(filename: str) -> list[tuple[str, str | None, str | None
     return [row for row in rows if row[0]]
 
 
+def load_gsi_ocr_review_map(filename: str) -> dict[str, tuple[str | None, str | None]]:
+    path = ROOT / "data" / filename
+    if not path.exists():
+        return {}
+    rows = {}
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            item_code = row.get("item_code", "").strip()
+            if not item_code:
+                continue
+            rows[item_code] = (
+                row.get("ocr_name_ja", "").strip() or None,
+                row.get("ocr_gloss", "").strip() or None,
+            )
+    return rows
+
+
 def gsi_product_page_title(text: str) -> str | None:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     for i, line in enumerate(lines):
@@ -1186,11 +1214,27 @@ def split_gsi_creos_products(source: Source, url: str, body: str, text: str) -> 
     lineup = GSI_DETAIL_LINEUPS.get(parsed_path)
     if parsed_path == "/ja/products/detail/35":
         lineup = load_gsi_csv_lineup("gsi_detail_35_review.csv")
+    elif parsed_path == "/ja/products/detail/110":
+        lineup = load_gsi_csv_lineup("gsi_detail_110_review.csv")
+    elif parsed_path == "/ja/products/detail/1" and lineup:
+        ocr_review = load_gsi_ocr_review_map("gsi_detail_1_ocr_review.csv")
+        lineup = [
+            (
+                product_no,
+                ocr_review.get(product_no, (name_ja, None))[0] or name_ja,
+                color_hex,
+                capacity,
+                price_text,
+                ocr_review.get(product_no, (None, gloss))[1] or gloss,
+            )
+            for product_no, name_ja, color_hex, *rest in lineup
+            for capacity, price_text, gloss in [tuple(rest + [None, None, None])[:3]]
+        ]
     if not lineup:
         return []
 
     series = gsi_product_page_title(text) or "Mr.カラーGX"
-    paint_type = find_first([r"^((?:溶剤系|水溶性)アクリル樹脂塗料)$"], text)
+    paint_type = find_first([r"^((?:溶剤系|水溶性)アクリル樹脂塗料|エマルジョン系水性塗料)$"], text)
     if not paint_type and "Mr.カラー" in series:
         paint_type = "溶剤系アクリル樹脂塗料"
     price_text = find_first([r"価格(?:（税込み）)?\s*[:：]\s*([0-9０-９,，]+\s*円)"], text)
@@ -1203,10 +1247,14 @@ def split_gsi_creos_products(source: Source, url: str, body: str, text: str) -> 
     products: list[dict[str, object]] = []
     for entry in lineup:
         product_no, name_ja, color_hex = entry[:3]
-        item_capacity = entry[3] if len(entry) > 3 else capacity
-        item_price_text = entry[4] if len(entry) > 4 else price_text
+        item_capacity = (entry[3] if len(entry) > 3 else None) or capacity
+        item_price_text = (entry[4] if len(entry) > 4 else None) or price_text
         item_price_jpy, item_tax_included = parse_price(item_price_text)
-        item_gloss = entry[5] if len(entry) > 5 else None if parsed_path == "/ja/products/detail/1" else "光沢"
+        item_gloss = (
+            entry[5]
+            if len(entry) > 5 and entry[5]
+            else None if parsed_path == "/ja/products/detail/1" else "光沢"
+        )
         products.append(
             {
                 "brand": source.brand,
