@@ -1,0 +1,80 @@
+{
+  "sources": [
+    {
+      "brand": "gsi_creos",
+      "brand_prefix": "GSI",
+      "start_urls": [
+        "https://www.mr-hobby.com/ja/products/category/1",
+        "https://www.mr-hobby.com/ja/products/category/10"
+      ],
+      "allowed_hosts": ["www.mr-hobby.com", "mr-hobby.com"],
+      "include_url_patterns": ["/ja/products/category/", "/ja/products/detail/"],
+      "max_depth": 2
+    },
+    {
+      "brand": "gaianotes",
+      "brand_prefix": "GAIA",
+      "start_urls": [
+        "https://www.gaianotes.com/products/"
+      ],
+      "allowed_hosts": ["www.gaianotes.com", "gaianotes.com"],
+      "include_url_patterns": ["/products/"],
+      "max_depth": 1
+    },
+    {
+      "brand": "finishers",
+      "brand_prefix": "FIN",
+      "start_urls": [
+        "https://finishers.shop-pro.jp/?mode=grp&gid=2711499&sort=n"
+      ],
+      "allowed_hosts": ["finishers.shop-pro.jp"],
+      "include_url_patterns": ["mode=grp&gid=2711499", "pid="],
+      "max_depth": 3
+    },
+    {
+      "brand": "bornpaint",
+      "brand_prefix": "BORN",
+      "start_urls": [
+        "https://bornpaint.jp/product/"
+      ],
+      "allowed_hosts": ["bornpaint.jp"],
+      "include_url_patterns": ["/product/"],
+      "max_depth": 3
+    },
+    {
+      "brand": "vallejo",
+      "brand_prefix": "VAL",
+      "start_urls": [
+        "https://hobby.volks.co.jp/brand/vallejo/modelcolor.html"
+      ],
+      "allowed_hosts": ["hobby.volks.co.jp"],
+      "include_url_patterns": ["/brand/vallejo/modelcolor.html"],
+      "max_depth": 0
+    },
+    {
+      "brand": "tamiya",
+      "brand_prefix": "TAMIYA",
+      "start_urls": [
+        "https://www.tamiya.com/japan/products/list.html?genre_item=504005",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504005&absolutepage=2",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504005&absolutepage=3",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504005&absolutepage=4",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504005&absolutepage=5",
+        "https://www.tamiya.com/japan/products/list.html?genre_item=504010",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504010&absolutepage=2",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504010&absolutepage=3",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504010&absolutepage=4",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504010&absolutepage=5",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504010&absolutepage=6",
+        "https://www.tamiya.com/japan/products/list.html?genre_item=504020",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=2",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=3",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=4",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=5"
+      ],
+      "allowed_hosts": ["www.tamiya.com", "tamiya.com"],
+      "include_url_patterns": ["genre_item=504005", "genre_item=504010", "genre_item=504020"],
+      "max_depth": 0
+    }
+  ]
+}

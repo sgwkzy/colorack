@@ -1,0 +1,220 @@
+// app/(tabs)/catalog.tsx
+// 全塗料をブランド→シリーズ→塗料と階層で閲覧。手動追加(source='manual')だけ
+// 編集/削除でき、公式カタログは読み取り専用。右下FABで新規追加。
+import { useCallback, useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { IconPlus, IconTrash, IconChevronLeft } from '@tabler/icons-react-native';
+import { useFocusEffect } from 'expo-router';
+import { getDB } from '../../lib/db';
+import { t, useLocale } from '../../lib/i18n';
+import { brandLabel } from '../../lib/brands';
+import { glossLabel } from '../../lib/gloss';
+import TypeIcon from '../../components/TypeIcon';
+import AdBanner from '../../components/AdBanner';
+import ClearableInput from '../../components/ClearableInput';
+import PaintFormModal, { EditablePaint } from '../../components/PaintFormModal';
+import SwipeBack from '../../components/SwipeBack';
+
+interface Paint extends EditablePaint { source: string | null; }
+
+// 階層を横断して「すべて」を表す番兵。
+const ALL = 'ALL';
+
+export default function CatalogScreen() {
+  useLocale();
+  const [brands, setBrands] = useState<string[]>([]);
+  const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
+  const [seriesList, setSeriesList] = useState<string[]>([]);
+  const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
+  const [paints, setPaints] = useState<Paint[]>([]);
+  const [nameFilter, setNameFilter] = useState('');
+  const [editing, setEditing] = useState<EditablePaint | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  const loadBrands = useCallback(async () => {
+    const db = getDB();
+    const rows = await db.getAllAsync<{ brand: string }>('SELECT DISTINCT brand FROM catalog_paints ORDER BY brand');
+    setBrands(rows.map((r) => r.brand));
+  }, []);
+
+  const loadSeries = useCallback(async (brand: string) => {
+    const db = getDB();
+    const rows = await db.getAllAsync<{ series: string }>('SELECT DISTINCT series FROM catalog_paints WHERE brand = ? ORDER BY series', [brand]);
+    setSeriesList(rows.map((r) => r.series));
+  }, []);
+
+  const loadPaints = useCallback(async (brand: string, series: string) => {
+    const db = getDB();
+    const where: string[] = [];
+    const args: string[] = [];
+    if (brand !== ALL) { where.push('brand = ?'); args.push(brand); }
+    if (series !== ALL) { where.push('series = ?'); args.push(series); }
+    const sql = 'SELECT id, name_ja, brand, series, code, hex, gloss, paint_type, source FROM catalog_paints'
+      + (where.length ? ' WHERE ' + where.join(' AND ') : '')
+      + ' ORDER BY name_ja';
+    setPaints(await db.getAllAsync<Paint>(sql, args));
+  }, []);
+
+  // フォーカス時は現在の階層を再取得(追加/編集の反映)。
+  const reload = useCallback(() => {
+    if (selectedBrand && selectedSeries) loadPaints(selectedBrand, selectedSeries);
+    else if (selectedBrand) loadSeries(selectedBrand);
+    else loadBrands();
+  }, [selectedBrand, selectedSeries, loadBrands, loadSeries, loadPaints]);
+
+  useFocusEffect(useCallback(() => { reload(); }, [reload]));
+
+  const openBrand = (b: string) => {
+    setSelectedBrand(b); setPaints([]);
+    if (b === ALL) { setSelectedSeries(ALL); setNameFilter(''); loadPaints(ALL, ALL); return; }
+    setSelectedSeries(null); loadSeries(b);
+  };
+  const openSeries = (s: string) => { setSelectedSeries(s); setNameFilter(''); loadPaints(selectedBrand!, s); };
+  const backFromPaints = () => {
+    if (selectedBrand === ALL) { setSelectedBrand(null); setSelectedSeries(null); }
+    else setSelectedSeries(null);
+  };
+  const openNew = () => { setEditing(null); setShowForm(true); };
+  const openEdit = (p: Paint) => {
+    if (p.source !== 'manual') return; // 公式カタログは編集不可
+    setEditing(p); setShowForm(true);
+  };
+
+  const remove = (p: Paint) => {
+    Alert.alert(p.name_ja, t('deletePaintConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'), style: 'destructive',
+        onPress: async () => {
+          const db = getDB();
+          await db.runAsync('DELETE FROM inventory WHERE paint_id = ?', [p.id]);
+          await db.runAsync('DELETE FROM lists WHERE paint_id = ?', [p.id]);
+          await db.runAsync('DELETE FROM catalog_paints WHERE id = ?', [p.id]);
+          loadPaints(selectedBrand!, selectedSeries!);
+        },
+      },
+    ]);
+  };
+
+  const fab = (
+    <>
+      <TouchableOpacity style={styles.fab} onPress={openNew}>
+        <IconPlus color="#fff" size={28} />
+      </TouchableOpacity>
+      <PaintFormModal visible={showForm} paint={editing} onClose={() => setShowForm(false)} onSaved={reload} />
+    </>
+  );
+
+  // --- ブランド一覧 ---
+  if (!selectedBrand) {
+    return (
+      <View style={styles.container}>
+        <FlatList
+          data={[ALL, ...brands]}
+          keyExtractor={(b) => b || '(none)'}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={[styles.navItem, item === ALL && styles.allItem]} onPress={() => openBrand(item)}>
+              <Text style={[styles.navText, item === ALL && styles.allText]}>{item === ALL ? t('all') : brandLabel(item)}</Text>
+              <Text style={styles.arrow}>›</Text>
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
+          ListFooterComponent={<AdBanner />}
+        />
+        {fab}
+      </View>
+    );
+  }
+
+  // --- シリーズ一覧 ---
+  if (!selectedSeries) {
+    return (
+      <SwipeBack enabled onBack={() => setSelectedBrand(null)}>
+        <View style={styles.container}>
+          <TouchableOpacity style={styles.back} onPress={() => setSelectedBrand(null)}>
+            <IconChevronLeft color="#4a90d9" size={18} />
+            <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
+          </TouchableOpacity>
+          <FlatList
+            data={[ALL, ...seriesList]}
+            keyExtractor={(s) => s || '(none)'}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={[styles.navItem, item === ALL && styles.allItem]} onPress={() => openSeries(item)}>
+                <Text style={[styles.navText, item === ALL && styles.allText]}>{item === ALL ? t('all') : (item || '—')}</Text>
+                <Text style={styles.arrow}>›</Text>
+              </TouchableOpacity>
+            )}
+            ListFooterComponent={<AdBanner />}
+          />
+          {fab}
+        </View>
+      </SwipeBack>
+    );
+  }
+
+  // --- 塗料一覧 ---
+  const q = nameFilter.trim().toLowerCase();
+  const shown = q ? paints.filter((p) => p.name_ja.toLowerCase().includes(q) || (p.code ?? '').toLowerCase().includes(q)) : paints;
+  return (
+    <SwipeBack enabled onBack={backFromPaints}>
+    <View style={styles.container}>
+      <TouchableOpacity style={styles.back} onPress={backFromPaints}>
+        <IconChevronLeft color="#4a90d9" size={18} />
+        <Text style={styles.backText}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : (selectedSeries || '—')}</Text>
+      </TouchableOpacity>
+      <ClearableInput style={styles.filterInput} placeholder={t('colorName')} value={nameFilter} onChangeText={setNameFilter} />
+      <FlatList
+        data={shown}
+        keyExtractor={(p) => String(p.id)}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        renderItem={({ item }) => {
+          const manual = item.source === 'manual';
+          return (
+            <TouchableOpacity
+              style={[styles.row, { borderLeftColor: item.hex ?? 'transparent', borderLeftWidth: 8 }]}
+              onPress={() => openEdit(item)}
+              disabled={!manual}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.name}>{item.name_ja}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}</Text>
+                <View style={styles.subRow}>
+                  <TypeIcon paintType={item.paint_type} />
+                  <Text style={styles.sub}>{brandLabel(item.brand)}{item.gloss ? ` · ${glossLabel(item.gloss)}` : ''}</Text>
+                </View>
+              </View>
+              {manual ? (
+                <TouchableOpacity style={styles.delBtn} onPress={() => remove(item)} hitSlop={8}>
+                  <IconTrash color="#e74c3c" size={22} />
+                </TouchableOpacity>
+              ) : null}
+            </TouchableOpacity>
+          );
+        }}
+        ListFooterComponent={<AdBanner />}
+      />
+      {fab}
+    </View>
+    </SwipeBack>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  navItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  allItem: { backgroundColor: '#eef4fb' },
+  navText: { flex: 1, fontSize: 16 },
+  allText: { color: '#4a90d9', fontWeight: 'bold' },
+  arrow: { fontSize: 18, color: '#999' },
+  back: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8, backgroundColor: '#f5f5f5' },
+  backText: { fontSize: 15, color: '#4a90d9' },
+  filterInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, margin: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
+  name: { fontSize: 16 },
+  code: { fontSize: 12, color: '#999', fontWeight: 'normal' },
+  subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  sub: { fontSize: 12, color: '#666' },
+  delBtn: { padding: 8, marginLeft: 8 },
+  empty: { textAlign: 'center', marginTop: 40, color: '#999' },
+  fab: { position: 'absolute', right: 24, bottom: 24, width: 56, height: 56, borderRadius: 28, backgroundColor: '#4a90d9', alignItems: 'center', justifyContent: 'center' },
+});

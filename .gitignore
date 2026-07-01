@@ -31,7 +31,20 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# generated catalog crawl data
+data/
+
+# backup files
+*.bak.*
+
+# npm cache override
+.npm-cache/
+
+# python
+__pycache__/
 
 # typescript
 *.tsbuildinfo

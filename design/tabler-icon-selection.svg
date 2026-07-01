@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620">
+  <defs>
+    <style>
+      .bg { fill: #fbfcfd; }
+      .title { font: 650 28px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #111827; }
+      .label { font: 650 17px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #111827; }
+      .caption { font: 450 14px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #667085; }
+      .cell { fill: #fff; stroke: #e4e7ec; stroke-width: 1; rx: 8; }
+      .selected { fill: #fff; stroke: #344054; stroke-width: 2; rx: 8; }
+    </style>
+  </defs>
+  <rect class="bg" width="1100" height="620"/>
+  <text class="title" x="56" y="58">Tabler icon selection for Paint Manager</text>
+  <text class="caption" x="56" y="86">Recommended set uses Tabler's restrained outline style. Source SVG files are saved under design/tabler-candidates and design/tabler-selected.</text>
+
+  <text class="label" x="56" y="142">Recommended set</text>
+  <g transform="translate(56 166)">
+    <g>
+      <rect class="selected" width="170" height="150"/>
+      <image href="tabler-selected/owned-box.svg" x="61" y="34" width="48" height="48"/>
+      <text class="label" x="85" y="112" text-anchor="middle">Owned</text>
+      <text class="caption" x="85" y="132" text-anchor="middle">box</text>
+    </g>
+    <g transform="translate(210 0)">
+      <rect class="selected" width="170" height="150"/>
+      <image href="tabler-selected/favorites-heart.svg" x="61" y="34" width="48" height="48"/>
+      <text class="label" x="85" y="112" text-anchor="middle">Favorites</text>
+      <text class="caption" x="85" y="132" text-anchor="middle">heart</text>
+    </g>
+    <g transform="translate(420 0)">
+      <rect class="selected" width="170" height="150"/>
+      <image href="tabler-selected/wishlist-shopping-cart-plus.svg" x="61" y="34" width="48" height="48"/>
+      <text class="label" x="85" y="112" text-anchor="middle">Wishlist</text>
+      <text class="caption" x="85" y="132" text-anchor="middle">shopping-cart-plus</text>
+    </g>
+    <g transform="translate(630 0)">
+      <rect class="selected" width="170" height="150"/>
+      <image href="tabler-selected/settings.svg" x="61" y="34" width="48" height="48"/>
+      <text class="label" x="85" y="112" text-anchor="middle">Settings</text>
+      <text class="caption" x="85" y="132" text-anchor="middle">settings</text>
+    </g>
+  </g>
+
+  <text class="label" x="56" y="380">Alternatives worth considering</text>
+  <g transform="translate(56 404)">
+    <g>
+      <rect class="cell" width="140" height="130"/>
+      <image href="tabler-candidates/box.svg" x="46" y="28" width="48" height="48"/>
+      <text class="caption" x="70" y="105" text-anchor="middle">box</text>
+    </g>
+    <g transform="translate(165 0)">
+      <rect class="cell" width="140" height="130"/>
+      <image href="tabler-candidates/archive.svg" x="46" y="28" width="48" height="48"/>
+      <text class="caption" x="70" y="105" text-anchor="middle">archive</text>
+    </g>
+    <g transform="translate(330 0)">
+      <rect class="cell" width="140" height="130"/>
+      <image href="tabler-candidates/tools.svg" x="46" y="28" width="48" height="48"/>
+      <text class="caption" x="70" y="105" text-anchor="middle">tools</text>
+    </g>
+    <g transform="translate(495 0)">
+      <rect class="cell" width="140" height="130"/>
+      <image href="tabler-candidates/basket-plus.svg" x="46" y="28" width="48" height="48"/>
+      <text class="caption" x="70" y="105" text-anchor="middle">basket-plus</text>
+    </g>
+    <g transform="translate(660 0)">
+      <rect class="cell" width="140" height="130"/>
+      <image href="tabler-candidates/shopping-bag-plus.svg" x="46" y="28" width="48" height="48"/>
+      <text class="caption" x="70" y="105" text-anchor="middle">shopping-bag-plus</text>
+    </g>
+    <g transform="translate(825 0)">
+      <rect class="cell" width="140" height="130"/>
+      <image href="tabler-candidates/adjustments-horizontal.svg" x="46" y="28" width="48" height="48"/>
+      <text class="caption" x="70" y="105" text-anchor="middle">adjustments</text>
+    </g>
+  </g>
+</svg>

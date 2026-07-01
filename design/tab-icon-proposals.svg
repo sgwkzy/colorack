@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <defs>
+    <style>
+      .bg { fill: #fbfcfd; }
+      .title { font: 650 28px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #111827; }
+      .label { font: 650 18px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #111827; }
+      .caption { font: 450 14px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #667085; }
+      .cell { fill: #fff; stroke: #e4e7ec; stroke-width: 1; rx: 8; }
+      .icon { fill: none; stroke: #344054; stroke-width: 4.25; stroke-linecap: round; stroke-linejoin: round; }
+      .thin { fill: none; stroke: #667085; stroke-width: 3.25; stroke-linecap: round; stroke-linejoin: round; }
+      .fill { fill: #344054; }
+      .muted { fill: #f2f4f7; stroke: #344054; stroke-width: 4.25; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1200" height="720"/>
+  <text class="title" x="56" y="58">Paint Manager tab icons - restrained directions</text>
+  <text class="caption" x="56" y="84">No color accents, no glossy shapes. Designed to work as 24px tab icons.</text>
+
+  <text class="label" x="56" y="138">A. Inventory UI</text>
+  <text class="caption" x="56" y="162">道具箱というより「管理アプリ」の記号に寄せた、最も無難な案</text>
+
+  <text class="label" x="56" y="338">B. Paint Catalog</text>
+  <text class="caption" x="56" y="362">塗料ボトルを共通モチーフにして、Paint Manager らしさを出す案</text>
+
+  <text class="label" x="56" y="538">C. Minimal Tooling</text>
+  <text class="caption" x="56" y="562">模型・塗装道具のニュアンスを残しつつ、タブとして硬めにまとめる案</text>
+
+  <g transform="translate(260 108)">
+    <g transform="translate(0 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Owned</text>
+      <g transform="translate(48 27)">
+        <path class="icon" d="M10 31h64v49H10z"/>
+        <path class="icon" d="M24 31V18h36v13"/>
+        <path class="thin" d="M27 49h30M27 63h20"/>
+      </g>
+    </g>
+    <g transform="translate(210 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Favorites</text>
+      <g transform="translate(48 25)">
+        <path class="icon" d="M42 79s-29-18-29-42c0-12 9-20 20-20 6 0 11 3 15 8 4-5 9-8 15-8 11 0 20 8 20 20 0 24-41 42-41 42z"/>
+      </g>
+    </g>
+    <g transform="translate(420 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Wishlist</text>
+      <g transform="translate(49 25)">
+        <path class="icon" d="M13 21h11l8 46h38"/>
+        <path class="icon" d="M31 31h42l-6 25H35"/>
+        <circle class="fill" cx="38" cy="79" r="4"/>
+        <circle class="fill" cx="65" cy="79" r="4"/>
+        <path class="thin" d="M56 15v16M48 23h16"/>
+      </g>
+    </g>
+    <g transform="translate(630 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Settings</text>
+      <g transform="translate(48 24)">
+        <path class="icon" d="M42 11l6 9 11-1 5 11-8 7 2 11-10 6-9-6-9 6-10-6 2-11-8-7 5-11 11 1z"/>
+        <circle class="icon" cx="39" cy="36" r="10"/>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(260 308)">
+    <g transform="translate(0 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Owned</text>
+      <g transform="translate(55 19)">
+        <path class="icon" d="M21 20h35l5 14v50H16V34z"/>
+        <path class="icon" d="M27 20V9h24v11"/>
+        <path class="thin" d="M25 45h27M25 59h27"/>
+      </g>
+    </g>
+    <g transform="translate(210 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Favorites</text>
+      <g transform="translate(55 19)">
+        <path class="icon" d="M21 20h35l5 14v50H16V34z"/>
+        <path class="icon" d="M27 20V9h24v11"/>
+        <path class="thin" d="M39 70s-13-8-13-20c0-6 4-10 10-10 3 0 6 2 8 4 2-2 5-4 8-4 6 0 10 4 10 10 0 12-23 20-23 20z"/>
+      </g>
+    </g>
+    <g transform="translate(420 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Wishlist</text>
+      <g transform="translate(55 19)">
+        <path class="icon" d="M21 20h35l5 14v50H16V34z"/>
+        <path class="icon" d="M27 20V9h24v11"/>
+        <path class="thin" d="M39 42v24M27 54h24"/>
+      </g>
+    </g>
+    <g transform="translate(630 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Settings</text>
+      <g transform="translate(55 19)">
+        <path class="icon" d="M21 20h35l5 14v50H16V34z"/>
+        <path class="icon" d="M27 20V9h24v11"/>
+        <path class="thin" d="M39 43l4 6 7-1 3 7-5 5 1 7-7 4-6-4-6 4-7-4 1-7-5-5 3-7 7 1z"/>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(260 508)">
+    <g transform="translate(0 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Owned</text>
+      <g transform="translate(48 26)">
+        <path class="icon" d="M11 33h63l-7 45H18z"/>
+        <path class="icon" d="M25 33V20h35v13"/>
+        <path class="thin" d="M27 49h31"/>
+      </g>
+    </g>
+    <g transform="translate(210 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Favorites</text>
+      <g transform="translate(47 23)">
+        <path class="icon" d="M17 77l46-46"/>
+        <path class="icon" d="M54 20l20 20"/>
+        <path class="thin" d="M33 76s-19-12-19-28c0-8 6-13 13-13 4 0 8 2 11 5 3-3 7-5 11-5 7 0 13 5 13 13 0 16-29 28-29 28z"/>
+      </g>
+    </g>
+    <g transform="translate(420 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Wishlist</text>
+      <g transform="translate(51 22)">
+        <path class="icon" d="M17 23h49v47H17z"/>
+        <path class="icon" d="M17 35h49"/>
+        <path class="icon" d="M29 23v-9h25v9"/>
+        <path class="thin" d="M41 45v16M33 53h16"/>
+      </g>
+    </g>
+    <g transform="translate(630 0)">
+      <rect class="cell" width="170" height="150"/>
+      <text class="caption" x="85" y="128" text-anchor="middle">Settings</text>
+      <g transform="translate(47 23)">
+        <path class="icon" d="M18 78l46-46"/>
+        <path class="icon" d="M54 21l19 19"/>
+        <circle class="icon" cx="30" cy="30" r="15"/>
+        <path class="thin" d="M30 22v16M22 30h16"/>
+      </g>
+    </g>
+  </g>
+</svg>
