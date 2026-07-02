@@ -1,6 +1,6 @@
 # Colorack
 
-模型塗料の在庫を管理する Expo (React Native) 製の iOS アプリ。
+模型塗料の在庫を管理する Expo (React Native) 製の iOS / Android アプリ。
 
 ## 主な機能
 
@@ -49,6 +49,12 @@ python scripts/generate_seed_catalog.py    # official_catalog.sqlite3 から ass
 
 シード内容を変更したら `lib/db.ts` の `SEED_VERSION` を上げてください(既存端末でも再シードされます)。
 
+`catalog_paints` の内部一意キーは `catalog_code`(= `brand|series|code`)。品番(`code`)は
+ブランドをまたいで重複する上、同一ブランド内でもシリーズをまたいで再利用される
+(例: タミヤ `X-1` はエナメル/アクリルミニ両方に存在)ため、表示用の `code` 単体では
+一意にならない。手動登録・編集フォームも `catalogCode()` で同じキーを書き込んでおり、
+重複時は UNIQUE 制約違反を「同じブランド内に同じ品番が既に登録されています」として表示する。
+
 ## ディレクトリ構成
 
 - `app/` — expo-router の画面(タブ: 保管箱/お気に入り/買い物リスト/設定)
@@ -56,3 +62,26 @@ python scripts/generate_seed_catalog.py    # official_catalog.sqlite3 から ass
 - `lib/` — DB(`db.ts`)、色変換(`color.ts`)、i18n(`i18n.ts`)、ラベル表示ヘルパー
 - `scripts/` — カタログクロール・シード生成用の Python スクリプト
 - `data/` — クロール生成物(git管理外)
+- `docs/privacy.html` — ストア掲載用プライバシーポリシー(GitHub Pagesで公開: https://sgwkzy.github.io/colorack/privacy.html)
+
+## Android ビルド・ストア公開
+
+パッケージ名・AdMob ID は `.env`(git管理外)で管理し、`app.config.js` が読み込む。
+EAS のクラウドビルドはローカルの `.env` を見ないため、同じ値を EAS 側にも登録済み
+(`eas env:create --scope project ...`、environment=production)。
+
+```powershell
+. $PROFILE; $env:Path = "$env:APPDATA\npm;$env:Path"
+npx eas-cli build --platform android --profile production --non-interactive
+```
+
+`eas.json` の `cli.appVersionSource` は `local` とし、`app.config.js` の
+`android.versionCode` を手動でインクリメントする運用(EAS のリモート自動採番は
+対話コマンドが必須で自動化しづらいため見送った)。ビルドごとに `versionCode` を
+1つ上げてから実行すること。
+
+ストア掲載アセット(`assets/store-icon-512.png` / `assets/store-feature-graphic.png`)は
+`assets/icon.png` から生成したもの。
+
+Google Play は個人開発者アカウントに「クローズドテストを12人以上・14日間」の
+実施を義務付けており、これを満たすまで本番トラックへは公開できない。
