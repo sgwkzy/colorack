@@ -1,10 +1,10 @@
-import { Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconCamera } from '@tabler/icons-react-native';
 import { glossLabel } from '../lib/gloss';
 import { t } from '../lib/i18n';
 import { paintTypeLabel } from '../lib/paintType';
-import { colors, radius, spacing, touch } from '../lib/theme';
+import { useTheme, lightColors, radius, spacing, touch } from '../lib/theme';
 import ClearableInput from './ClearableInput';
 
 export const TYPE_OPTIONS = ['ラッカー塗料', '水性アクリル塗料', 'エナメル塗料', 'エマルジョン塗料'];
@@ -32,10 +32,12 @@ interface Props {
   swatch?: boolean;
 }
 
-export function optionChip(value: string, selected: boolean, label: string, onPress: () => void) {
+type ChipStyles = { chip: object; chipOn: object; chipText: object; chipTextOn: object };
+
+export function optionChip(value: string, selected: boolean, label: string, onPress: () => void, chipStyles: ChipStyles) {
   return (
-    <TouchableOpacity key={value} style={[styles.chip, selected && styles.chipOn]} onPress={onPress}>
-      <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label}</Text>
+    <TouchableOpacity key={value} style={[chipStyles.chip, selected && chipStyles.chipOn]} onPress={onPress}>
+      <Text style={[chipStyles.chipText, selected && chipStyles.chipTextOn]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -43,6 +45,9 @@ export function optionChip(value: string, selected: boolean, label: string, onPr
 export default function PaintFormFields({
   fields, hex, setHex, paintType, setPaintType, gloss, setGloss, onOpenCamera, swatch = false,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <>
       {fields.map(({ label, value, set }) => (
@@ -71,19 +76,19 @@ export default function PaintFormFields({
       <Text style={styles.label}>{t('paintType')}</Text>
       <View style={styles.chipRow}>
         {TYPE_OPTIONS.map((v) => optionChip(v, paintType === v, paintTypeLabel(v),
-          () => setPaintType(paintType === v ? null : v)))}
+          () => setPaintType(paintType === v ? null : v), styles))}
       </View>
 
       <Text style={[styles.label, styles.sectionGap]}>{t('gloss')}</Text>
       <View style={styles.chipRow}>
         {GLOSS_OPTIONS.map((v) => optionChip(v, gloss === v, glossLabel(v),
-          () => setGloss(gloss === v ? null : v)))}
+          () => setGloss(gloss === v ? null : v), styles))}
       </View>
     </>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   field: { marginBottom: spacing.lg },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10 },
