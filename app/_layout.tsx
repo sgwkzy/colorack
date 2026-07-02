@@ -11,7 +11,7 @@ import { initLocale } from '../lib/i18n';
 export default function RootLayout() {
   // initDB()/initTheme()/initLocale() 完了まで画面を出さない(getDB()が未初期化で落ちるのを防ぐ)
   const [ready, setReady] = useState(false);
-  const { isDark } = useTheme();
+  const { colors, isDark } = useTheme();
 
   useEffect(() => {
     initDB().then(() => Promise.all([initTheme(), initLocale()])).then(() => setReady(true)).catch(console.error);
@@ -25,7 +25,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack>
       ) : (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }}>
           <ActivityIndicator />
         </View>
       )}
