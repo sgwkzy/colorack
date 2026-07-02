@@ -63,7 +63,7 @@ export default function SettingsScreen() {
               style={[styles.themeBtn, mode === opt.value && styles.themeBtnOn]}
               onPress={() => setThemeMode(opt.value)}
             >
-              <Text style={[styles.themeBtnText, mode === opt.value && styles.themeBtnTextOn]}>{t(opt.labelKey)}</Text>
+              <Text style={[styles.themeBtnText, mode === opt.value && styles.themeBtnTextOn]} numberOfLines={1}>{t(opt.labelKey)}</Text>
             </TouchableOpacity>
           ))}
         </View>
