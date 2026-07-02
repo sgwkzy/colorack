@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { IconX } from '@tabler/icons-react-native';
-import { getDB } from '../lib/db';
+import { catalogCode, getDB } from '../lib/db';
 import { t } from '../lib/i18n';
 import { validateManualPaint } from '../lib/manualPaint';
 import { colors, spacing } from '../lib/theme';
@@ -57,19 +57,20 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
     if (!normalized) return;
     const db = getDB();
     try {
+      const catCode = catalogCode(normalized.brand, normalized.series, normalized.code);
       if (paint) {
         await db.runAsync(
-          'UPDATE catalog_paints SET brand=?, series=?, code=?, name_ja=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
-          [normalized.brand, normalized.series, normalized.code, normalized.nameJa, normalized.normalizedHex,
+          'UPDATE catalog_paints SET catalog_code=?, brand=?, series=?, code=?, name_ja=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
+          [catCode, normalized.brand, normalized.series, normalized.code, normalized.nameJa, normalized.normalizedHex,
            normalized.rgb?.r ?? null, normalized.rgb?.g ?? null, normalized.rgb?.b ?? null,
            normalized.lab?.L ?? null, normalized.lab?.a ?? null, normalized.lab?.b ?? null,
            normalized.gloss, normalized.paintType, paint.id]
         );
       } else {
         await db.runAsync(
-          'INSERT INTO catalog_paints (brand, series, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, gloss, paint_type, source)'
-          + ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-          [normalized.brand, normalized.series, normalized.code, normalized.nameJa, '', normalized.normalizedHex,
+          'INSERT INTO catalog_paints (catalog_code, brand, series, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, gloss, paint_type, source)'
+          + ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          [catCode, normalized.brand, normalized.series, normalized.code, normalized.nameJa, '', normalized.normalizedHex,
            normalized.rgb?.r ?? null, normalized.rgb?.g ?? null, normalized.rgb?.b ?? null,
            normalized.lab?.L ?? null, normalized.lab?.a ?? null, normalized.lab?.b ?? null,
            normalized.gloss, normalized.paintType, 'manual']
@@ -78,7 +79,7 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
       onSaved();
       onClose();
     } catch {
-      Alert.alert('入力エラー', '品番が重複しています。別の品番にしてください。');
+      Alert.alert('入力エラー', '同じブランド内に同じ品番が既に登録されています。別の品番にしてください。');
     }
   };
 

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import ColorCameraPicker from '../ColorCameraPicker';
-import { getDB, PaintStatus } from '../../lib/db';
+import { catalogCode, getDB, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { validateManualPaint } from '../../lib/manualPaint';
 import { colors, radius, spacing } from '../../lib/theme';
@@ -55,9 +55,9 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
     const db = getDB();
     try {
       const result = await db.runAsync(
-        'INSERT INTO catalog_paints (brand, series, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, gloss, paint_type, source)'
-        + ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [normalized.brand, normalized.series, normalized.code, normalized.nameJa, '', normalized.normalizedHex,
+        'INSERT INTO catalog_paints (catalog_code, brand, series, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, gloss, paint_type, source)'
+        + ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [catalogCode(normalized.brand, normalized.series, normalized.code), normalized.brand, normalized.series, normalized.code, normalized.nameJa, '', normalized.normalizedHex,
          normalized.rgb?.r ?? null, normalized.rgb?.g ?? null, normalized.rgb?.b ?? null,
          normalized.lab?.L ?? null, normalized.lab?.a ?? null, normalized.lab?.b ?? null,
          normalized.gloss, normalized.paintType, 'manual']
@@ -67,7 +67,7 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
         showInventory ? { status, boxId } : undefined
       );
     } catch {
-      Alert.alert('入力エラー', '品番が重複しています。別の品番にしてください。');
+      Alert.alert('入力エラー', '同じブランド内に同じ品番が既に登録されています。別の品番にしてください。');
     }
   };
 

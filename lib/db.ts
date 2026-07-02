@@ -7,7 +7,14 @@ export type ListType = 'favorites' | 'wishlist';
 
 // シード内容を更新したら上げる。catalog_paints を作り直して再シードする。
 // (INSERT OR IGNORE のため既存行は更新されない。過去の壊れた名前を一掃する用途も兼ねる)
-const SEED_VERSION = 13;
+const SEED_VERSION = 14;
+
+// 品番(code)はブランドをまたいで重複しうる上、同一ブランド内でもシリーズをまたいで
+// 再利用される(例: タミヤ X-1 はエナメル/アクリルミニ両方に存在)ため、
+// 内部の一意キーは brand+series+code。
+export function catalogCode(brand: string, series: string, code: string): string {
+  return `${brand}|${series}|${code}`;
+}
 
 let _db: SQLite.SQLiteDatabase | null = null;
 
@@ -24,7 +31,8 @@ export async function initDB(): Promise<void> {
     'PRAGMA journal_mode = WAL;' +
     'CREATE TABLE IF NOT EXISTS catalog_paints (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  brand TEXT, series TEXT, series_en TEXT, code TEXT UNIQUE,' +
+    '  catalog_code TEXT UNIQUE,' +
+    '  brand TEXT, series TEXT, series_en TEXT, code TEXT,' +
     '  name_ja TEXT, name_en TEXT, hex TEXT,' +
     '  r INTEGER, g INTEGER, b INTEGER,' +
     '  l REAL, a_star REAL, b_star REAL, barcode TEXT, gloss TEXT, paint_type TEXT, source TEXT' +
@@ -57,6 +65,30 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN source TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN series_en TEXT'); } catch { /* 既にある */ }
 
+  // 旧スキーマ(code が UNIQUE でブランドをまたいで衝突する)の端末はテーブルを作り直す。
+  // code 単体の UNIQUE は SQLite の ALTER では外せないため、テーブルごと再構築する。
+  const hasCatalogCode = await db.getFirstAsync(
+    "SELECT 1 FROM pragma_table_info('catalog_paints') WHERE name='catalog_code'"
+  );
+  if (!hasCatalogCode) {
+    await db.execAsync(
+      'ALTER TABLE catalog_paints RENAME TO catalog_paints_old;' +
+      'CREATE TABLE catalog_paints (' +
+      '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+      '  catalog_code TEXT UNIQUE,' +
+      '  brand TEXT, series TEXT, series_en TEXT, code TEXT,' +
+      '  name_ja TEXT, name_en TEXT, hex TEXT,' +
+      '  r INTEGER, g INTEGER, b INTEGER,' +
+      '  l REAL, a_star REAL, b_star REAL, barcode TEXT, gloss TEXT, paint_type TEXT, source TEXT' +
+      ');' +
+      'INSERT INTO catalog_paints' +
+      ' (id, catalog_code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source)' +
+      " SELECT id, brand || '|' || series || '|' || code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source" +
+      ' FROM catalog_paints_old;' +
+      'DROP TABLE catalog_paints_old;'
+    );
+  }
+
   // 旧デフォルト名「ボックス」の既存端末を「Box」へ一度だけ移行。
   await db.runAsync("UPDATE boxes SET name = 'Box' WHERE name = 'ボックス'");
 
@@ -87,32 +119,32 @@ export async function initDB(): Promise<void> {
   if (current >= SEED_VERSION) return;
 
   await db.withTransactionAsync(async () => {
-    // code をキーに UPSERT。既存行は id を保ったまま更新するので
+    // brand+series+code(catalog_code) をキーに UPSERT。既存行は id を保ったまま更新するので
     // inventory/lists の paint_id 参照を壊さない(つや・名前の更新もここで入る)。
     for (const p of seed) {
       await db.runAsync(
         'INSERT INTO catalog_paints' +
-        ' (brand,series,series_en,code,name_ja,name_en,hex,r,g,b,l,a_star,b_star,barcode,gloss,paint_type,source)' +
-        ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)' +
-        ' ON CONFLICT(code) DO UPDATE SET' +
+        ' (catalog_code,brand,series,series_en,code,name_ja,name_en,hex,r,g,b,l,a_star,b_star,barcode,gloss,paint_type,source)' +
+        ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)' +
+        ' ON CONFLICT(catalog_code) DO UPDATE SET' +
         '  brand=excluded.brand, series=excluded.series, series_en=excluded.series_en,' +
         '  name_ja=excluded.name_ja, name_en=excluded.name_en, hex=excluded.hex,' +
         '  r=excluded.r, g=excluded.g, b=excluded.b,' +
         '  l=excluded.l, a_star=excluded.a_star, b_star=excluded.b_star,' +
         '  gloss=excluded.gloss, paint_type=excluded.paint_type, source=excluded.source',
-        [p.brand, p.series, p.series_en, p.code, p.name_ja, p.name_en, p.hex,
+        [catalogCode(p.brand, p.series, p.code), p.brand, p.series, p.series_en, p.code, p.name_ja, p.name_en, p.hex,
          p.rgb_r, p.rgb_g, p.rgb_b, p.lab_l, p.lab_a, p.lab_b, p.barcode ?? null, p.gloss ?? null, p.paint_type ?? null, 'catalog']
       );
     }
     // 洗い替え: 新シードに無い旧カタログ行のうち、在庫/リストから参照されていない
     // ものを掃除する(参照中の行は id を壊さないため残す)。
-    const codes = seed.map((p) => p.code);
-    const placeholders = codes.map(() => '?').join(',');
+    const catalogCodes = seed.map((p) => catalogCode(p.brand, p.series, p.code));
+    const placeholders = catalogCodes.map(() => '?').join(',');
     await db.runAsync(
-      `DELETE FROM catalog_paints WHERE code NOT IN (${placeholders})` +
+      `DELETE FROM catalog_paints WHERE catalog_code NOT IN (${placeholders})` +
       ' AND id NOT IN (SELECT paint_id FROM inventory)' +
       ' AND id NOT IN (SELECT paint_id FROM lists)',
-      codes
+      catalogCodes
     );
     await db.execAsync(`PRAGMA user_version = ${SEED_VERSION}`);
   });
