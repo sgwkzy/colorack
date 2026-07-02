@@ -107,9 +107,9 @@ export default function ColorMatcher({ onSelect }: Props) {
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, padding: spacing.lg },
-  label: { fontSize: 14, fontWeight: 'bold', marginBottom: spacing.md, marginTop: spacing.xs },
+  label: { fontSize: 14, fontWeight: 'bold', marginBottom: spacing.md, marginTop: spacing.xs, color: colors.text },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: spacing.lg },
-  hexInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.md, marginRight: spacing.sm },
+  hexInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.md, marginRight: spacing.sm, color: colors.text },
   cameraBtn: { marginRight: spacing.sm, width: touch.min, height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   btn: { backgroundColor: colors.primary, paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.sm, minHeight: touch.min, justifyContent: 'center' },
   btnText: { color: colors.onPrimary, fontSize: 13 },

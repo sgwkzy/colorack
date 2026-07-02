@@ -137,7 +137,7 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  title: { fontSize: 18, fontWeight: 'bold' },
+  title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   preview: { height: 40, borderRadius: 6, marginTop: spacing.lg },
   btn: { backgroundColor: colors.primary, padding: spacing.xl, alignItems: 'center' },
   btnDisabled: { backgroundColor: colors.primaryDisabled },

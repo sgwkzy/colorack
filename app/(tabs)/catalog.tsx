@@ -203,7 +203,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },
-  navText: { flex: 1, fontSize: 16 },
+  navText: { flex: 1, fontSize: 16, color: colors.text },
   allText: { color: colors.primary, fontWeight: 'bold' },
   arrow: { fontSize: 18, color: colors.textPlaceholder },
   back: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.md, backgroundColor: colors.surfaceAlt },

@@ -107,7 +107,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  title: { fontSize: 18, fontWeight: 'bold' },
+  title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   tabBtn: { flex: 1, padding: spacing.lg, alignItems: 'center' },
   tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },

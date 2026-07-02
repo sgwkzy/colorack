@@ -72,7 +72,7 @@ export default function TextSearch({ onSelect }: Props) {
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1 },
   fieldsLabel: { fontSize: 12, color: colors.textFaint, marginHorizontal: spacing.lg, marginTop: spacing.lg },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginHorizontal: spacing.lg, marginTop: spacing.sm, marginBottom: spacing.lg },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginHorizontal: spacing.lg, marginTop: spacing.sm, marginBottom: spacing.lg, color: colors.text },
   addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
   empty: { textAlign: 'center', marginTop: spacing.xxl, color: colors.textPlaceholder },
 });

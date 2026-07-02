@@ -13,7 +13,7 @@ export default function RootLayout() {
   const { isDark } = useTheme();
 
   useEffect(() => {
-    Promise.all([initDB(), initTheme()]).then(() => setReady(true)).catch(console.error);
+    initDB().then(() => initTheme()).then(() => setReady(true)).catch(console.error);
   }, []);
 
   return (

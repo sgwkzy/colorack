@@ -160,7 +160,7 @@ function rgbToHex(r: number, g: number, b: number): string {
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl, backgroundColor: colors.surface },
-  msg: { fontSize: 15, marginBottom: spacing.xl, textAlign: 'center' },
+  msg: { fontSize: 15, marginBottom: spacing.xl, textAlign: 'center', color: colors.text },
   link: { color: colors.primary, fontSize: 15 },
   close: { position: 'absolute', top: 48, right: 20, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   aim: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },

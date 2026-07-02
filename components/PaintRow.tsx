@@ -58,7 +58,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   },
   compact: { padding: 10 },
   body: { flex: 1 },
-  name: { fontSize: 16 },
+  name: { fontSize: 16, color: colors.text },
   compactName: { fontSize: 14 },
   code: { fontSize: 12, color: colors.textPlaceholder, fontWeight: 'normal' },
   compactCode: { fontSize: 11 },

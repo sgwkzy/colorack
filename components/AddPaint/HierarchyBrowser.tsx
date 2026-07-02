@@ -163,7 +163,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   item: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   itemPaint: { padding: 14 },
   allItem: { backgroundColor: colors.primarySoft },
-  itemText: { flex: 1, fontSize: 15 },
+  itemText: { flex: 1, fontSize: 15, color: colors.text },
   allText: { color: colors.primary, fontWeight: 'bold' },
   addBtn: { width: touch.min, height: touch.min, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
   arrow: { fontSize: 18, color: colors.textPlaceholder },
