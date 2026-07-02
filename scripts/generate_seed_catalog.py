@@ -4,8 +4,9 @@ Regenerate assets/seed_catalog.json from data/official_catalog.sqlite3's
 official_products table (paint / paint_component rows only; solvents are
 app-irrelevant and excluded).
 
-`code` = product_no (already normalized by the crawler), matching the
-scheme already used in the existing seed_catalog.json.
+`code` = item_code (the maker's familiar product code, e.g. "LP-85"),
+falling back to product_no when item_code is missing. Deduplication still
+keys off (brand, product_no), since that's the crawler's stable identity.
 """
 
 from __future__ import annotations
@@ -53,7 +54,7 @@ def hex_to_rgb(hex_str: str) -> tuple[int, int, int] | None:
 def main() -> int:
     conn = sqlite3.connect(DB)
     rows = conn.execute(
-        "SELECT p.id, p.brand, p.product_no, p.name_ja, p.name_en, p.series, s.series_en, p.hex, p.gloss, p.paint_type"
+        "SELECT p.id, p.brand, p.product_no, p.item_code, p.name_ja, p.name_en, p.series, s.series_en, p.hex, p.gloss, p.paint_type"
         " FROM official_products p"
         " LEFT JOIN official_series s ON s.brand = p.brand AND s.series_ja = p.series"
         " WHERE product_kind IN ('paint', 'paint_component')"
@@ -64,14 +65,15 @@ def main() -> int:
     # 同一 (brand, product_no) が複数ある場合は hex が入っている行を優先する。
     best: dict[tuple[str, str], sqlite3.Row] = {}
     for row in rows:
-        _id, brand, product_no, name_ja, name_en, series, series_en, hex_val, gloss, paint_type = row
+        _id, brand, product_no, item_code, name_ja, name_en, series, series_en, hex_val, gloss, paint_type = row
         key = (brand, product_no)
         current = best.get(key)
-        if current is None or (hex_val and not current[7]):
+        if current is None or (hex_val and not current[8]):
             best[key] = row
 
     seed = []
-    for (brand, product_no), (_id, _brand, code, name_ja, name_en, series, series_en, hex_val, gloss, paint_type) in sorted(best.items()):
+    for (brand, product_no), (_id, _brand, _product_no, item_code, name_ja, name_en, series, series_en, hex_val, gloss, paint_type) in sorted(best.items()):
+        code = item_code.strip() if item_code and item_code.strip() else product_no
         rgb = hex_to_rgb(hex_val) if hex_val else None
         lab = rgb_to_lab(*rgb) if rgb else None
         seed.append({
