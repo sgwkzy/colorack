@@ -1,11 +1,11 @@
 // components/AddPaint/ManualEntry.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import ColorCameraPicker from '../ColorCameraPicker';
 import { catalogCode, getDB, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { validateManualPaint } from '../../lib/manualPaint';
-import { colors, radius, spacing } from '../../lib/theme';
+import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import PaintFormFields, { optionChip } from '../PaintFormFields';
 
 interface Paint {
@@ -30,6 +30,8 @@ const STATUS_OPTIONS: { key: PaintStatus; label: string }[] = [
 ];
 
 export default function ManualEntry({ onSelect, showInventory = false, defaultBoxId = null }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [nameJa, setNameJa] = useState('');
   const [brand, setBrand] = useState('');
   const [series, setSeries] = useState('');
@@ -97,12 +99,12 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
         <>
           <Text style={[styles.label, { marginTop: 12 }]}>{t('status')}</Text>
           <View style={styles.chipRow}>
-            {STATUS_OPTIONS.map((s) => chip(s.key, status === s.key, t(s.label), () => setStatus(s.key)))}
+            {STATUS_OPTIONS.map((s) => chip(s.key, status === s.key, t(s.label), () => setStatus(s.key), styles))}
           </View>
 
           <Text style={[styles.label, { marginTop: 12 }]}>{t('box')}</Text>
           <View style={styles.chipRow}>
-            {boxes.map((b) => chip(String(b.id), boxId === b.id, b.name, () => setBoxId(b.id)))}
+            {boxes.map((b) => chip(String(b.id), boxId === b.id, b.name, () => setBoxId(b.id), styles))}
           </View>
         </>
       )}
@@ -123,10 +125,14 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1 },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.xs },
+  chip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chip, marginRight: spacing.md, marginBottom: spacing.md },
+  chipOn: { backgroundColor: colors.primary },
+  chipText: { fontSize: 13, color: colors.textSecondary },
+  chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   btn: { backgroundColor: colors.primary, padding: 14, borderRadius: radius.md, alignItems: 'center', marginTop: spacing.md },
   btnDisabled: { backgroundColor: colors.primaryDisabled },
   btnText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },

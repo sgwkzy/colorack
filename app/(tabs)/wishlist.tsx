@@ -1,12 +1,12 @@
 // app/(tabs)/wishlist.tsx
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconPlus } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
-import { colors, radius, spacing } from '../../lib/theme';
+import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
 import PaintRow from '../../components/PaintRow';
 
@@ -23,6 +23,8 @@ interface ListItem {
 }
 
 export default function WishlistScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<ListItem[]>([]);
   const [showAdd, setShowAdd] = useState(false);
 
@@ -74,8 +76,8 @@ export default function WishlistScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.surface },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },

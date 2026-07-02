@@ -1,9 +1,9 @@
-import { ReactNode } from 'react';
+import { ReactNode, useMemo } from 'react';
 import { StyleSheet, Text, View, ViewStyle, StyleProp } from 'react-native';
 import { brandLabel } from '../lib/brands';
 import { glossLabel } from '../lib/gloss';
 import { paintName } from '../lib/paintLabel';
-import { colors, spacing } from '../lib/theme';
+import { useTheme, lightColors, spacing } from '../lib/theme';
 import TypeIcon from './TypeIcon';
 
 interface PaintLike {
@@ -26,6 +26,8 @@ interface Props {
 }
 
 export default function PaintRow({ paint, children, style, borderColor, subSuffix, compact = false }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const sub = `${brandLabel(paint.brand)}${paint.gloss ? ` · ${glossLabel(paint.gloss)}` : ''}${subSuffix ?? ''}`;
   return (
     <View style={[styles.row, compact && styles.compact, { borderLeftColor: borderColor ?? paint.hex ?? colors.transparent }, style]}>
@@ -44,7 +46,7 @@ export default function PaintRow({ paint, children, style, borderColor, subSuffi
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -56,7 +58,7 @@ const styles = StyleSheet.create({
   },
   compact: { padding: 10 },
   body: { flex: 1 },
-  name: { fontSize: 16 },
+  name: { fontSize: 16, color: colors.text },
   compactName: { fontSize: 14 },
   code: { fontSize: 12, color: colors.textPlaceholder, fontWeight: 'normal' },
   compactCode: { fontSize: 11 },

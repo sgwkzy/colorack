@@ -1,12 +1,12 @@
 // components/AddPaint/index.tsx
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { getDB, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
-import { colors, spacing } from '../../lib/theme';
+import { useTheme, lightColors, spacing } from '../../lib/theme';
 import TextSearch from './TextSearch';
 import HierarchyBrowser from './HierarchyBrowser';
 import ColorMatcher from './ColorMatcher';
@@ -30,6 +30,8 @@ interface Props {
 const TABS = ['hierarchy', 'textSearch', 'colorMatch', 'manual'] as const;
 
 export default function AddPaintModal({ visible, onClose, defaultStatus, boxId = null }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [tab, setTab] = useState<typeof TABS[number]>('hierarchy');
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,7 +75,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
                 style={[styles.tabBtn, tab === tabKey && styles.tabBtnActive]}
                 onPress={() => setTab(tabKey)}
               >
-                <Text style={[styles.tabText, tab === tabKey && styles.tabTextActive]}>
+                <Text style={[styles.tabText, tab === tabKey && styles.tabTextActive]} numberOfLines={1}>
                   {t(tabKey)}
                 </Text>
               </TouchableOpacity>
@@ -102,10 +104,10 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  title: { fontSize: 18, fontWeight: 'bold' },
+  title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   tabBtn: { flex: 1, padding: spacing.lg, alignItems: 'center' },
   tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },

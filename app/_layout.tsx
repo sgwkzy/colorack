@@ -3,24 +3,29 @@ import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { initDB } from '../lib/db';
+import { initTheme, useTheme } from '../lib/theme';
+import { initLocale } from '../lib/i18n';
 
 export default function RootLayout() {
-  // initDB() 完了まで画面を出さない(getDB()が未初期化で落ちるのを防ぐ)
+  // initDB()/initTheme()/initLocale() 完了まで画面を出さない(getDB()が未初期化で落ちるのを防ぐ)
   const [ready, setReady] = useState(false);
+  const { colors, isDark } = useTheme();
 
   useEffect(() => {
-    initDB().then(() => setReady(true)).catch(console.error);
+    initDB().then(() => Promise.all([initTheme(), initLocale()])).then(() => setReady(true)).catch(console.error);
   }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       {ready ? (
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack>
       ) : (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }}>
           <ActivityIndicator />
         </View>
       )}

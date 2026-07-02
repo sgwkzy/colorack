@@ -1,5 +1,5 @@
 // components/AddPaint/HierarchyBrowser.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
@@ -7,7 +7,7 @@ import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { seriesLabel } from '../../lib/paintLabel';
-import { colors, radius, spacing, touch } from '../../lib/theme';
+import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import PaintRow from '../PaintRow';
 import SwipeBack from '../SwipeBack';
 
@@ -32,6 +32,8 @@ interface Props {
 const ALL = 'ALL';
 
 export default function HierarchyBrowser({ onSelect }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [seriesList, setSeriesList] = useState<{ series: string; series_en: string | null }[]>([]);
@@ -156,12 +158,12 @@ export default function HierarchyBrowser({ onSelect }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1 },
   item: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   itemPaint: { padding: 14 },
   allItem: { backgroundColor: colors.primarySoft },
-  itemText: { flex: 1, fontSize: 15 },
+  itemText: { flex: 1, fontSize: 15, color: colors.text },
   allText: { color: colors.primary, fontWeight: 'bold' },
   addBtn: { width: touch.min, height: touch.min, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
   arrow: { fontSize: 18, color: colors.textPlaceholder },

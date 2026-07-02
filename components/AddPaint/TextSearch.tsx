@@ -1,11 +1,11 @@
 // components/AddPaint/TextSearch.tsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, FlatList, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
-import { colors, radius, spacing } from '../../lib/theme';
+import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import PaintRow from '../PaintRow';
 
 interface Paint {
@@ -24,6 +24,8 @@ interface Props {
 }
 
 export default function TextSearch({ onSelect }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Paint[]>([]);
 
@@ -67,10 +69,10 @@ export default function TextSearch({ onSelect }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1 },
   fieldsLabel: { fontSize: 12, color: colors.textFaint, marginHorizontal: spacing.lg, marginTop: spacing.lg },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginHorizontal: spacing.lg, marginTop: spacing.sm, marginBottom: spacing.lg },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginHorizontal: spacing.lg, marginTop: spacing.sm, marginBottom: spacing.lg, color: colors.text },
   addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
   empty: { textAlign: 'center', marginTop: spacing.xxl, color: colors.textPlaceholder },
 });

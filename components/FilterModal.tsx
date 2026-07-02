@@ -10,7 +10,7 @@ import { brandLabel } from '../lib/brands';
 import { glossLabel } from '../lib/gloss';
 import { seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
-import { colors, radius, spacing } from '../lib/theme';
+import { useTheme, lightColors, radius, spacing } from '../lib/theme';
 
 export interface PaintFilter {
   brands: string[];
@@ -30,6 +30,8 @@ interface Props {
 }
 
 export default function FilterModal({ visible, options, initial, onApply, onClose }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [brands, setBrands] = useState<string[]>(initial.brands);
   const [series, setSeries] = useState<string[]>(initial.series);
   const [gloss, setGloss] = useState<string[]>(initial.gloss);
@@ -186,22 +188,22 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   headerSide: { flex: 1 },
   headerBtn: { color: colors.primary, fontSize: 16 },
-  title: { flex: 1, fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+  title: { flex: 1, fontSize: 18, fontWeight: 'bold', textAlign: 'center', color: colors.text },
   sectionTitle: { fontSize: 13, color: colors.textFaint, marginTop: spacing.xl, marginHorizontal: spacing.xl, marginBottom: spacing.sm },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginHorizontal: spacing.xl },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginHorizontal: spacing.xl, color: colors.text },
   dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.xl, marginTop: spacing.lg, borderTopWidth: 1, borderColor: colors.borderLight },
-  dropdownLabel: { fontSize: 16 },
+  dropdownLabel: { fontSize: 16, color: colors.text },
   dropdownArrow: { fontSize: 12, color: colors.textFaint },
   checkList: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
   checkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md },
   checkBox: { fontSize: 18, color: '#bbb', marginRight: 10 },
   checkBoxOn: { color: colors.primary },
-  checkLabel: { fontSize: 15 },
+  checkLabel: { fontSize: 15, color: colors.text },
   emptyOpt: { color: colors.textPlaceholder, paddingVertical: spacing.md },
   applyBtn: { backgroundColor: colors.primary, padding: spacing.xl, alignItems: 'center' },
   applyText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
