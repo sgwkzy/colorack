@@ -329,7 +329,7 @@ export default function OwnedScreen() {
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.surface },
   tabBarWrap: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   tabBar: { alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   tab: { paddingHorizontal: 14, paddingVertical: spacing.md, marginRight: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.chip },

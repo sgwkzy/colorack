@@ -77,7 +77,7 @@ export default function WishlistScreen() {
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.surface },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },

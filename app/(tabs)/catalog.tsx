@@ -200,7 +200,7 @@ export default function CatalogScreen() {
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.surface },
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },
   navText: { flex: 1, fontSize: 16 },
