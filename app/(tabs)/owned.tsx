@@ -8,13 +8,11 @@ import { IconSearch, IconArrowsSort, IconPlus } from '@tabler/icons-react-native
 import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
-import { brandLabel } from '../../lib/brands';
-import { glossLabel } from '../../lib/gloss';
-import { paintName } from '../../lib/paintLabel';
+import { colors, radius, spacing } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
 import AdBanner from '../../components/AdBanner';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
-import TypeIcon from '../../components/TypeIcon';
+import PaintRow from '../../components/PaintRow';
 
 interface Box { id: number; name: string; }
 
@@ -273,28 +271,18 @@ export default function OwnedScreen() {
         renderItem={({ item }) => (
           <Swipeable
             ref={(r) => { if (r) swipeRefs.current.set(item.id, r); else swipeRefs.current.delete(item.id); }}
-            enabled={item.status !== 'used_up'}
             renderRightActions={() => renderRightActions(item)}
-            renderLeftActions={() => renderLeftActions(item)}
+            renderLeftActions={item.status === 'used_up' ? undefined : () => renderLeftActions(item)}
             overshootRight={false}
             overshootLeft={false}
           >
-            <View style={[styles.row, { borderLeftColor: item.hex, borderLeftWidth: 8 }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.name}>
-                  {paintName(item.name_ja, item.name_en)}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}
-                </Text>
-                <View style={styles.subRow}>
-                  <TypeIcon paintType={item.paint_type} />
-                  <Text style={styles.sub}>{brandLabel(item.brand)}{item.gloss ? ` · ${glossLabel(item.gloss)}` : ''}</Text>
-                </View>
-              </View>
+            <PaintRow paint={item}>
               {/* 在庫⇄使用中 トグル (使用済の時は非活性) */}
               <TouchableOpacity
                 style={[styles.iconBtn, {
                   backgroundColor: item.status === 'used_up'
-                    ? '#95a5a6'
-                    : (item.status === 'in_use' ? '#e67e22' : '#4a90d9'),
+                    ? colors.usedUp
+                    : (item.status === 'in_use' ? colors.inUse : colors.primary),
                 }]}
                 onPress={() => toggleStockUse(item)}
               >
@@ -302,7 +290,7 @@ export default function OwnedScreen() {
                   {item.status === 'used_up' ? t('statusUsedUp') : (item.status === 'in_use' ? t('statusInUse') : t('statusOwned'))}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </PaintRow>
           </Swipeable>
         )}
         ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
@@ -311,13 +299,13 @@ export default function OwnedScreen() {
 
       {/* 右下: フィルター / 並び替え / 追加 を縦に */}
       <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
-        <IconSearch color="#fff" size={26} />
+        <IconSearch color={colors.onPrimary} size={26} />
       </TouchableOpacity>
       <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
-        <IconArrowsSort color="#fff" size={24} />
+        <IconArrowsSort color={colors.onPrimary} size={24} />
       </TouchableOpacity>
       <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
-        <IconPlus color="#fff" size={28} />
+        <IconPlus color={colors.onPrimary} size={28} />
       </TouchableOpacity>
 
       <FilterModal
@@ -340,38 +328,33 @@ export default function OwnedScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  tabBarWrap: { borderBottomWidth: 1, borderBottomColor: '#eee' },
-  tabBar: { alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6 },
-  tab: { paddingHorizontal: 14, paddingVertical: 8, marginRight: 6, borderRadius: 16, backgroundColor: '#f0f0f0' },
-  tabActive: { backgroundColor: '#4a90d9' },
-  tabText: { fontSize: 14, color: '#555' },
-  tabTextActive: { color: '#fff', fontWeight: 'bold' },
-  addTab: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: '#e8e8e8' },
-  addTabText: { fontSize: 14, color: '#4a90d9', fontWeight: 'bold' },
-  statusBarWrap: { flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  statusTab: { flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: 8 },
-  statusTabActive: { backgroundColor: '#eef4fb' },
-  statusTabText: { fontSize: 12, color: '#888' },
-  statusTabTextActive: { color: '#4a90d9', fontWeight: 'bold' },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  name: { fontSize: 16 },
-  code: { fontSize: 12, color: '#999', fontWeight: 'normal' },
-  subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  sub: { fontSize: 12, color: '#666' },
-  iconBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, marginLeft: 6 },
-  iconBtnText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
-  empty: { textAlign: 'center', marginTop: 40, color: '#999' },
-  deleteAction: { backgroundColor: '#e74c3c', justifyContent: 'center', alignItems: 'center', width: 88 },
-  deleteActionText: { color: '#fff', fontWeight: 'bold' },
-  usedAction: { backgroundColor: '#34495e', justifyContent: 'center', alignItems: 'center', width: 88 },
-  usedActionText: { color: '#fff', fontWeight: 'bold' },
+  tabBarWrap: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  tabBar: { alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  tab: { paddingHorizontal: 14, paddingVertical: spacing.md, marginRight: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.chip },
+  tabActive: { backgroundColor: colors.primary },
+  tabText: { fontSize: 14, color: colors.textSecondary },
+  tabTextActive: { color: colors.onPrimary, fontWeight: 'bold' },
+  addTab: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chipAlt },
+  addTabText: { fontSize: 14, color: colors.primary, fontWeight: 'bold' },
+  statusBarWrap: { flexDirection: 'row', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  statusTab: { flex: 1, paddingVertical: spacing.sm, alignItems: 'center', borderRadius: radius.md },
+  statusTabActive: { backgroundColor: colors.primarySoft },
+  statusTabText: { fontSize: 12, color: colors.textFaint },
+  statusTabTextActive: { color: colors.primary, fontWeight: 'bold' },
+  iconBtn: { paddingHorizontal: 10, paddingVertical: spacing.sm, borderRadius: 12, marginLeft: spacing.sm, minHeight: 32, justifyContent: 'center' },
+  iconBtnText: { color: colors.onPrimary, fontSize: 12, fontWeight: 'bold' },
+  empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
+  deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
+  deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
+  usedAction: { backgroundColor: colors.darkAction, justifyContent: 'center', alignItems: 'center', width: 88 },
+  usedActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   fab: {
-    position: 'absolute', right: 24,
-    width: 56, height: 56, borderRadius: 28,
+    position: 'absolute', right: spacing.xxl,
+    width: 56, height: 56, borderRadius: radius.fab,
     alignItems: 'center', justifyContent: 'center',
   },
-  addFab: { bottom: 24, backgroundColor: '#4a90d9' },
-  sortFab: { bottom: 92, backgroundColor: '#7f8c8d' },
-  filterFab: { bottom: 160, backgroundColor: '#7f8c8d' },
-  filterFabActive: { backgroundColor: '#4a90d9' },
+  addFab: { bottom: spacing.xxl, backgroundColor: colors.primary },
+  sortFab: { bottom: 92, backgroundColor: colors.neutralAction },
+  filterFab: { bottom: 160, backgroundColor: colors.neutralAction },
+  filterFabActive: { backgroundColor: colors.primary },
 });

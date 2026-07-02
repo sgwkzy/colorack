@@ -8,13 +8,13 @@ import { useFocusEffect } from 'expo-router';
 import { getDB } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
-import { glossLabel } from '../../lib/gloss';
 import { paintName, seriesLabel } from '../../lib/paintLabel';
-import TypeIcon from '../../components/TypeIcon';
+import { colors, radius, spacing } from '../../lib/theme';
 import AdBanner from '../../components/AdBanner';
 import ClearableInput from '../../components/ClearableInput';
 import PaintFormModal, { EditablePaint } from '../../components/PaintFormModal';
 import SwipeBack from '../../components/SwipeBack';
+import PaintRow from '../../components/PaintRow';
 
 interface Paint extends EditablePaint { name_en: string | null; source: string | null; series_en: string | null; }
 
@@ -102,7 +102,7 @@ export default function CatalogScreen() {
   const fab = (
     <>
       <TouchableOpacity style={styles.fab} onPress={openNew}>
-        <IconPlus color="#fff" size={28} />
+        <IconPlus color={colors.onPrimary} size={28} />
       </TouchableOpacity>
       <PaintFormModal visible={showForm} paint={editing} onClose={() => setShowForm(false)} onSaved={reload} />
     </>
@@ -135,7 +135,7 @@ export default function CatalogScreen() {
       <SwipeBack enabled onBack={() => setSelectedBrand(null)}>
         <View style={styles.container}>
           <TouchableOpacity style={styles.back} onPress={() => setSelectedBrand(null)}>
-            <IconChevronLeft color="#4a90d9" size={18} />
+            <IconChevronLeft color={colors.primary} size={18} />
             <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
           </TouchableOpacity>
           <FlatList
@@ -163,7 +163,7 @@ export default function CatalogScreen() {
     <SwipeBack enabled onBack={backFromPaints}>
     <View style={styles.container}>
       <TouchableOpacity style={styles.back} onPress={backFromPaints}>
-        <IconChevronLeft color="#4a90d9" size={18} />
+        <IconChevronLeft color={colors.primary} size={18} />
         <Text style={styles.backText}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries || '—', currentSeries?.series_en)}</Text>
       </TouchableOpacity>
       <ClearableInput style={styles.filterInput} placeholder={t('colorName')} value={nameFilter} onChangeText={setNameFilter} />
@@ -176,22 +176,16 @@ export default function CatalogScreen() {
           const manual = item.source === 'manual';
           return (
             <TouchableOpacity
-              style={[styles.row, { borderLeftColor: item.hex ?? 'transparent', borderLeftWidth: 8 }]}
               onPress={() => openEdit(item)}
               disabled={!manual}
             >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.name}>{paintName(item.name_ja, item.name_en)}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}</Text>
-                <View style={styles.subRow}>
-                  <TypeIcon paintType={item.paint_type} />
-                  <Text style={styles.sub}>{brandLabel(item.brand)}{item.gloss ? ` · ${glossLabel(item.gloss)}` : ''}</Text>
-                </View>
-              </View>
+              <PaintRow paint={item} borderColor={item.hex ?? colors.transparent}>
               {manual ? (
                 <TouchableOpacity style={styles.delBtn} onPress={() => remove(item)} hitSlop={8}>
-                  <IconTrash color="#e74c3c" size={22} />
+                  <IconTrash color={colors.danger} size={22} />
                 </TouchableOpacity>
               ) : null}
+              </PaintRow>
             </TouchableOpacity>
           );
         }}
@@ -205,20 +199,15 @@ export default function CatalogScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  navItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  allItem: { backgroundColor: '#eef4fb' },
+  navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  allItem: { backgroundColor: colors.primarySoft },
   navText: { flex: 1, fontSize: 16 },
-  allText: { color: '#4a90d9', fontWeight: 'bold' },
-  arrow: { fontSize: 18, color: '#999' },
-  back: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 8, backgroundColor: '#f5f5f5' },
-  backText: { fontSize: 15, color: '#4a90d9' },
-  filterInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, margin: 12 },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  name: { fontSize: 16 },
-  code: { fontSize: 12, color: '#999', fontWeight: 'normal' },
-  subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  sub: { fontSize: 12, color: '#666' },
-  delBtn: { padding: 8, marginLeft: 8 },
-  empty: { textAlign: 'center', marginTop: 40, color: '#999' },
-  fab: { position: 'absolute', right: 24, bottom: 24, width: 56, height: 56, borderRadius: 28, backgroundColor: '#4a90d9', alignItems: 'center', justifyContent: 'center' },
+  allText: { color: colors.primary, fontWeight: 'bold' },
+  arrow: { fontSize: 18, color: colors.textPlaceholder },
+  back: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.md, backgroundColor: colors.surfaceAlt },
+  backText: { fontSize: 15, color: colors.primary },
+  filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
+  delBtn: { padding: spacing.md, marginLeft: spacing.md },
+  empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
+  fab: { position: 'absolute', right: spacing.xxl, bottom: spacing.xxl, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 });

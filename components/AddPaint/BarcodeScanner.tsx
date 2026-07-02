@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
+import { colors, radius, spacing } from '../../lib/theme';
 
 interface Paint {
   id: number;
@@ -66,9 +67,9 @@ export default function BarcodeScanner({ onSelect }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  msg: { fontSize: 15, marginBottom: 16, textAlign: 'center' },
-  link: { color: '#4a90d9', fontSize: 15 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
+  msg: { fontSize: 15, marginBottom: spacing.xl, textAlign: 'center' },
+  link: { color: colors.primary, fontSize: 15 },
   overlay: { position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center' },
-  hint: { color: '#fff', fontSize: 14, backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 6 },
+  hint: { color: colors.onPrimary, fontSize: 14, backgroundColor: 'rgba(0,0,0,0.5)', padding: spacing.md, borderRadius: radius.sm },
 });

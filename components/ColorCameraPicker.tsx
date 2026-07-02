@@ -6,6 +6,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { inflate } from 'pako';
 import { IconX } from '@tabler/icons-react-native';
 import { hex_to_rgb } from '../lib/color';
+import { colors, radius, spacing } from '../lib/theme';
 
 interface Props {
   visible: boolean;
@@ -50,7 +51,7 @@ export default function ColorCameraPicker({ visible, onClose, onPick }: Props) {
         <View style={styles.container}>
           <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" mode="picture" />
           <TouchableOpacity style={styles.close} onPress={onClose} hitSlop={8}>
-            <IconX color="#fff" size={26} />
+            <IconX color={colors.onPrimary} size={26} />
           </TouchableOpacity>
           <View pointerEvents="none" style={styles.aim}>
             <View style={styles.frame} />
@@ -156,14 +157,14 @@ function rgbToHex(r: number, g: number, b: number): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  msg: { fontSize: 15, marginBottom: 16, textAlign: 'center' },
-  link: { color: '#4a90d9', fontSize: 15 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl, backgroundColor: colors.surface },
+  msg: { fontSize: 15, marginBottom: spacing.xl, textAlign: 'center' },
+  link: { color: colors.primary, fontSize: 15 },
   close: { position: 'absolute', top: 48, right: 20, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   aim: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  frame: { width: 96, height: 96, borderWidth: 2, borderColor: '#fff', borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.08)' },
+  frame: { width: 96, height: 96, borderWidth: 2, borderColor: colors.onPrimary, borderRadius: radius.md, backgroundColor: 'rgba(255,255,255,0.08)' },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 42, alignItems: 'center' },
-  shutter: { width: 74, height: 74, borderRadius: 37, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  shutter: { width: 74, height: 74, borderRadius: 37, borderWidth: 4, borderColor: colors.onPrimary, alignItems: 'center', justifyContent: 'center' },
   shutterOff: { opacity: 0.5 },
-  shutterInner: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#fff' },
+  shutterInner: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.onPrimary },
 });

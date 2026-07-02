@@ -6,11 +6,9 @@ import { IconPlus } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
-import { brandLabel } from '../../lib/brands';
-import { glossLabel } from '../../lib/gloss';
-import { paintName } from '../../lib/paintLabel';
+import { colors, radius, spacing } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
-import TypeIcon from '../../components/TypeIcon';
+import PaintRow from '../../components/PaintRow';
 
 interface ListItem {
   id: number;
@@ -59,21 +57,13 @@ export default function FavoritesScreen() {
               </TouchableOpacity>
             )}
           >
-            <View style={[styles.row, { borderLeftColor: item.hex, borderLeftWidth: 8 }]}>
-              <Text style={styles.name}>
-                {paintName(item.name_ja, item.name_en)}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}
-              </Text>
-              <View style={styles.subRow}>
-                <TypeIcon paintType={item.paint_type} />
-                <Text style={styles.sub}>{brandLabel(item.brand)}{item.gloss ? ` · ${glossLabel(item.gloss)}` : ''}</Text>
-              </View>
-            </View>
+            <PaintRow paint={item} />
           </Swipeable>
         )}
         ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
       />
       <TouchableOpacity style={styles.fab} onPress={() => setShowAdd(true)}>
-        <IconPlus color="#fff" size={28} />
+        <IconPlus color={colors.onPrimary} size={28} />
       </TouchableOpacity>
       <AddPaintModal
         visible={showAdd}
@@ -86,17 +76,12 @@ export default function FavoritesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  row: { padding: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  name: { fontSize: 16 },
-  code: { fontSize: 12, color: '#999' },
-  subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  sub: { fontSize: 12, color: '#666' },
-  empty: { textAlign: 'center', marginTop: 40, color: '#999' },
-  deleteAction: { backgroundColor: '#e74c3c', justifyContent: 'center', alignItems: 'center', width: 88 },
-  deleteActionText: { color: '#fff', fontWeight: 'bold' },
+  empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
+  deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
+  deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   fab: {
-    position: 'absolute', bottom: 24, right: 24,
-    width: 56, height: 56, borderRadius: 28,
+    position: 'absolute', bottom: spacing.xxl, right: spacing.xxl,
+    width: 56, height: 56, borderRadius: radius.fab,
     backgroundColor: '#e9967a', alignItems: 'center', justifyContent: 'center',
   },
 });

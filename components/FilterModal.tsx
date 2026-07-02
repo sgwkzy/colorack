@@ -10,6 +10,7 @@ import { brandLabel } from '../lib/brands';
 import { glossLabel } from '../lib/gloss';
 import { seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
+import { colors, radius, spacing } from '../lib/theme';
 
 export interface PaintFilter {
   brands: string[];
@@ -186,22 +187,22 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  container: { flex: 1, backgroundColor: colors.surface },
+  header: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   headerSide: { flex: 1 },
-  headerBtn: { color: '#4a90d9', fontSize: 16 },
+  headerBtn: { color: colors.primary, fontSize: 16 },
   title: { flex: 1, fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
-  sectionTitle: { fontSize: 13, color: '#888', marginTop: 16, marginHorizontal: 16, marginBottom: 6 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginHorizontal: 16 },
-  dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, marginTop: 12, borderTopWidth: 1, borderColor: '#eee' },
+  sectionTitle: { fontSize: 13, color: colors.textFaint, marginTop: spacing.xl, marginHorizontal: spacing.xl, marginBottom: spacing.sm },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginHorizontal: spacing.xl },
+  dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.xl, marginTop: spacing.lg, borderTopWidth: 1, borderColor: colors.borderLight },
   dropdownLabel: { fontSize: 16 },
-  dropdownArrow: { fontSize: 12, color: '#888' },
-  checkList: { paddingHorizontal: 16, paddingBottom: 8 },
-  checkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  dropdownArrow: { fontSize: 12, color: colors.textFaint },
+  checkList: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
+  checkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md },
   checkBox: { fontSize: 18, color: '#bbb', marginRight: 10 },
-  checkBoxOn: { color: '#4a90d9' },
+  checkBoxOn: { color: colors.primary },
   checkLabel: { fontSize: 15 },
-  emptyOpt: { color: '#999', paddingVertical: 8 },
-  applyBtn: { backgroundColor: '#4a90d9', padding: 16, alignItems: 'center' },
-  applyText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  emptyOpt: { color: colors.textPlaceholder, paddingVertical: spacing.md },
+  applyBtn: { backgroundColor: colors.primary, padding: spacing.xl, alignItems: 'center' },
+  applyText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
 });

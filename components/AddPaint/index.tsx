@@ -6,6 +6,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { getDB, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
+import { colors, spacing } from '../../lib/theme';
 import TextSearch from './TextSearch';
 import HierarchyBrowser from './HierarchyBrowser';
 import ColorMatcher from './ColorMatcher';
@@ -62,7 +63,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
           <View style={styles.header}>
             <Text style={styles.title}>{t('addPaint')}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <IconX color="#333" size={24} />
+              <IconX color={colors.text} size={24} />
             </TouchableOpacity>
           </View>
           <View style={styles.tabBar}>
@@ -102,16 +103,15 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  container: { flex: 1, backgroundColor: colors.surface },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   title: { fontSize: 18, fontWeight: 'bold' },
-  close: { color: '#4a90d9', fontSize: 16 },
-  tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#eee' },
-  tabBtn: { flex: 1, padding: 12, alignItems: 'center' },
-  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: '#4a90d9' },
-  tabText: { fontSize: 13, color: '#999' },
-  tabTextActive: { color: '#4a90d9', fontWeight: 'bold' },
+  tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  tabBtn: { flex: 1, padding: spacing.lg, alignItems: 'center' },
+  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
+  tabText: { fontSize: 13, color: colors.textPlaceholder },
+  tabTextActive: { color: colors.primary, fontWeight: 'bold' },
   content: { flex: 1 },
-  toast: { position: 'absolute', left: 24, right: 24, bottom: 32, backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center' },
-  toastText: { color: '#fff', fontSize: 14 },
+  toast: { position: 'absolute', left: spacing.xxl, right: spacing.xxl, bottom: 32, backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 20, paddingVertical: 10, paddingHorizontal: spacing.xl, alignItems: 'center' },
+  toastText: { color: colors.onPrimary, fontSize: 14 },
 });

@@ -7,10 +7,8 @@ import ColorCameraPicker from '../ColorCameraPicker';
 import { getDB } from '../../lib/db';
 import { rgb_to_lab, delta_e, hex_to_rgb } from '../../lib/color';
 import { t } from '../../lib/i18n';
-import { brandLabel } from '../../lib/brands';
-import { glossLabel } from '../../lib/gloss';
-import { paintName } from '../../lib/paintLabel';
-import TypeIcon from '../TypeIcon';
+import { colors, radius, spacing, touch } from '../../lib/theme';
+import PaintRow from '../PaintRow';
 
 interface Paint {
   id: number;
@@ -75,7 +73,7 @@ export default function ColorMatcher({ onSelect }: Props) {
           onPress={() => setColorPickerVisible(true)}
           accessibilityLabel="カメラで色を取得"
         >
-          <IconCamera color="#4a90d9" size={22} />
+          <IconCamera color={colors.primary} size={22} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.btn} onPress={matchHex}>
           <Text style={styles.btnText}>{t('colorMatch')}</Text>
@@ -89,18 +87,11 @@ export default function ColorMatcher({ onSelect }: Props) {
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
-          <View style={[styles.row, { borderLeftColor: item.hex, borderLeftWidth: 8 }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{paintName(item.name_ja, item.name_en)}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}</Text>
-              <View style={styles.subRow}>
-                <TypeIcon paintType={item.paint_type} />
-                <Text style={styles.sub}>{brandLabel(item.brand)}{item.gloss ? ` · ${glossLabel(item.gloss)}` : ''} · ΔE={item.de.toFixed(1)}</Text>
-              </View>
-            </View>
+          <PaintRow paint={item} compact subSuffix={` · ΔE=${item.de.toFixed(1)}`}>
             <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
-              <IconPlus color="#fff" size={22} />
+              <IconPlus color={colors.onPrimary} size={22} />
             </TouchableOpacity>
-          </View>
+          </PaintRow>
         )}
       />
       <ColorCameraPicker
@@ -113,17 +104,12 @@ export default function ColorMatcher({ onSelect }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 12 },
-  label: { fontSize: 14, fontWeight: 'bold', marginBottom: 8, marginTop: 4 },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 12 },
-  hexInput: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 6, padding: 8, marginRight: 6 },
-  cameraBtn: { marginRight: 6, width: 44, height: 44, borderWidth: 1, borderColor: '#ccc', borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  btn: { backgroundColor: '#4a90d9', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 6 },
-  btnText: { color: '#fff', fontSize: 13 },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#4a90d9', alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
-  name: { fontSize: 14 },
-  code: { fontSize: 11, color: '#999' },
-  subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  sub: { fontSize: 11, color: '#666' },
+  container: { flex: 1, padding: spacing.lg },
+  label: { fontSize: 14, fontWeight: 'bold', marginBottom: spacing.md, marginTop: spacing.xs },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: spacing.lg },
+  hexInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.md, marginRight: spacing.sm },
+  cameraBtn: { marginRight: spacing.sm, width: touch.min, height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  btn: { backgroundColor: colors.primary, paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.sm, minHeight: touch.min, justifyContent: 'center' },
+  btnText: { color: colors.onPrimary, fontSize: 13 },
+  addBtn: { width: touch.min, height: touch.min, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
 });

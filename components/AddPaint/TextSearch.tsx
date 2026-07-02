@@ -5,10 +5,8 @@ import { IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
-import { brandLabel } from '../../lib/brands';
-import { glossLabel } from '../../lib/gloss';
-import { paintName } from '../../lib/paintLabel';
-import TypeIcon from '../TypeIcon';
+import { colors, radius, spacing } from '../../lib/theme';
+import PaintRow from '../PaintRow';
 
 interface Paint {
   id: number;
@@ -57,18 +55,11 @@ export default function TextSearch({ onSelect }: Props) {
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
-          <View style={[styles.row, { borderLeftColor: item.hex, borderLeftWidth: 8 }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{paintName(item.name_ja, item.name_en)}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}</Text>
-              <View style={styles.subRow}>
-                <TypeIcon paintType={item.paint_type} />
-                <Text style={styles.sub}>{brandLabel(item.brand)}{item.gloss ? ` · ${glossLabel(item.gloss)}` : ''}</Text>
-              </View>
-            </View>
+          <PaintRow paint={item}>
             <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
-              <IconPlus color="#fff" size={22} />
+              <IconPlus color={colors.onPrimary} size={22} />
             </TouchableOpacity>
-          </View>
+          </PaintRow>
         )}
         ListEmptyComponent={query ? <Text style={styles.empty}>{t('noResults')}</Text> : null}
       />
@@ -78,13 +69,8 @@ export default function TextSearch({ onSelect }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  fieldsLabel: { fontSize: 12, color: '#888', marginHorizontal: 12, marginTop: 12 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginHorizontal: 12, marginTop: 6, marginBottom: 12 },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#4a90d9', alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
-  name: { fontSize: 15 },
-  code: { fontSize: 11, color: '#999' },
-  subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  sub: { fontSize: 12, color: '#666' },
-  empty: { textAlign: 'center', marginTop: 24, color: '#999' },
+  fieldsLabel: { fontSize: 12, color: colors.textFaint, marginHorizontal: spacing.lg, marginTop: spacing.lg },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginHorizontal: spacing.lg, marginTop: spacing.sm, marginBottom: spacing.lg },
+  addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
+  empty: { textAlign: 'center', marginTop: spacing.xxl, color: colors.textPlaceholder },
 });

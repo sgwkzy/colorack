@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { getDB, setSetting } from '../../lib/db';
 import { t, setLocale, getLocale } from '../../lib/i18n';
+import { colors, radius, spacing } from '../../lib/theme';
 
 export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
@@ -62,10 +63,10 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
+  container: { flex: 1, padding: spacing.xl },
+  section: { marginBottom: spacing.xxl },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: spacing.md },
   langRow: { flexDirection: 'row', alignItems: 'center' },
-  resetBtn: { backgroundColor: '#fdecea', borderRadius: 6, padding: 12, marginBottom: 8 },
-  resetBtnText: { color: '#e74c3c', fontWeight: 'bold', textAlign: 'center' },
+  resetBtn: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
+  resetBtnText: { color: colors.danger, fontWeight: 'bold', textAlign: 'center' },
 });

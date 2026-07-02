@@ -6,9 +6,9 @@ import ClearableInput from '../ClearableInput';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
-import { glossLabel } from '../../lib/gloss';
-import { paintName, seriesLabel } from '../../lib/paintLabel';
-import TypeIcon from '../TypeIcon';
+import { seriesLabel } from '../../lib/paintLabel';
+import { colors, radius, spacing, touch } from '../../lib/theme';
+import PaintRow from '../PaintRow';
 import SwipeBack from '../SwipeBack';
 
 interface Paint {
@@ -144,18 +144,11 @@ export default function HierarchyBrowser({ onSelect }: Props) {
         keyboardShouldPersistTaps="handled"
         keyExtractor={(p) => String(p.id)}
         renderItem={({ item }) => (
-          <View style={[styles.item, { borderLeftColor: item.hex, borderLeftWidth: 8 }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{paintName(item.name_ja, item.name_en)}{item.code ? <Text style={styles.code}>  {item.code}</Text> : null}</Text>
-              <View style={styles.subRow}>
-                <TypeIcon paintType={item.paint_type} />
-                <Text style={styles.sub}>{brandLabel(item.brand)}{item.gloss ? ` · ${glossLabel(item.gloss)}` : ''}</Text>
-              </View>
-            </View>
+          <PaintRow paint={item} style={styles.itemPaint}>
             <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
-              <IconPlus color="#fff" size={22} />
+              <IconPlus color={colors.onPrimary} size={22} />
             </TouchableOpacity>
-          </View>
+          </PaintRow>
         )}
       />
     </View>
@@ -165,17 +158,14 @@ export default function HierarchyBrowser({ onSelect }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  item: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  allItem: { backgroundColor: '#eef4fb' },
+  item: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  itemPaint: { padding: 14 },
+  allItem: { backgroundColor: colors.primarySoft },
   itemText: { flex: 1, fontSize: 15 },
-  allText: { color: '#4a90d9', fontWeight: 'bold' },
-  name: { fontSize: 16 },
-  code: { fontSize: 12, color: '#999', fontWeight: 'normal' },
-  subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  sub: { fontSize: 12, color: '#666' },
-  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#4a90d9', alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
-  arrow: { fontSize: 18, color: '#999' },
-  filterInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, margin: 12 },
-  back: { padding: 12, backgroundColor: '#f5f5f5' },
-  backText: { fontSize: 15, color: '#4a90d9' },
+  allText: { color: colors.primary, fontWeight: 'bold' },
+  addBtn: { width: touch.min, height: touch.min, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
+  arrow: { fontSize: 18, color: colors.textPlaceholder },
+  filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
+  back: { padding: spacing.lg, backgroundColor: colors.surfaceAlt },
+  backText: { fontSize: 15, color: colors.primary },
 });

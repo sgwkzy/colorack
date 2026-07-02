@@ -1,6 +1,7 @@
 // components/TypeIcon.tsx
 import { Text, StyleSheet } from 'react-native';
 import { paintTypeIcon } from '../lib/paintType';
+import { colors } from '../lib/theme';
 
 // ラッカー=◯L / 水性アクリル=◯W のバッジ。該当なしは何も描画しない。
 const COLOR: Record<string, string> = {
@@ -13,7 +14,7 @@ const COLOR: Record<string, string> = {
 export default function TypeIcon({ paintType }: { paintType: string | null | undefined }) {
   const code = paintTypeIcon(paintType);
   if (!code) return null;
-  const color = COLOR[code] ?? '#888';
+  const color = COLOR[code] ?? colors.textFaint;
   return (
     <Text style={[styles.badge, { borderColor: color, color }]}>{code}</Text>
   );
