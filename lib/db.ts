@@ -7,7 +7,7 @@ export type ListType = 'favorites' | 'wishlist';
 
 // シード内容を更新したら上げる。catalog_paints を作り直して再シードする。
 // (INSERT OR IGNORE のため既存行は更新されない。過去の壊れた名前を一掃する用途も兼ねる)
-const SEED_VERSION = 10;
+const SEED_VERSION = 13;
 
 let _db: SQLite.SQLiteDatabase | null = null;
 
