@@ -75,7 +75,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
                 style={[styles.tabBtn, tab === tabKey && styles.tabBtnActive]}
                 onPress={() => setTab(tabKey)}
               >
-                <Text style={[styles.tabText, tab === tabKey && styles.tabTextActive]}>
+                <Text style={[styles.tabText, tab === tabKey && styles.tabTextActive]} numberOfLines={1}>
                   {t(tabKey)}
                 </Text>
               </TouchableOpacity>
