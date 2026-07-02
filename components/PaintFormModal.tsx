@@ -1,13 +1,13 @@
 // components/PaintFormModal.tsx
 // 手動塗料(source='manual')の新規追加・編集フォーム。カラーコードは任意。
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { IconX } from '@tabler/icons-react-native';
 import { catalogCode, getDB } from '../lib/db';
 import { t } from '../lib/i18n';
 import { validateManualPaint } from '../lib/manualPaint';
-import { colors, spacing } from '../lib/theme';
+import { useTheme, lightColors, spacing } from '../lib/theme';
 import ColorCameraPicker from './ColorCameraPicker';
 import PaintFormFields, { isValidHex } from './PaintFormFields';
 
@@ -30,6 +30,8 @@ interface Props {
 }
 
 export default function PaintFormModal({ visible, paint, onClose, onSaved }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [nameJa, setNameJa] = useState('');
   const [brand, setBrand] = useState('');
   const [series, setSeries] = useState('');
@@ -132,7 +134,7 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   title: { fontSize: 18, fontWeight: 'bold' },

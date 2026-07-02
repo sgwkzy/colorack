@@ -1,5 +1,5 @@
 // app/(tabs)/owned.tsx
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, ScrollView, StyleSheet, Alert,
 } from 'react-native';
@@ -8,7 +8,7 @@ import { IconSearch, IconArrowsSort, IconPlus } from '@tabler/icons-react-native
 import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
-import { colors, radius, spacing } from '../../lib/theme';
+import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
 import AdBanner from '../../components/AdBanner';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
@@ -50,6 +50,8 @@ const SORT_ORDER: Record<Sort, string> = {
 };
 
 export default function OwnedScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [selected, setSelected] = useState<Selected>('all');
   const [statuses, setStatuses] = useState<PaintStatus[]>(['owned', 'in_use']);
@@ -326,7 +328,7 @@ export default function OwnedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1 },
   tabBarWrap: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   tabBar: { alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },

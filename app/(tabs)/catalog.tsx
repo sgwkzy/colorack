@@ -1,7 +1,7 @@
 // app/(tabs)/catalog.tsx
 // 全塗料をブランド→シリーズ→塗料と階層で閲覧。手動追加(source='manual')だけ
 // 編集/削除でき、公式カタログは読み取り専用。右下FABで新規追加。
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { IconPlus, IconTrash, IconChevronLeft } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
@@ -9,7 +9,7 @@ import { getDB } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { paintName, seriesLabel } from '../../lib/paintLabel';
-import { colors, radius, spacing } from '../../lib/theme';
+import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import AdBanner from '../../components/AdBanner';
 import ClearableInput from '../../components/ClearableInput';
 import PaintFormModal, { EditablePaint } from '../../components/PaintFormModal';
@@ -22,6 +22,8 @@ interface Paint extends EditablePaint { name_en: string | null; source: string |
 const ALL = 'ALL';
 
 export default function CatalogScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   useLocale();
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -197,7 +199,7 @@ export default function CatalogScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1 },
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },

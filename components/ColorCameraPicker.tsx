@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -6,7 +6,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { inflate } from 'pako';
 import { IconX } from '@tabler/icons-react-native';
 import { hex_to_rgb } from '../lib/color';
-import { colors, radius, spacing } from '../lib/theme';
+import { useTheme, lightColors, radius, spacing } from '../lib/theme';
 
 interface Props {
   visible: boolean;
@@ -17,6 +17,8 @@ interface Props {
 const CENTER_CROP_RATIO = 0.16;
 
 export default function ColorCameraPicker({ visible, onClose, onPick }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [permission, requestPermission] = useCameraPermissions();
   const [capturing, setCapturing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
@@ -155,7 +157,7 @@ function rgbToHex(r: number, g: number, b: number): string {
   return `#${[r, g, b].map((value) => value.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl, backgroundColor: colors.surface },
   msg: { fontSize: 15, marginBottom: spacing.xl, textAlign: 'center' },

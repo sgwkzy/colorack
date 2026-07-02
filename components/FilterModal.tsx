@@ -10,7 +10,7 @@ import { brandLabel } from '../lib/brands';
 import { glossLabel } from '../lib/gloss';
 import { seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
-import { colors, radius, spacing } from '../lib/theme';
+import { useTheme, lightColors, radius, spacing } from '../lib/theme';
 
 export interface PaintFilter {
   brands: string[];
@@ -30,6 +30,8 @@ interface Props {
 }
 
 export default function FilterModal({ visible, options, initial, onApply, onClose }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [brands, setBrands] = useState<string[]>(initial.brands);
   const [series, setSeries] = useState<string[]>(initial.series);
   const [gloss, setGloss] = useState<string[]>(initial.gloss);
@@ -186,7 +188,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   headerSide: { flex: 1 },

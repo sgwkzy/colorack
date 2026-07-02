@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 // components/TypeIcon.tsx
 import { Text, StyleSheet } from 'react-native';
 import { paintTypeIcon } from '../lib/paintType';
-import { colors } from '../lib/theme';
+import { useTheme, lightColors } from '../lib/theme';
 
 // ラッカー=◯L / 水性アクリル=◯W のバッジ。該当なしは何も描画しない。
 const COLOR: Record<string, string> = {
@@ -12,6 +13,8 @@ const COLOR: Record<string, string> = {
 };
 
 export default function TypeIcon({ paintType }: { paintType: string | null | undefined }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const code = paintTypeIcon(paintType);
   if (!code) return null;
   const color = COLOR[code] ?? colors.textFaint;
@@ -20,7 +23,7 @@ export default function TypeIcon({ paintType }: { paintType: string | null | und
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   // 2文字のピル型バッジ
   badge: {
     minWidth: 24, height: 18, borderRadius: 9, borderWidth: 1,

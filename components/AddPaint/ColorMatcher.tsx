@@ -1,5 +1,5 @@
 // components/AddPaint/ColorMatcher.tsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
 import { IconCamera, IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
@@ -7,7 +7,7 @@ import ColorCameraPicker from '../ColorCameraPicker';
 import { getDB } from '../../lib/db';
 import { rgb_to_lab, delta_e, hex_to_rgb } from '../../lib/color';
 import { t } from '../../lib/i18n';
-import { colors, radius, spacing, touch } from '../../lib/theme';
+import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import PaintRow from '../PaintRow';
 
 interface Paint {
@@ -32,6 +32,8 @@ interface Props {
 }
 
 export default function ColorMatcher({ onSelect }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [hex, setHex] = useState('');
   const [results, setResults] = useState<(Paint & { de: number })[]>([]);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
@@ -103,7 +105,7 @@ export default function ColorMatcher({ onSelect }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, padding: spacing.lg },
   label: { fontSize: 14, fontWeight: 'bold', marginBottom: spacing.md, marginTop: spacing.xs },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: spacing.lg },

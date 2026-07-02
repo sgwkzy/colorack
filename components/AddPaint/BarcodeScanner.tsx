@@ -1,10 +1,10 @@
 // components/AddPaint/BarcodeScanner.tsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
-import { colors, radius, spacing } from '../../lib/theme';
+import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 
 interface Paint {
   id: number;
@@ -19,6 +19,8 @@ interface Props {
 }
 
 export default function BarcodeScanner({ onSelect }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
@@ -65,7 +67,7 @@ export default function BarcodeScanner({ onSelect }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
   msg: { fontSize: 15, marginBottom: spacing.xl, textAlign: 'center' },
