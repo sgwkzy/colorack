@@ -3,11 +3,11 @@ import { useRef, useState, useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 import { getDB, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, spacing } from '../../lib/theme';
+import PaintDetailModal from '../PaintDetailModal';
 import TextSearch from './TextSearch';
 import HierarchyBrowser from './HierarchyBrowser';
 import ColorMatcher from './ColorMatcher';
@@ -36,6 +36,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
   const [tab, setTab] = useState<typeof TABS[number]>('hierarchy');
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
 
   const isInventory = defaultStatus !== 'favorites' && defaultStatus !== 'wishlist';
 
@@ -59,14 +60,9 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
     toastTimer.current = setTimeout(() => setToast(''), 1800);
   };
 
-  // Modal(ネイティブオーバーレイ)を閉じてから push しないと、新しい画面が
-  // Modal の下に隠れてしまうため、先に閉じて次フレームで遷移する。
-  const viewPaintDetail = (paint: Paint) => {
-    onClose();
-    requestAnimationFrame(() => {
-      router.push({ pathname: '/paint/[id]', params: { id: String(paint.id) } });
-    });
-  };
+  // このモーダルは開いたまま、色詳細を別モーダルとして重ねて表示する。
+  // 一覧に戻ってきて別の色をまた見る、を繰り返しやすくするため。
+  const viewPaintDetail = (paint: Paint) => setDetailPaintId(paint.id);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -108,6 +104,11 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
               <Text style={styles.toastText}>{toast}</Text>
             </View>
           ) : null}
+          <PaintDetailModal
+            visible={detailPaintId != null}
+            paintId={detailPaintId}
+            onClose={() => setDetailPaintId(null)}
+          />
         </SafeAreaView>
       </SafeAreaProvider>
     </Modal>

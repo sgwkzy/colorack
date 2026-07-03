@@ -1,8 +1,12 @@
+// components/PaintDetailModal.tsx
+// 色詳細(閲覧/編集)モーダル。塗料一覧・塗料追加モーダルの各閲覧タブから共通で開く。
+// モーダル方式にしているのは、呼び出し元(一覧やAddPaintモーダル)を閉じずに
+// 「詳細を見る→戻る→別の色を見る」を繰り返せるようにするため。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconCamera } from '@tabler/icons-react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { brandLabel } from '../../lib/brands';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { IconCamera, IconX } from '@tabler/icons-react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { brandLabel } from '../lib/brands';
 import {
   CatalogPaintDetail,
   getCatalogPaintDetail,
@@ -12,22 +16,26 @@ import {
   resetCatalogPaintToMaster,
   updateCatalogPaintContent,
   updateManualPaint,
-} from '../../lib/db';
-import { glossLabel } from '../../lib/gloss';
-import { t, useLocale } from '../../lib/i18n';
-import { paintName, seriesLabel } from '../../lib/paintLabel';
-import { paintTypeLabel } from '../../lib/paintType';
-import { lightColors, radius, spacing, touch, useTheme } from '../../lib/theme';
-import ClearableInput from '../../components/ClearableInput';
-import ColorCameraPicker from '../../components/ColorCameraPicker';
-import { GLOSS_OPTIONS, isValidHex, optionChip, TYPE_OPTIONS } from '../../components/PaintFormFields';
+} from '../lib/db';
+import { glossLabel } from '../lib/gloss';
+import { t } from '../lib/i18n';
+import { paintName, seriesLabel } from '../lib/paintLabel';
+import { paintTypeLabel } from '../lib/paintType';
+import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
+import ClearableInput from './ClearableInput';
+import ColorCameraPicker from './ColorCameraPicker';
+import { GLOSS_OPTIONS, isValidHex, optionChip, TYPE_OPTIONS } from './PaintFormFields';
 
-export default function PaintDetailScreen() {
+interface Props {
+  visible: boolean;
+  paintId: number | null;
+  onClose: () => void;
+  onChanged?: () => void; // 保存/リセット/削除で内容が変わった時、呼び出し元に一覧再読み込みを促す
+}
+
+export default function PaintDetailModal({ visible, paintId, onClose, onChanged }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  useLocale();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const paintId = Number(id);
   const [detail, setDetail] = useState<CatalogPaintDetail | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [nameJa, setNameJa] = useState('');
@@ -56,13 +64,21 @@ export default function PaintDetailScreen() {
   }, []);
 
   const load = useCallback(async () => {
-    if (!Number.isFinite(paintId)) return;
+    if (paintId == null) return;
     const row = await getCatalogPaintDetail(paintId);
     setDetail(row);
     if (row) syncFields(row);
   }, [paintId, syncFields]);
 
-  useEffect(() => { load(); }, [load]);
+  // 開くたびに対象を読み込み、閉じている間は状態をリセットしておく。
+  useEffect(() => {
+    if (visible) {
+      load();
+    } else {
+      setDetail(null);
+      setIsEditing(false);
+    }
+  }, [visible, load]);
 
   const showToast = (message: string) => {
     setToast(message);
@@ -96,6 +112,7 @@ export default function PaintDetailScreen() {
       }
       await load();
       setIsEditing(false);
+      onChanged?.();
     } catch {
       Alert.alert('入力エラー', '同じブランド内に同じ品番が既に登録されています。別の品番にしてください。');
     }
@@ -111,6 +128,7 @@ export default function PaintDetailScreen() {
           await resetCatalogPaintToMaster(detail.id, detail.catalog_code);
           await load();
           setIsEditing(false);
+          onChanged?.();
         },
       },
     ]);
@@ -127,7 +145,8 @@ export default function PaintDetailScreen() {
           await db.runAsync('DELETE FROM inventory WHERE paint_id = ?', [detail.id]);
           await db.runAsync('DELETE FROM lists WHERE paint_id = ?', [detail.id]);
           await db.runAsync('DELETE FROM catalog_paints WHERE id = ?', [detail.id]);
-          router.back();
+          onChanged?.();
+          onClose();
         },
       },
     ]);
@@ -138,111 +157,113 @@ export default function PaintDetailScreen() {
     return <Text style={styles.masterText}>{t('masterValue')}: {formatter(masterValue ?? '')}</Text>;
   };
 
-  if (!detail) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.empty}>{t('noResults')}</Text>
-      </View>
-    );
-  }
-
-  const displayHex = detail.hex ?? '';
-
-  if (!isEditing) {
-    return (
-      <View style={styles.container}>
-        <ScrollView contentContainerStyle={styles.content}>
-          <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: detail.hex ?? colors.border }]} />
-          <Text style={styles.title}>{paintName(detail.name_ja, detail.name_en)}</Text>
-          <Info label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
-          <Info label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
-          <Info label={t('code')} value={detail.code} styles={styles} />
-          <Info label={t('hex')} value={displayHex} styles={styles} />
-          <Info label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
-          <Info label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={addToInventory}>
-              <Text style={styles.primaryButtonText}>{t('addThisColor')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={() => setIsEditing(true)}>
-              <Text style={styles.buttonText}>{t('editPaint')}</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-        {toast ? (
-          <View style={styles.toast} pointerEvents="none">
-            <Text style={styles.toastText}>{toast}</Text>
-          </View>
-        ) : null}
-      </View>
-    );
-  }
+  const displayHex = detail?.hex ?? '';
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-        <EditField label={t('name')} value={nameJa} onChangeText={setNameJa} styles={styles} />
-        {masterLine(nameJa, master?.name_ja)}
-
-        {isManual ? (
-          <>
-            <EditField label={t('brand')} value={brand} onChangeText={setBrand} styles={styles} />
-            <EditField label={t('series')} value={series} onChangeText={setSeries} styles={styles} />
-            <EditField label={t('code')} value={code} onChangeText={setCode} styles={styles} />
-          </>
-        ) : (
-          <>
-            <ReadonlyField label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
-            <ReadonlyField label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
-            <ReadonlyField label={t('code')} value={detail.code} styles={styles} />
-          </>
-        )}
-
-        <View style={styles.field}>
-          <Text style={styles.label}>{t('hex') + ' (#RRGGBB)'}</Text>
-          <View style={styles.hexRow}>
-            <ClearableInput style={[styles.input, styles.hexInput]} value={hex} onChangeText={setHex} autoCapitalize="none" />
-            {isValidHex(hex) && <View style={[styles.previewSwatch, { backgroundColor: `#${hex.replace('#', '')}` }]} />}
-            <TouchableOpacity style={styles.cameraBtn} onPress={() => setColorPickerVisible(true)} accessibilityLabel="カメラで色を取得">
-              <IconCamera color={colors.primary} size={22} />
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+          <View style={styles.header}>
+            <Text style={styles.title}>{t('paintDetailTitle')}</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <IconX color={colors.text} size={24} />
             </TouchableOpacity>
           </View>
-          {masterLine(hex, master?.hex)}
-        </View>
 
-        <Text style={styles.label}>{t('paintType')}</Text>
-        <View style={styles.chipRow}>
-          {TYPE_OPTIONS.map((v) => optionChip(v, paintType === v, paintTypeLabel(v), () => setPaintType(paintType === v ? null : v), styles))}
-        </View>
-        {masterLine(paintType, master?.paint_type, paintTypeLabel)}
+          {!detail ? (
+            <Text style={styles.empty}>{t('noResults')}</Text>
+          ) : !isEditing ? (
+            <ScrollView contentContainerStyle={styles.content}>
+              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: detail.hex ?? colors.border }]} />
+              <Text style={styles.paintTitle}>{paintName(detail.name_ja, detail.name_en)}</Text>
+              <Info label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
+              <Info label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
+              <Info label={t('code')} value={detail.code} styles={styles} />
+              <Info label={t('hex')} value={displayHex} styles={styles} />
+              <Info label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
+              <Info label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={addToInventory}>
+                  <Text style={styles.primaryButtonText}>{t('addThisColor')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.button} onPress={() => setIsEditing(true)}>
+                  <Text style={styles.buttonText}>{t('editPaint')}</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          ) : (
+            <ScrollView contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+              <EditField label={t('name')} value={nameJa} onChangeText={setNameJa} styles={styles} />
+              {masterLine(nameJa, master?.name_ja)}
 
-        <Text style={[styles.label, styles.sectionGap]}>{t('gloss')}</Text>
-        <View style={styles.chipRow}>
-          {GLOSS_OPTIONS.map((v) => optionChip(v, gloss === v, glossLabel(v), () => setGloss(gloss === v ? null : v), styles))}
-        </View>
-        {masterLine(gloss, master?.gloss, glossLabel)}
+              {isManual ? (
+                <>
+                  <EditField label={t('brand')} value={brand} onChangeText={setBrand} styles={styles} />
+                  <EditField label={t('series')} value={series} onChangeText={setSeries} styles={styles} />
+                  <EditField label={t('code')} value={code} onChangeText={setCode} styles={styles} />
+                </>
+              ) : (
+                <>
+                  <ReadonlyField label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
+                  <ReadonlyField label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
+                  <ReadonlyField label={t('code')} value={detail.code} styles={styles} />
+                </>
+              )}
 
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.button} onPress={cancelEdit}>
-            <Text style={styles.buttonText}>{t('cancel')}</Text>
-          </TouchableOpacity>
-          {detail.source === 'catalog' && master ? (
-            <TouchableOpacity style={styles.button} onPress={resetToMaster}>
-              <Text style={styles.buttonText}>{t('reset')}</Text>
-            </TouchableOpacity>
+              <View style={styles.field}>
+                <Text style={styles.label}>{t('hex') + ' (#RRGGBB)'}</Text>
+                <View style={styles.hexRow}>
+                  <ClearableInput style={[styles.input, styles.hexInput]} value={hex} onChangeText={setHex} autoCapitalize="none" />
+                  {isValidHex(hex) && <View style={[styles.previewSwatch, { backgroundColor: `#${hex.replace('#', '')}` }]} />}
+                  <TouchableOpacity style={styles.cameraBtn} onPress={() => setColorPickerVisible(true)} accessibilityLabel="カメラで色を取得">
+                    <IconCamera color={colors.primary} size={22} />
+                  </TouchableOpacity>
+                </View>
+                {masterLine(hex, master?.hex)}
+              </View>
+
+              <Text style={styles.label}>{t('paintType')}</Text>
+              <View style={styles.chipRow}>
+                {TYPE_OPTIONS.map((v) => optionChip(v, paintType === v, paintTypeLabel(v), () => setPaintType(paintType === v ? null : v), styles))}
+              </View>
+              {masterLine(paintType, master?.paint_type, paintTypeLabel)}
+
+              <Text style={[styles.label, styles.sectionGap]}>{t('gloss')}</Text>
+              <View style={styles.chipRow}>
+                {GLOSS_OPTIONS.map((v) => optionChip(v, gloss === v, glossLabel(v), () => setGloss(gloss === v ? null : v), styles))}
+              </View>
+              {masterLine(gloss, master?.gloss, glossLabel)}
+
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={styles.button} onPress={cancelEdit}>
+                  <Text style={styles.buttonText}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                {detail.source === 'catalog' && master ? (
+                  <TouchableOpacity style={styles.button} onPress={resetToMaster}>
+                    <Text style={styles.buttonText}>{t('reset')}</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {isManual ? (
+                  <TouchableOpacity style={[styles.button, styles.deleteButton]} onPress={remove}>
+                    <Text style={styles.deleteButtonText}>{t('delete')}</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity style={[styles.button, styles.primaryButton, !canSave && styles.buttonDisabled]} onPress={save} disabled={!canSave}>
+                  <Text style={styles.primaryButtonText}>{t('save')}</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          )}
+
+          {toast ? (
+            <View style={styles.toast} pointerEvents="none">
+              <Text style={styles.toastText}>{toast}</Text>
+            </View>
           ) : null}
-          {isManual ? (
-            <TouchableOpacity style={[styles.button, styles.deleteButton]} onPress={remove}>
-              <Text style={styles.deleteButtonText}>{t('delete')}</Text>
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity style={[styles.button, styles.primaryButton, !canSave && styles.buttonDisabled]} onPress={save} disabled={!canSave}>
-            <Text style={styles.primaryButtonText}>{t('save')}</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-      <ColorCameraPicker visible={colorPickerVisible} onClose={() => setColorPickerVisible(false)} onPick={setHex} />
-    </View>
+          <ColorCameraPicker visible={colorPickerVisible} onClose={() => setColorPickerVisible(false)} onPick={setHex} />
+        </SafeAreaView>
+      </SafeAreaProvider>
+    </Modal>
   );
 }
 
@@ -275,9 +296,11 @@ function ReadonlyField({ label, value, styles }: { label: string; value: string;
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   content: { padding: spacing.xl, paddingBottom: 96 },
   swatch: { height: 96, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.xl },
-  title: { fontSize: 22, fontWeight: 'bold', color: colors.text, marginBottom: spacing.xl },
+  paintTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text, marginBottom: spacing.xl },
   infoRow: { paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   infoLabel: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   infoValue: { fontSize: 16, color: colors.text },

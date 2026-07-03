@@ -4,7 +4,7 @@
 import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { IconPlus, IconTrash, IconChevronLeft } from '@tabler/icons-react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { getDB } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
@@ -12,6 +12,7 @@ import { paintName, seriesLabel } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import AdBanner from '../../components/AdBanner';
 import ClearableInput from '../../components/ClearableInput';
+import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintFormModal, { EditablePaint } from '../../components/PaintFormModal';
 import SwipeBack from '../../components/SwipeBack';
 import PaintRow from '../../components/PaintRow';
@@ -24,7 +25,6 @@ const ALL = 'ALL';
 export default function CatalogScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const router = useRouter();
   useLocale();
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -34,6 +34,7 @@ export default function CatalogScreen() {
   const [nameFilter, setNameFilter] = useState('');
   const [editing, setEditing] = useState<EditablePaint | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
 
   const loadBrands = useCallback(async () => {
     const db = getDB();
@@ -104,6 +105,12 @@ export default function CatalogScreen() {
         <IconPlus color={colors.onPrimary} size={28} />
       </TouchableOpacity>
       <PaintFormModal visible={showForm} paint={editing} onClose={() => setShowForm(false)} onSaved={reload} />
+      <PaintDetailModal
+        visible={detailPaintId != null}
+        paintId={detailPaintId}
+        onClose={() => setDetailPaintId(null)}
+        onChanged={reload}
+      />
     </>
   );
 
@@ -175,7 +182,7 @@ export default function CatalogScreen() {
           const manual = item.source === 'manual';
           return (
             <TouchableOpacity
-              onPress={() => router.push({ pathname: '/paint/[id]', params: { id: String(item.id) } })}
+              onPress={() => setDetailPaintId(item.id)}
             >
               <PaintRow paint={item} borderColor={item.hex ?? colors.transparent}>
               {manual ? (
