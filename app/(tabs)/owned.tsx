@@ -6,12 +6,13 @@ import {
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconSearch, IconArrowsSort, IconPlus } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
-import { getDB, getDefaultBoxId, PaintStatus } from '../../lib/db';
+import { getDB, getDefaultBoxId, PaintStatus, setInventoryStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
 import AdBanner from '../../components/AdBanner';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
+import InventoryDetailModal from '../../components/InventoryDetailModal';
 import PaintRow from '../../components/PaintRow';
 
 interface Box { id: number; name: string; }
@@ -62,6 +63,7 @@ export default function OwnedScreen() {
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
+  const [detailInventoryId, setDetailInventoryId] = useState<number | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const initializedRef = useRef(false);
 
@@ -181,8 +183,7 @@ export default function OwnedScreen() {
 
   // --- 塗料の状態/削除 ---
   const setStatus = async (item: InventoryItem, next: PaintStatus) => {
-    const db = getDB();
-    await db.runAsync('UPDATE inventory SET status = ? WHERE id = ?', [next, item.id]);
+    await setInventoryStatus(item.id, next);
     reload();
   };
   const toggleStockUse = (item: InventoryItem) => {
@@ -278,21 +279,23 @@ export default function OwnedScreen() {
             overshootRight={false}
             overshootLeft={false}
           >
-            <PaintRow paint={item}>
-              {/* 在庫⇄使用中 トグル (使用済の時は非活性) */}
-              <TouchableOpacity
-                style={[styles.iconBtn, {
-                  backgroundColor: item.status === 'used_up'
-                    ? colors.usedUp
-                    : (item.status === 'in_use' ? colors.inUse : colors.primary),
-                }]}
-                onPress={() => toggleStockUse(item)}
-              >
-                <Text style={styles.iconBtnText}>
-                  {item.status === 'used_up' ? t('statusUsedUp') : (item.status === 'in_use' ? t('statusInUse') : t('statusOwned'))}
-                </Text>
-              </TouchableOpacity>
-            </PaintRow>
+            <TouchableOpacity onPress={() => setDetailInventoryId(item.id)}>
+              <PaintRow paint={item}>
+                {/* 在庫⇄使用中 トグル (使用済の時は非活性) */}
+                <TouchableOpacity
+                  style={[styles.iconBtn, {
+                    backgroundColor: item.status === 'used_up'
+                      ? colors.usedUp
+                      : (item.status === 'in_use' ? colors.inUse : colors.primary),
+                  }]}
+                  onPress={() => toggleStockUse(item)}
+                >
+                  <Text style={styles.iconBtnText}>
+                    {item.status === 'used_up' ? t('statusUsedUp') : (item.status === 'in_use' ? t('statusInUse') : t('statusOwned'))}
+                  </Text>
+                </TouchableOpacity>
+              </PaintRow>
+            </TouchableOpacity>
           </Swipeable>
         )}
         ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
@@ -323,6 +326,13 @@ export default function OwnedScreen() {
         onClose={() => { setShowAdd(false); reload(); }}
         defaultStatus="owned"
         boxId={selected === 'all' ? defaultBoxId : selected}
+      />
+
+      <InventoryDetailModal
+        visible={detailInventoryId != null}
+        inventoryId={detailInventoryId}
+        onClose={() => setDetailInventoryId(null)}
+        onChanged={reload}
       />
     </View>
   );
