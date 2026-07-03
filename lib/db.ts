@@ -74,6 +74,7 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN paint_type TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN source TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN series_en TEXT'); } catch { /* 既にある */ }
+  try { await db.execAsync('ALTER TABLE inventory ADD COLUMN status_changed_at TEXT'); } catch { /* 既にある */ }
 
   // 旧スキーマ(code が UNIQUE でブランドをまたいで衝突する)の端末はテーブルを作り直す。
   // code 単体の UNIQUE は SQLite の ALTER では外せないため、テーブルごと再構築する。
@@ -213,6 +214,53 @@ export async function getCatalogPaintDetail(paintId: number): Promise<CatalogPai
     [paintId]
   );
   return row ?? null;
+}
+
+export interface InventoryDetail {
+  id: number;
+  paint_id: number;
+  box_id: number | null;
+  box_name: string | null;
+  status: PaintStatus;
+  note: string | null;
+  added_at: string | null;
+  status_changed_at: string | null;
+  catalog_code: string;
+  brand: string;
+  series: string;
+  series_en: string | null;
+  code: string;
+  name_ja: string;
+  name_en: string | null;
+  hex: string | null;
+  gloss: string | null;
+  paint_type: string | null;
+  source: string;
+}
+
+export async function getInventoryDetail(inventoryId: number): Promise<InventoryDetail | null> {
+  const row = await getDB().getFirstAsync<InventoryDetail>(
+    'SELECT i.id, i.paint_id, i.box_id, b.name AS box_name, i.status, i.note, i.added_at, i.status_changed_at,'
+    + ' c.catalog_code, c.brand, c.series, c.series_en, c.code, c.name_ja, c.name_en, c.hex, c.gloss, c.paint_type, c.source'
+    + ' FROM inventory i'
+    + ' JOIN catalog_paints c ON i.paint_id = c.id'
+    + ' LEFT JOIN boxes b ON i.box_id = b.id'
+    + ' WHERE i.id = ?',
+    [inventoryId]
+  );
+  return row ?? null;
+}
+
+export async function updateInventoryNote(inventoryId: number, note: string): Promise<void> {
+  const normalized = note.trim() === '' ? null : note;
+  await getDB().runAsync('UPDATE inventory SET note = ? WHERE id = ?', [normalized, inventoryId]);
+}
+
+export async function setInventoryStatus(inventoryId: number, status: PaintStatus): Promise<void> {
+  await getDB().runAsync(
+    "UPDATE inventory SET status = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [status, inventoryId]
+  );
 }
 
 export interface CatalogPaintContentEdit {
