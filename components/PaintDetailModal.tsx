@@ -26,6 +26,7 @@ import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
 import ClearableInput from './ClearableInput';
 import ColorCameraPicker from './ColorCameraPicker';
 import { GLOSS_OPTIONS, isValidHex, optionChip, TYPE_OPTIONS } from './PaintFormFields';
+import SwipeBack from './SwipeBack';
 
 interface Box { id: number; name: string; }
 
@@ -187,6 +188,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaProvider>
+        <SwipeBack enabled={visible} onBack={onClose}>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <PanGestureHandler activeOffsetY={20} failOffsetX={[-15, 15]} onHandlerStateChange={onHeaderSwipe}>
             <View style={styles.header}>
@@ -214,7 +216,6 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 <View style={styles.field}>
                   <Text style={styles.label}>{t('box')}</Text>
                   <View style={styles.chipRow}>
-                    {optionChip('none', selectedBoxId === null, t('unassigned'), () => setSelectedBoxId(null), styles)}
                     {boxes.map((b) => optionChip(String(b.id), selectedBoxId === b.id, b.name, () => setSelectedBoxId(b.id), styles))}
                   </View>
                 </View>
@@ -300,6 +301,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
           ) : null}
           <ColorCameraPicker visible={colorPickerVisible} onClose={() => setColorPickerVisible(false)} onPick={setHex} />
         </SafeAreaView>
+        </SwipeBack>
       </SafeAreaProvider>
     </Modal>
   );
