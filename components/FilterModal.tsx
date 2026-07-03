@@ -11,6 +11,7 @@ import { glossLabel } from '../lib/gloss';
 import { seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
 import { useTheme, lightColors, radius, spacing } from '../lib/theme';
+import SwipeDownHeader from './SwipeDownHeader';
 
 export interface PaintFilter {
   brands: string[];
@@ -91,15 +92,17 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaProvider>
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.headerSide} onPress={onClose}>
-            <Text style={[styles.headerBtn, { textAlign: 'left' }]}>{t('cancel')}</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>{t('filter')}</Text>
-          <TouchableOpacity style={styles.headerSide} onPress={clear}>
-            <Text style={[styles.headerBtn, { textAlign: 'right' }]}>{t('clear')}</Text>
-          </TouchableOpacity>
-        </View>
+        <SwipeDownHeader onClose={onClose}>
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.headerSide} onPress={onClose}>
+              <Text style={[styles.headerBtn, { textAlign: 'left' }]}>{t('cancel')}</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>{t('filter')}</Text>
+            <TouchableOpacity style={styles.headerSide} onPress={clear}>
+              <Text style={[styles.headerBtn, { textAlign: 'right' }]}>{t('clear')}</Text>
+            </TouchableOpacity>
+          </View>
+        </SwipeDownHeader>
 
         <ScrollView style={{ flex: 1 }}>
           {/* 色名検索 */}

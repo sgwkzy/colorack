@@ -8,6 +8,7 @@ import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, spacing } from '../../lib/theme';
 import PaintDetailModal from '../PaintDetailModal';
+import SwipeDownHeader from '../SwipeDownHeader';
 import TextSearch from './TextSearch';
 import HierarchyBrowser from './HierarchyBrowser';
 import ColorMatcher from './ColorMatcher';
@@ -68,12 +69,14 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <View style={styles.header}>
-            <Text style={styles.title}>{t('addPaint')}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <IconX color={colors.text} size={24} />
-            </TouchableOpacity>
-          </View>
+          <SwipeDownHeader onClose={onClose}>
+            <View style={styles.header}>
+              <Text style={styles.title}>{t('addPaint')}</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={8}>
+                <IconX color={colors.text} size={24} />
+              </TouchableOpacity>
+            </View>
+          </SwipeDownHeader>
           <View style={styles.tabBar}>
             {TABS.map((tabKey) => (
               <TouchableOpacity

@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconCamera, IconX } from '@tabler/icons-react-native';
-import { PanGestureHandler, PanGestureHandlerStateChangeEvent, State } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { brandLabel } from '../lib/brands';
 import {
@@ -27,6 +26,7 @@ import ClearableInput from './ClearableInput';
 import ColorCameraPicker from './ColorCameraPicker';
 import { GLOSS_OPTIONS, isValidHex, optionChip, TYPE_OPTIONS } from './PaintFormFields';
 import SwipeBack from './SwipeBack';
+import SwipeDownHeader from './SwipeDownHeader';
 
 interface Box { id: number; name: string; }
 
@@ -118,11 +118,6 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
   };
 
-  const onHeaderSwipe = (e: PanGestureHandlerStateChangeEvent) => {
-    const { state, translationY, velocityY } = e.nativeEvent;
-    if (state === State.END && translationY > 40 && velocityY > 0) onClose();
-  };
-
   const cancelEdit = () => {
     if (detail) syncFields(detail);
     setIsEditing(false);
@@ -190,14 +185,14 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       <SafeAreaProvider>
         <SwipeBack enabled={visible} onBack={onClose}>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <PanGestureHandler activeOffsetY={20} failOffsetX={[-15, 15]} onHandlerStateChange={onHeaderSwipe}>
+          <SwipeDownHeader onClose={onClose}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('paintDetailTitle')}</Text>
               <TouchableOpacity onPress={onClose} hitSlop={8}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
-          </PanGestureHandler>
+          </SwipeDownHeader>
 
           {!detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>

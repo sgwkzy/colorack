@@ -10,6 +10,7 @@ import { validateManualPaint } from '../lib/manualPaint';
 import { useTheme, lightColors, spacing } from '../lib/theme';
 import ColorCameraPicker from './ColorCameraPicker';
 import PaintFormFields, { isValidHex } from './PaintFormFields';
+import SwipeDownHeader from './SwipeDownHeader';
 
 export interface EditablePaint {
   id: number;
@@ -83,12 +84,14 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <View style={styles.header}>
-            <Text style={styles.title}>{paint ? t('editPaint') : t('newPaint')}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <IconX color={colors.text} size={24} />
-            </TouchableOpacity>
-          </View>
+          <SwipeDownHeader onClose={onClose}>
+            <View style={styles.header}>
+              <Text style={styles.title}>{paint ? t('editPaint') : t('newPaint')}</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={8}>
+                <IconX color={colors.text} size={24} />
+              </TouchableOpacity>
+            </View>
+          </SwipeDownHeader>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
             <PaintFormFields
               fields={[
