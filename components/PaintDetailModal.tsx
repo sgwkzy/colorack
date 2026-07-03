@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconCamera, IconX } from '@tabler/icons-react-native';
+import { PanGestureHandler, PanGestureHandlerStateChangeEvent, State } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { brandLabel } from '../lib/brands';
 import {
@@ -26,14 +27,21 @@ import ClearableInput from './ClearableInput';
 import ColorCameraPicker from './ColorCameraPicker';
 import { GLOSS_OPTIONS, isValidHex, optionChip, TYPE_OPTIONS } from './PaintFormFields';
 
+interface Box { id: number; name: string; }
+
 interface Props {
   visible: boolean;
   paintId: number | null;
   onClose: () => void;
   onChanged?: () => void; // 保存/リセット/削除で内容が変わった時、呼び出し元に一覧再読み込みを促す
+  // 呼び出し元の文脈: 保管箱(owned)から開いた時はそのボックスを、
+  // お気に入り/買い物リストから開いた時はそのリストへ追加する(ボックス選択は不要)。
+  // 未指定(塗料一覧から開いた時など)はデフォルトボックスへの在庫追加として扱う。
+  defaultStatus?: string;
+  boxId?: number | null;
 }
 
-export default function PaintDetailModal({ visible, paintId, onClose, onChanged }: Props) {
+export default function PaintDetailModal({ visible, paintId, onClose, onChanged, defaultStatus = 'owned', boxId }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [detail, setDetail] = useState<CatalogPaintDetail | null>(null);
@@ -48,6 +56,10 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged 
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [boxes, setBoxes] = useState<Box[]>([]);
+  const [selectedBoxId, setSelectedBoxId] = useState<number | null>(null);
+
+  const isInventory = defaultStatus !== 'favorites' && defaultStatus !== 'wishlist';
 
   const master = detail?.source === 'catalog' ? getMasterCatalogPaint(detail.catalog_code) : null;
   const isManual = detail?.source === 'manual';
@@ -74,6 +86,11 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged 
   useEffect(() => {
     if (visible) {
       load();
+      if (isInventory) {
+        getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id').then(setBoxes);
+        // boxId指定があればそれを初期選択(保管箱から開いた時)、無指定ならデフォルトボックス(塗料一覧から開いた時)。
+        (boxId !== undefined ? Promise.resolve(boxId) : getDefaultBoxId()).then(setSelectedBoxId);
+      }
     } else {
       setDetail(null);
       setIsEditing(false);
@@ -89,12 +106,20 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged 
   const addToInventory = async () => {
     if (!detail) return;
     const db = getDB();
-    const defaultBoxId = await getDefaultBoxId();
-    await db.runAsync(
-      'INSERT INTO inventory (paint_id, status, box_id) VALUES (?, ?, ?)',
-      [detail.id, 'owned', defaultBoxId]
-    );
+    if (isInventory) {
+      await db.runAsync(
+        'INSERT INTO inventory (paint_id, status, box_id) VALUES (?, ?, ?)',
+        [detail.id, defaultStatus, selectedBoxId]
+      );
+    } else {
+      await db.runAsync('INSERT INTO lists (type, paint_id) VALUES (?, ?)', [defaultStatus, detail.id]);
+    }
     showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
+  };
+
+  const onHeaderSwipe = (e: PanGestureHandlerStateChangeEvent) => {
+    const { state, translationY, velocityY } = e.nativeEvent;
+    if (state === State.END && translationY > 40 && velocityY > 0) onClose();
   };
 
   const cancelEdit = () => {
@@ -163,12 +188,14 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged 
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <View style={styles.header}>
-            <Text style={styles.title}>{t('paintDetailTitle')}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <IconX color={colors.text} size={24} />
-            </TouchableOpacity>
-          </View>
+          <PanGestureHandler activeOffsetY={20} failOffsetX={[-15, 15]} onHandlerStateChange={onHeaderSwipe}>
+            <View style={styles.header}>
+              <Text style={styles.title}>{t('paintDetailTitle')}</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={8}>
+                <IconX color={colors.text} size={24} />
+              </TouchableOpacity>
+            </View>
+          </PanGestureHandler>
 
           {!detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
@@ -182,6 +209,17 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged 
               <Info label={t('hex')} value={displayHex} styles={styles} />
               <Info label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
               <Info label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
+
+              {isInventory && (
+                <View style={styles.field}>
+                  <Text style={styles.label}>{t('box')}</Text>
+                  <View style={styles.chipRow}>
+                    {optionChip('none', selectedBoxId === null, t('unassigned'), () => setSelectedBoxId(null), styles)}
+                    {boxes.map((b) => optionChip(String(b.id), selectedBoxId === b.id, b.name, () => setSelectedBoxId(b.id), styles))}
+                  </View>
+                </View>
+              )}
+
               <View style={styles.actionRow}>
                 <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={addToInventory}>
                   <Text style={styles.primaryButtonText}>{t('addThisColor')}</Text>
