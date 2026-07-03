@@ -58,7 +58,7 @@ export default function CatalogScreen() {
     if (series !== ALL) { where.push('series = ?'); args.push(series); }
     const sql = 'SELECT id, name_ja, name_en, brand, series, series_en, code, hex, gloss, paint_type, source FROM catalog_paints'
       + (where.length ? ' WHERE ' + where.join(' AND ') : '')
-      + ' ORDER BY name_ja';
+      + ' ORDER BY code COLLATE NOCASE';
     setPaints(await db.getAllAsync<Paint>(sql, args));
   }, []);
 

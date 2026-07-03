@@ -56,7 +56,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
     if (series !== ALL) { where.push('series = ?'); args.push(series); }
     const sql = 'SELECT id, name_ja, name_en, code, brand, series, series_en, hex, gloss, paint_type FROM catalog_paints'
       + (where.length ? ' WHERE ' + where.join(' AND ') : '')
-      + ' ORDER BY name_ja';
+      + ' ORDER BY code COLLATE NOCASE';
     setPaints(await getDB().getAllAsync<Paint>(sql, args));
     setNameFilter('');
   };
