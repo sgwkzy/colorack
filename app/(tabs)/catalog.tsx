@@ -12,6 +12,7 @@ import { paintName, seriesLabel } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import AdBanner from '../../components/AdBanner';
 import ClearableInput from '../../components/ClearableInput';
+import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintFormModal, { EditablePaint } from '../../components/PaintFormModal';
 import SwipeBack from '../../components/SwipeBack';
 import PaintRow from '../../components/PaintRow';
@@ -33,6 +34,7 @@ export default function CatalogScreen() {
   const [nameFilter, setNameFilter] = useState('');
   const [editing, setEditing] = useState<EditablePaint | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
 
   const loadBrands = useCallback(async () => {
     const db = getDB();
@@ -56,7 +58,7 @@ export default function CatalogScreen() {
     if (series !== ALL) { where.push('series = ?'); args.push(series); }
     const sql = 'SELECT id, name_ja, name_en, brand, series, series_en, code, hex, gloss, paint_type, source FROM catalog_paints'
       + (where.length ? ' WHERE ' + where.join(' AND ') : '')
-      + ' ORDER BY name_ja';
+      + ' ORDER BY code COLLATE NOCASE';
     setPaints(await db.getAllAsync<Paint>(sql, args));
   }, []);
 
@@ -80,10 +82,6 @@ export default function CatalogScreen() {
     else setSelectedSeries(null);
   };
   const openNew = () => { setEditing(null); setShowForm(true); };
-  const openEdit = (p: Paint) => {
-    if (p.source !== 'manual') return; // 公式カタログは編集不可
-    setEditing(p); setShowForm(true);
-  };
 
   const remove = (p: Paint) => {
     Alert.alert(paintName(p.name_ja, p.name_en), t('deletePaintConfirm'), [
@@ -107,6 +105,12 @@ export default function CatalogScreen() {
         <IconPlus color={colors.onPrimary} size={28} />
       </TouchableOpacity>
       <PaintFormModal visible={showForm} paint={editing} onClose={() => setShowForm(false)} onSaved={reload} />
+      <PaintDetailModal
+        visible={detailPaintId != null}
+        paintId={detailPaintId}
+        onClose={() => setDetailPaintId(null)}
+        onChanged={reload}
+      />
     </>
   );
 
@@ -178,8 +182,7 @@ export default function CatalogScreen() {
           const manual = item.source === 'manual';
           return (
             <TouchableOpacity
-              onPress={() => openEdit(item)}
-              disabled={!manual}
+              onPress={() => setDetailPaintId(item.id)}
             >
               <PaintRow paint={item} borderColor={item.hex ?? colors.transparent}>
               {manual ? (

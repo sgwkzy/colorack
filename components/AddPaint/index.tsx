@@ -7,6 +7,8 @@ import { getDB, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, spacing } from '../../lib/theme';
+import PaintDetailModal from '../PaintDetailModal';
+import SwipeDownHeader from '../SwipeDownHeader';
 import TextSearch from './TextSearch';
 import HierarchyBrowser from './HierarchyBrowser';
 import ColorMatcher from './ColorMatcher';
@@ -35,6 +37,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
   const [tab, setTab] = useState<typeof TABS[number]>('hierarchy');
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
 
   const isInventory = defaultStatus !== 'favorites' && defaultStatus !== 'wishlist';
 
@@ -58,16 +61,22 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
     toastTimer.current = setTimeout(() => setToast(''), 1800);
   };
 
+  // このモーダルは開いたまま、色詳細を別モーダルとして重ねて表示する。
+  // 一覧に戻ってきて別の色をまた見る、を繰り返しやすくするため。
+  const viewPaintDetail = (paint: Paint) => setDetailPaintId(paint.id);
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <View style={styles.header}>
-            <Text style={styles.title}>{t('addPaint')}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <IconX color={colors.text} size={24} />
-            </TouchableOpacity>
-          </View>
+          <SwipeDownHeader onClose={onClose}>
+            <View style={styles.header}>
+              <Text style={styles.title}>{t('addPaint')}</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={8}>
+                <IconX color={colors.text} size={24} />
+              </TouchableOpacity>
+            </View>
+          </SwipeDownHeader>
           <View style={styles.tabBar}>
             {TABS.map((tabKey) => (
               <TouchableOpacity
@@ -82,9 +91,9 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
             ))}
           </View>
           <View style={styles.content}>
-            {tab === 'hierarchy' && <HierarchyBrowser onSelect={addToInventory} />}
-            {tab === 'textSearch' && <TextSearch onSelect={addToInventory} />}
-            {tab === 'colorMatch' && <ColorMatcher onSelect={addToInventory} />}
+            {tab === 'hierarchy' && <HierarchyBrowser onSelect={addToInventory} onSelectView={viewPaintDetail} />}
+            {tab === 'textSearch' && <TextSearch onSelect={addToInventory} onSelectView={viewPaintDetail} />}
+            {tab === 'colorMatch' && <ColorMatcher onSelect={addToInventory} onSelectView={viewPaintDetail} />}
             {tab === 'manual' && (
               <ManualEntry
                 onSelect={addToInventory}
@@ -98,6 +107,13 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
               <Text style={styles.toastText}>{toast}</Text>
             </View>
           ) : null}
+          <PaintDetailModal
+            visible={detailPaintId != null}
+            paintId={detailPaintId}
+            onClose={() => setDetailPaintId(null)}
+            defaultStatus={defaultStatus}
+            boxId={boxId}
+          />
         </SafeAreaView>
       </SafeAreaProvider>
     </Modal>

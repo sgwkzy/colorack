@@ -1,9 +1,18 @@
 // lib/db.ts
 import * as SQLite from 'expo-sqlite';
 import seedData from '../assets/seed_catalog.json';
+import { validateManualPaint } from './manualPaint';
 
 export type PaintStatus = 'owned' | 'in_use' | 'used_up';
 export type ListType = 'favorites' | 'wishlist';
+
+export type SeedRow = {
+  brand: string; series: string; series_en: string | null; code: string;
+  name_ja: string; name_en: string | null; hex: string | null;
+  rgb_r: number | null; rgb_g: number | null; rgb_b: number | null;
+  lab_l: number | null; lab_a: number | null; lab_b: number | null;
+  barcode: string | null; gloss: string | null; paint_type: string | null;
+};
 
 // シード内容を更新したら上げる。catalog_paints を作り直して再シードする。
 // (INSERT OR IGNORE のため既存行は更新されない。過去の壊れた名前を一掃する用途も兼ねる)
@@ -17,6 +26,7 @@ export function catalogCode(brand: string, series: string, code: string): string
 }
 
 let _db: SQLite.SQLiteDatabase | null = null;
+let masterCatalogMap: Map<string, SeedRow> | null = null;
 
 export function getDB(): SQLite.SQLiteDatabase {
   if (!_db) throw new Error('DB not initialized. Call initDB() first.');
@@ -103,24 +113,21 @@ export async function initDB(): Promise<void> {
     );
   }
 
-  type SeedRow = {
-    brand: string; series: string; series_en: string | null; code: string;
-    name_ja: string; name_en: string | null; hex: string | null;
-    rgb_r: number | null; rgb_g: number | null; rgb_b: number | null;
-    lab_l: number | null; lab_a: number | null; lab_b: number | null;
-    barcode: string | null; gloss: string | null; paint_type: string | null;
-  };
-
-  const seed = seedData as SeedRow[];
-
-  // シードバージョンが古い端末は catalog_paints を作り直して再シード。
+  // シードバージョンが古い端末は catalog_paints をシードの内容へ更新。
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   const current = row?.user_version ?? 0;
-  if (current >= SEED_VERSION) return;
+  if (current < SEED_VERSION) {
+    await upsertCatalogFromSeed(db);
+    await db.execAsync(`PRAGMA user_version = ${SEED_VERSION}`);
+  }
+}
 
+// brand+series+code(catalog_code) をキーに、公式カタログ(source='catalog')をシードの内容でUPSERT。
+// 既存行は id を保ったまま更新するので inventory/lists の paint_id 参照を壊さない。
+// initDB()のシード更新と、設定画面からの「塗料一覧を初期化」の両方から呼ばれる。
+async function upsertCatalogFromSeed(db: SQLite.SQLiteDatabase): Promise<void> {
+  const seed = seedData as SeedRow[];
   await db.withTransactionAsync(async () => {
-    // brand+series+code(catalog_code) をキーに UPSERT。既存行は id を保ったまま更新するので
-    // inventory/lists の paint_id 参照を壊さない(つや・名前の更新もここで入る)。
     for (const p of seed) {
       await db.runAsync(
         'INSERT INTO catalog_paints' +
@@ -146,8 +153,17 @@ export async function initDB(): Promise<void> {
       ' AND id NOT IN (SELECT paint_id FROM lists)',
       catalogCodes
     );
-    await db.execAsync(`PRAGMA user_version = ${SEED_VERSION}`);
   });
+}
+
+// 設定画面の「塗料一覧を初期化」: 手動塗料を在庫/リストごと削除し、
+// 公式カタログはシードの内容(未編集の状態)へ戻す。
+export async function resetCatalogToMaster(): Promise<void> {
+  const db = getDB();
+  await db.runAsync("DELETE FROM inventory WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+  await db.runAsync("DELETE FROM lists WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+  await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
+  await upsertCatalogFromSeed(db);
 }
 
 // --- 設定(キー値) ---
@@ -173,4 +189,111 @@ export async function getDefaultBoxId(): Promise<number | null> {
   const id = Number(v);
   const exists = await getDB().getFirstAsync('SELECT id FROM boxes WHERE id = ?', [id]);
   return exists ? id : null;
+}
+
+export interface CatalogPaintDetail {
+  id: number;
+  catalog_code: string;
+  brand: string;
+  series: string;
+  series_en: string | null;
+  code: string;
+  name_ja: string;
+  name_en: string | null;
+  hex: string | null;
+  gloss: string | null;
+  paint_type: string | null;
+  source: string;
+}
+
+export async function getCatalogPaintDetail(paintId: number): Promise<CatalogPaintDetail | null> {
+  const row = await getDB().getFirstAsync<CatalogPaintDetail>(
+    'SELECT id, catalog_code, brand, series, series_en, code, name_ja, name_en, hex, gloss, paint_type, source'
+    + ' FROM catalog_paints WHERE id = ?',
+    [paintId]
+  );
+  return row ?? null;
+}
+
+export interface CatalogPaintContentEdit {
+  nameJa: string;
+  hex: string;
+  gloss: string | null;
+  paintType: string | null;
+}
+
+export async function updateCatalogPaintContent(paintId: number, edit: CatalogPaintContentEdit): Promise<void> {
+  const current = await getCatalogPaintDetail(paintId);
+  if (!current) return;
+  const normalized = validateManualPaint({
+    nameJa: edit.nameJa,
+    brand: current.brand,
+    series: current.series,
+    code: current.code,
+    hex: edit.hex,
+    gloss: edit.gloss,
+    paintType: edit.paintType,
+  });
+  if (!normalized) return;
+  await getDB().runAsync(
+    'UPDATE catalog_paints SET name_ja=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
+    [normalized.nameJa, normalized.normalizedHex,
+     normalized.rgb?.r ?? null, normalized.rgb?.g ?? null, normalized.rgb?.b ?? null,
+     normalized.lab?.L ?? null, normalized.lab?.a ?? null, normalized.lab?.b ?? null,
+     normalized.gloss, normalized.paintType, paintId]
+  );
+}
+
+export interface ManualPaintEdit {
+  nameJa: string;
+  brand: string;
+  series: string;
+  code: string;
+  hex: string;
+  gloss: string | null;
+  paintType: string | null;
+}
+
+export async function updateManualPaint(paintId: number, edit: ManualPaintEdit): Promise<void> {
+  const normalized = validateManualPaint(edit);
+  if (!normalized) return;
+  const catCode = catalogCode(normalized.brand, normalized.series, normalized.code);
+  await getDB().runAsync(
+    'UPDATE catalog_paints SET catalog_code=?, brand=?, series=?, code=?, name_ja=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
+    [catCode, normalized.brand, normalized.series, normalized.code, normalized.nameJa, normalized.normalizedHex,
+     normalized.rgb?.r ?? null, normalized.rgb?.g ?? null, normalized.rgb?.b ?? null,
+     normalized.lab?.L ?? null, normalized.lab?.a ?? null, normalized.lab?.b ?? null,
+     normalized.gloss, normalized.paintType, paintId]
+  );
+}
+
+export function getMasterCatalogPaint(catalogCodeValue: string): SeedRow | null {
+  if (!masterCatalogMap) {
+    masterCatalogMap = new Map(
+      (seedData as SeedRow[]).map((p) => [catalogCode(p.brand, p.series, p.code), p])
+    );
+  }
+  return masterCatalogMap.get(catalogCodeValue) ?? null;
+}
+
+export async function resetCatalogPaintToMaster(paintId: number, catalogCodeValue: string): Promise<void> {
+  const master = getMasterCatalogPaint(catalogCodeValue);
+  if (!master) return;
+  const normalized = validateManualPaint({
+    nameJa: master.name_ja,
+    brand: master.brand,
+    series: master.series,
+    code: master.code,
+    hex: master.hex ?? '',
+    gloss: master.gloss,
+    paintType: master.paint_type,
+  });
+  if (!normalized) return;
+  await getDB().runAsync(
+    'UPDATE catalog_paints SET name_ja=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
+    [normalized.nameJa, normalized.normalizedHex,
+     normalized.rgb?.r ?? null, normalized.rgb?.g ?? null, normalized.rgb?.b ?? null,
+     normalized.lab?.L ?? null, normalized.lab?.a ?? null, normalized.lab?.b ?? null,
+     normalized.gloss, normalized.paintType, paintId]
+  );
 }

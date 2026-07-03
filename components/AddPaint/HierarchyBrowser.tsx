@@ -26,12 +26,13 @@ interface Paint {
 
 interface Props {
   onSelect: (paint: Paint) => void;
+  onSelectView: (paint: Paint) => void;
 }
 
 // 階層を横断して「すべて」を表す番兵。実データと衝突しない値。
 const ALL = 'ALL';
 
-export default function HierarchyBrowser({ onSelect }: Props) {
+export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [brands, setBrands] = useState<string[]>([]);
@@ -55,7 +56,7 @@ export default function HierarchyBrowser({ onSelect }: Props) {
     if (series !== ALL) { where.push('series = ?'); args.push(series); }
     const sql = 'SELECT id, name_ja, name_en, code, brand, series, series_en, hex, gloss, paint_type FROM catalog_paints'
       + (where.length ? ' WHERE ' + where.join(' AND ') : '')
-      + ' ORDER BY name_ja';
+      + ' ORDER BY code COLLATE NOCASE';
     setPaints(await getDB().getAllAsync<Paint>(sql, args));
     setNameFilter('');
   };
@@ -146,11 +147,13 @@ export default function HierarchyBrowser({ onSelect }: Props) {
         keyboardShouldPersistTaps="handled"
         keyExtractor={(p) => String(p.id)}
         renderItem={({ item }) => (
-          <PaintRow paint={item} style={styles.itemPaint}>
-            <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
-              <IconPlus color={colors.onPrimary} size={22} />
-            </TouchableOpacity>
-          </PaintRow>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)}>
+            <PaintRow paint={item} style={styles.itemPaint}>
+              <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
+                <IconPlus color={colors.onPrimary} size={22} />
+              </TouchableOpacity>
+            </PaintRow>
+          </TouchableOpacity>
         )}
       />
     </View>
