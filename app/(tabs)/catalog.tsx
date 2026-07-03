@@ -4,7 +4,7 @@
 import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { IconPlus, IconTrash, IconChevronLeft } from '@tabler/icons-react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { getDB } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
@@ -24,6 +24,7 @@ const ALL = 'ALL';
 export default function CatalogScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const router = useRouter();
   useLocale();
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -80,10 +81,6 @@ export default function CatalogScreen() {
     else setSelectedSeries(null);
   };
   const openNew = () => { setEditing(null); setShowForm(true); };
-  const openEdit = (p: Paint) => {
-    if (p.source !== 'manual') return; // 公式カタログは編集不可
-    setEditing(p); setShowForm(true);
-  };
 
   const remove = (p: Paint) => {
     Alert.alert(paintName(p.name_ja, p.name_en), t('deletePaintConfirm'), [
@@ -178,8 +175,7 @@ export default function CatalogScreen() {
           const manual = item.source === 'manual';
           return (
             <TouchableOpacity
-              onPress={() => openEdit(item)}
-              disabled={!manual}
+              onPress={() => router.push({ pathname: '/paint/[id]', params: { id: String(item.id) } })}
             >
               <PaintRow paint={item} borderColor={item.hex ?? colors.transparent}>
               {manual ? (

@@ -21,9 +21,10 @@ interface Paint {
 
 interface Props {
   onSelect: (paint: Paint) => void;
+  onSelectView: (paint: Paint) => void;
 }
 
-export default function TextSearch({ onSelect }: Props) {
+export default function TextSearch({ onSelect, onSelectView }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [query, setQuery] = useState('');
@@ -57,11 +58,13 @@ export default function TextSearch({ onSelect }: Props) {
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
-          <PaintRow paint={item}>
-            <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
-              <IconPlus color={colors.onPrimary} size={22} />
-            </TouchableOpacity>
-          </PaintRow>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)}>
+            <PaintRow paint={item}>
+              <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
+                <IconPlus color={colors.onPrimary} size={22} />
+              </TouchableOpacity>
+            </PaintRow>
+          </TouchableOpacity>
         )}
         ListEmptyComponent={query ? <Text style={styles.empty}>{t('noResults')}</Text> : null}
       />

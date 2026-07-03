@@ -29,9 +29,10 @@ interface Paint {
 
 interface Props {
   onSelect: (paint: Paint) => void;
+  onSelectView: (paint: Paint) => void;
 }
 
-export default function ColorMatcher({ onSelect }: Props) {
+export default function ColorMatcher({ onSelect, onSelectView }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [hex, setHex] = useState('');
@@ -89,11 +90,13 @@ export default function ColorMatcher({ onSelect }: Props) {
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
-          <PaintRow paint={item} compact subSuffix={` · ΔE=${item.de.toFixed(1)}`}>
-            <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
-              <IconPlus color={colors.onPrimary} size={22} />
-            </TouchableOpacity>
-          </PaintRow>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)}>
+            <PaintRow paint={item} compact subSuffix={` · ΔE=${item.de.toFixed(1)}`}>
+              <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
+                <IconPlus color={colors.onPrimary} size={22} />
+              </TouchableOpacity>
+            </PaintRow>
+          </TouchableOpacity>
         )}
       />
       <ColorCameraPicker

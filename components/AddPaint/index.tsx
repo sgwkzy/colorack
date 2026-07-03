@@ -3,6 +3,7 @@ import { useRef, useState, useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { getDB, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
@@ -58,6 +59,15 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
     toastTimer.current = setTimeout(() => setToast(''), 1800);
   };
 
+  // Modal(ネイティブオーバーレイ)を閉じてから push しないと、新しい画面が
+  // Modal の下に隠れてしまうため、先に閉じて次フレームで遷移する。
+  const viewPaintDetail = (paint: Paint) => {
+    onClose();
+    requestAnimationFrame(() => {
+      router.push({ pathname: '/paint/[id]', params: { id: String(paint.id) } });
+    });
+  };
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaProvider>
@@ -82,9 +92,9 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
             ))}
           </View>
           <View style={styles.content}>
-            {tab === 'hierarchy' && <HierarchyBrowser onSelect={addToInventory} />}
-            {tab === 'textSearch' && <TextSearch onSelect={addToInventory} />}
-            {tab === 'colorMatch' && <ColorMatcher onSelect={addToInventory} />}
+            {tab === 'hierarchy' && <HierarchyBrowser onSelect={addToInventory} onSelectView={viewPaintDetail} />}
+            {tab === 'textSearch' && <TextSearch onSelect={addToInventory} onSelectView={viewPaintDetail} />}
+            {tab === 'colorMatch' && <ColorMatcher onSelect={addToInventory} onSelectView={viewPaintDetail} />}
             {tab === 'manual' && (
               <ManualEntry
                 onSelect={addToInventory}
