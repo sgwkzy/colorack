@@ -40,9 +40,11 @@ interface Props {
   // 未指定(塗料一覧から開いた時など)はデフォルトボックスへの在庫追加として扱う。
   defaultStatus?: string;
   boxId?: number | null;
+  // trueで開くと最初から編集モードで表示する(色編集ボタンからの遷移用)。
+  initialEditing?: boolean;
 }
 
-export default function PaintDetailModal({ visible, paintId, onClose, onChanged, defaultStatus = 'owned', boxId }: Props) {
+export default function PaintDetailModal({ visible, paintId, onClose, onChanged, defaultStatus = 'owned', boxId, initialEditing = false }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [detail, setDetail] = useState<CatalogPaintDetail | null>(null);
@@ -87,6 +89,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   useEffect(() => {
     if (visible) {
       load();
+      setIsEditing(initialEditing);
       if (isInventory) {
         getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id').then(setBoxes);
         // boxId指定があればそれを初期選択(保管箱から開いた時)、無指定ならデフォルトボックス(塗料一覧から開いた時)。
@@ -96,7 +99,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       setDetail(null);
       setIsEditing(false);
     }
-  }, [visible, load]);
+  }, [visible, load, initialEditing]);
 
   const showToast = (message: string) => {
     setToast(message);

@@ -256,6 +256,10 @@ export async function updateInventoryNote(inventoryId: number, note: string): Pr
   await getDB().runAsync('UPDATE inventory SET note = ? WHERE id = ?', [normalized, inventoryId]);
 }
 
+export async function updateInventoryBox(inventoryId: number, boxId: number): Promise<void> {
+  await getDB().runAsync('UPDATE inventory SET box_id = ? WHERE id = ?', [boxId, inventoryId]);
+}
+
 export async function setInventoryStatus(inventoryId: number, status: PaintStatus): Promise<void> {
   await getDB().runAsync(
     "UPDATE inventory SET status = ?, status_changed_at = datetime('now') WHERE id = ?",
