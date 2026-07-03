@@ -1,11 +1,10 @@
 // app/(tabs)/settings.tsx
 import { useCallback, useMemo, useState } from 'react';
-import { View, Text, Switch, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId, resetCatalogToMaster, setSetting } from '../../lib/db';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
-import { optionChip } from '../../components/PaintFormFields';
 
 interface Box { id: number; name: string; }
 
@@ -21,6 +20,7 @@ export default function SettingsScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
+  const [boxPickerOpen, setBoxPickerOpen] = useState(false);
 
   const loadBoxes = useCallback(async () => {
     const db = getDB();
@@ -32,8 +32,11 @@ export default function SettingsScreen() {
 
   const chooseDefaultBox = async (boxId: number) => {
     setDefaultBoxId(boxId);
+    setBoxPickerOpen(false);
     await setSetting('default_box_id', String(boxId));
   };
+
+  const defaultBoxName = boxes.find((b) => b.id === defaultBoxId)?.name ?? '';
 
   const toggleLang = (val: boolean) => {
     setIsJa(val);
@@ -92,9 +95,19 @@ export default function SettingsScreen() {
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('defaultBox')}</Text>
-        <View style={styles.chipRow}>
-          {boxes.map((b) => optionChip(String(b.id), defaultBoxId === b.id, b.name, () => chooseDefaultBox(b.id), styles))}
-        </View>
+        <TouchableOpacity style={styles.dropdown} onPress={() => setBoxPickerOpen((o) => !o)}>
+          <Text style={styles.dropdownLabel}>{defaultBoxName}</Text>
+          <Text style={styles.dropdownArrow}>{boxPickerOpen ? '▲' : '▼'}</Text>
+        </TouchableOpacity>
+        {boxPickerOpen && (
+          <ScrollView style={styles.dropdownList} nestedScrollEnabled>
+            {boxes.map((b) => (
+              <TouchableOpacity key={b.id} style={styles.dropdownItem} onPress={() => chooseDefaultBox(b.id)}>
+                <Text style={[styles.dropdownItemText, defaultBoxId === b.id && styles.dropdownItemTextOn]}>{b.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('reset')}</Text>
@@ -127,9 +140,11 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   themeBtnTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   resetBtn: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
   resetBtnText: { color: colors.danger, fontWeight: 'bold', textAlign: 'center' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap' },
-  chip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chip, marginRight: spacing.md, marginBottom: spacing.md },
-  chipOn: { backgroundColor: colors.primary },
-  chipText: { fontSize: 13, color: colors.textSecondary },
-  chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
+  dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg },
+  dropdownLabel: { fontSize: 16, color: colors.text },
+  dropdownArrow: { fontSize: 12, color: colors.textFaint },
+  dropdownList: { borderWidth: 1, borderColor: colors.border, borderTopWidth: 0, borderBottomLeftRadius: radius.sm, borderBottomRightRadius: radius.sm, maxHeight: 220 },
+  dropdownItem: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  dropdownItemText: { fontSize: 15, color: colors.text },
+  dropdownItemTextOn: { color: colors.primary, fontWeight: 'bold' },
 });
