@@ -113,16 +113,21 @@ export async function initDB(): Promise<void> {
     );
   }
 
-  const seed = seedData as SeedRow[];
-
-  // シードバージョンが古い端末は catalog_paints を作り直して再シード。
+  // シードバージョンが古い端末は catalog_paints をシードの内容へ更新。
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   const current = row?.user_version ?? 0;
-  if (current >= SEED_VERSION) return;
+  if (current < SEED_VERSION) {
+    await upsertCatalogFromSeed(db);
+    await db.execAsync(`PRAGMA user_version = ${SEED_VERSION}`);
+  }
+}
 
+// brand+series+code(catalog_code) をキーに、公式カタログ(source='catalog')をシードの内容でUPSERT。
+// 既存行は id を保ったまま更新するので inventory/lists の paint_id 参照を壊さない。
+// initDB()のシード更新と、設定画面からの「塗料一覧を初期化」の両方から呼ばれる。
+async function upsertCatalogFromSeed(db: SQLite.SQLiteDatabase): Promise<void> {
+  const seed = seedData as SeedRow[];
   await db.withTransactionAsync(async () => {
-    // brand+series+code(catalog_code) をキーに UPSERT。既存行は id を保ったまま更新するので
-    // inventory/lists の paint_id 参照を壊さない(つや・名前の更新もここで入る)。
     for (const p of seed) {
       await db.runAsync(
         'INSERT INTO catalog_paints' +
@@ -148,8 +153,17 @@ export async function initDB(): Promise<void> {
       ' AND id NOT IN (SELECT paint_id FROM lists)',
       catalogCodes
     );
-    await db.execAsync(`PRAGMA user_version = ${SEED_VERSION}`);
   });
+}
+
+// 設定画面の「塗料一覧を初期化」: 手動塗料を在庫/リストごと削除し、
+// 公式カタログはシードの内容(未編集の状態)へ戻す。
+export async function resetCatalogToMaster(): Promise<void> {
+  const db = getDB();
+  await db.runAsync("DELETE FROM inventory WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+  await db.runAsync("DELETE FROM lists WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+  await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
+  await upsertCatalogFromSeed(db);
 }
 
 // --- 設定(キー値) ---

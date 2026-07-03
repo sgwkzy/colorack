@@ -1,9 +1,13 @@
 // app/(tabs)/settings.tsx
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { getDB, setSetting } from '../../lib/db';
+import { useFocusEffect } from 'expo-router';
+import { getDB, getDefaultBoxId, resetCatalogToMaster, setSetting } from '../../lib/db';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
+import { optionChip } from '../../components/PaintFormFields';
+
+interface Box { id: number; name: string; }
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
   { value: 'light', labelKey: 'themeLight' },
@@ -15,6 +19,21 @@ export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
   const { colors, mode } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [boxes, setBoxes] = useState<Box[]>([]);
+  const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
+
+  const loadBoxes = useCallback(async () => {
+    const db = getDB();
+    setBoxes(await db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'));
+    setDefaultBoxId(await getDefaultBoxId());
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadBoxes(); }, [loadBoxes]));
+
+  const chooseDefaultBox = async (boxId: number) => {
+    setDefaultBoxId(boxId);
+    await setSetting('default_box_id', String(boxId));
+  };
 
   const toggleLang = (val: boolean) => {
     setIsJa(val);
@@ -34,6 +53,7 @@ export default function SettingsScreen() {
     await db.runAsync('DELETE FROM boxes');
     const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', ['Box']);
     await setSetting('default_box_id', String(res.lastInsertRowId));
+    await loadBoxes();
   });
 
   const resetFavorites = () => confirmReset(t('resetFavorites'), async () => {
@@ -43,6 +63,8 @@ export default function SettingsScreen() {
   const resetWishlist = () => confirmReset(t('resetWishlist'), async () => {
     await getDB().runAsync("DELETE FROM lists WHERE type = 'wishlist'");
   });
+
+  const resetCatalog = () => confirmReset(t('resetCatalog'), resetCatalogToMaster);
 
   return (
     <View style={styles.container}>
@@ -69,6 +91,12 @@ export default function SettingsScreen() {
         </View>
       </View>
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('defaultBox')}</Text>
+        <View style={styles.chipRow}>
+          {boxes.map((b) => optionChip(String(b.id), defaultBoxId === b.id, b.name, () => chooseDefaultBox(b.id), styles))}
+        </View>
+      </View>
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('reset')}</Text>
         <TouchableOpacity style={styles.resetBtn} onPress={resetOwned}>
           <Text style={styles.resetBtnText}>{t('resetOwned')}</Text>
@@ -78,6 +106,9 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.resetBtn} onPress={resetWishlist}>
           <Text style={styles.resetBtnText}>{t('resetWishlist')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.resetBtn} onPress={resetCatalog}>
+          <Text style={styles.resetBtnText}>{t('resetCatalog')}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -96,4 +127,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   themeBtnTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   resetBtn: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
   resetBtnText: { color: colors.danger, fontWeight: 'bold', textAlign: 'center' },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap' },
+  chip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chip, marginRight: spacing.md, marginBottom: spacing.md },
+  chipOn: { backgroundColor: colors.primary },
+  chipText: { fontSize: 13, color: colors.textSecondary },
+  chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
 });
