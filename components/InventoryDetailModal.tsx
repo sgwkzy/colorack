@@ -1,7 +1,7 @@
 // components/InventoryDetailModal.tsx
 // 保管箱の在庫1点を閲覧するモーダル。色そのものの情報(色詳細と重複する部分)は
 // 小さめの2列レイアウトに留め、この在庫固有の情報(ボックス・ステータス・追加日・
-// 状態変更日・メモ)を主役として大きく扱う。ボックス・ステータスはここで直接変更できる。
+// 最終更新日・メモ)を主役として大きく扱う。ボックス・ステータスはここで直接変更できる。
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconPencil, IconX } from '@tabler/icons-react-native';
@@ -92,7 +92,8 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
     onChanged?.();
   };
 
-  const dateLabel = (value: string | null) => value ? value.slice(0, 10) : t('unknown');
+  // datetime('now') は 'YYYY-MM-DD HH:MM:SS' 形式なので秒を切り落として表示。
+  const dateLabel = (value: string | null) => value ? value.slice(0, 16) : t('unknown');
   const boxName = boxes.find((b) => b.id === detail?.box_id)?.name ?? t('unassigned');
 
   return (
@@ -157,8 +158,10 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
                 </View>
               </View>
 
-              <Info label={t('addedAt')} value={dateLabel(detail.added_at)} styles={styles} />
-              <Info label={t('statusChangedAt')} value={dateLabel(detail.status_changed_at)} styles={styles} />
+              <View style={styles.compactGrid}>
+                <CompactInfo label={t('addedAt')} value={dateLabel(detail.added_at)} styles={styles} />
+                <CompactInfo label={t('lastUpdatedAt')} value={dateLabel(detail.status_changed_at)} styles={styles} />
+              </View>
 
               <View style={styles.field}>
                 <Text style={styles.label}>{t('note')}</Text>
@@ -189,15 +192,6 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   );
 }
 
-function Info({ label, value, styles }: { label: string; value: string; styles: ReturnType<typeof makeStyles> }) {
-  return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value || '—'}</Text>
-    </View>
-  );
-}
-
 function CompactInfo({ label, value, styles }: { label: string; value: string; styles: ReturnType<typeof makeStyles> }) {
   return (
     <View style={styles.compactItem}>
@@ -220,9 +214,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   compactItem: { width: '50%', marginBottom: spacing.md },
   compactLabel: { fontSize: 11, color: colors.textMuted },
   compactValue: { fontSize: 13, color: colors.textSecondary },
-  infoRow: { paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  infoLabel: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
-  infoValue: { fontSize: 16, color: colors.text },
   field: { marginBottom: spacing.lg },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },

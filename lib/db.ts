@@ -251,13 +251,21 @@ export async function getInventoryDetail(inventoryId: number): Promise<Inventory
   return row ?? null;
 }
 
+// status_changed_at は「最終更新日時」として、ステータス変更に限らず
+// メモ・ボックスの変更でも更新する(在庫1点の最終更新日時という位置づけ)。
 export async function updateInventoryNote(inventoryId: number, note: string): Promise<void> {
   const normalized = note.trim() === '' ? null : note;
-  await getDB().runAsync('UPDATE inventory SET note = ? WHERE id = ?', [normalized, inventoryId]);
+  await getDB().runAsync(
+    "UPDATE inventory SET note = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [normalized, inventoryId]
+  );
 }
 
 export async function updateInventoryBox(inventoryId: number, boxId: number): Promise<void> {
-  await getDB().runAsync('UPDATE inventory SET box_id = ? WHERE id = ?', [boxId, inventoryId]);
+  await getDB().runAsync(
+    "UPDATE inventory SET box_id = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [boxId, inventoryId]
+  );
 }
 
 export async function setInventoryStatus(inventoryId: number, status: PaintStatus): Promise<void> {
