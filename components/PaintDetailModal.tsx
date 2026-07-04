@@ -112,6 +112,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       [detail.id, 'owned', selectedBoxId]
     );
     showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
+    onChanged?.();
   };
 
   const toggleList = async (type: 'favorites' | 'wishlist') => {

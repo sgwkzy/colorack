@@ -265,7 +265,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   dropdownItemTextOn: { color: colors.primary, fontWeight: 'bold' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap' },
   chip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chip, marginRight: spacing.md, marginBottom: spacing.md },
-  chipOn: { backgroundColor: colors.primary },
   chipText: { fontSize: 13, color: colors.textSecondary },
   chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
