@@ -128,11 +128,6 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     onChanged?.();
   };
 
-  const cancelEdit = () => {
-    if (detail) syncFields(detail);
-    setIsEditing(false);
-  };
-
   const save = async () => {
     if (!detail) return;
     try {
@@ -316,9 +311,6 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
               </View>
 
               <View style={styles.actionRow}>
-                <TouchableOpacity style={styles.button} onPress={cancelEdit}>
-                  <Text style={styles.buttonText}>{t('cancel')}</Text>
-                </TouchableOpacity>
                 {detail.source === 'catalog' && master ? (
                   <TouchableOpacity style={styles.button} onPress={resetToMaster}>
                     <Text style={styles.buttonText}>{t('reset')}</Text>
