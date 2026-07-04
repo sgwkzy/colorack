@@ -37,14 +37,11 @@ interface Props {
   paintId: number | null;
   onClose: () => void;
   onChanged?: () => void; // 保存/リセット/削除で内容が変わった時、呼び出し元に一覧再読み込みを促す
-  // 保管箱から開いた時はそこで選択中のボックスをボックス追加の初期選択にする。
-  // 未指定(塗料一覧・お気に入り・買い物リストから開いた時など)はデフォルトボックス。
-  boxId?: number | null;
   // trueで開くと最初から編集モードで表示する(色編集ボタンからの遷移用)。
   initialEditing?: boolean;
 }
 
-export default function PaintDetailModal({ visible, paintId, onClose, onChanged, boxId, initialEditing = false }: Props) {
+export default function PaintDetailModal({ visible, paintId, onClose, onChanged, initialEditing = false }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [detail, setDetail] = useState<CatalogPaintDetail | null>(null);
@@ -91,8 +88,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       load();
       setIsEditing(initialEditing);
       getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id').then(setBoxes);
-      // boxId指定があればそれを初期選択(保管箱から開いた時)、無指定ならデフォルトボックス。
-      (boxId !== undefined ? Promise.resolve(boxId) : getDefaultBoxId()).then(setSelectedBoxId);
+      getDefaultBoxId().then(setSelectedBoxId);
     } else {
       setDetail(null);
       setIsEditing(false);

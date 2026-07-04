@@ -111,7 +111,6 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
             visible={detailPaintId != null}
             paintId={detailPaintId}
             onClose={() => setDetailPaintId(null)}
-            boxId={boxId}
           />
         </SafeAreaView>
       </SafeAreaProvider>

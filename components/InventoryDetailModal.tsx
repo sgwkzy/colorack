@@ -180,7 +180,6 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
                 paintId={detail.paint_id}
                 onClose={() => setEditVisible(false)}
                 onChanged={load}
-                boxId={detail.box_id}
                 initialEditing
               />
             </ScrollView>
