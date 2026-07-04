@@ -216,6 +216,22 @@ export async function getCatalogPaintDetail(paintId: number): Promise<CatalogPai
   return row ?? null;
 }
 
+// 指定した塗料がお気に入り/買い物リストに登録済みかどうか。
+export async function getListMembership(paintId: number): Promise<{ favorites: boolean; wishlist: boolean }> {
+  const rows = await getDB().getAllAsync<{ type: ListType }>(
+    "SELECT DISTINCT type FROM lists WHERE paint_id = ? AND type IN ('favorites','wishlist')",
+    [paintId]
+  );
+  return {
+    favorites: rows.some((r) => r.type === 'favorites'),
+    wishlist: rows.some((r) => r.type === 'wishlist'),
+  };
+}
+
+export async function removeFromList(paintId: number, type: ListType): Promise<void> {
+  await getDB().runAsync('DELETE FROM lists WHERE paint_id = ? AND type = ?', [paintId, type]);
+}
+
 export interface InventoryDetail {
   id: number;
   paint_id: number;

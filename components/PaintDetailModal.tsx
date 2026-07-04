@@ -12,7 +12,9 @@ import {
   getCatalogPaintDetail,
   getDB,
   getDefaultBoxId,
+  getListMembership,
   getMasterCatalogPaint,
+  removeFromList,
   resetCatalogPaintToMaster,
   updateCatalogPaintContent,
   updateManualPaint,
@@ -59,6 +61,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [selectedBoxId, setSelectedBoxId] = useState<number | null>(null);
+  const [membership, setMembership] = useState({ favorites: false, wishlist: false });
 
   const master = detail?.source === 'catalog' ? getMasterCatalogPaint(detail.catalog_code) : null;
   const isManual = detail?.source === 'manual';
@@ -79,6 +82,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     const row = await getCatalogPaintDetail(paintId);
     setDetail(row);
     if (row) syncFields(row);
+    setMembership(await getListMembership(paintId));
   }, [paintId, syncFields]);
 
   // 開くたびに対象を読み込み、閉じている間は状態をリセットしておく。
@@ -92,6 +96,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     } else {
       setDetail(null);
       setIsEditing(false);
+      setMembership({ favorites: false, wishlist: false });
     }
   }, [visible, load, initialEditing]);
 
@@ -110,10 +115,18 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
   };
 
-  const addToList = async (type: 'favorites' | 'wishlist') => {
+  const toggleList = async (type: 'favorites' | 'wishlist') => {
     if (!detail) return;
-    await getDB().runAsync('INSERT INTO lists (type, paint_id) VALUES (?, ?)', [type, detail.id]);
-    showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
+    const isMember = membership[type];
+    if (isMember) {
+      await removeFromList(detail.id, type);
+      showToast(paintName(detail.name_ja, detail.name_en) + t('removedToast'));
+    } else {
+      await getDB().runAsync('INSERT INTO lists (type, paint_id) VALUES (?, ?)', [type, detail.id]);
+      showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
+    }
+    setMembership((m) => ({ ...m, [type]: !isMember }));
+    onChanged?.();
   };
 
   const cancelEdit = () => {
@@ -225,11 +238,21 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={addToBox}>
                   <Text style={styles.primaryButtonText}>{t('addToBox')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.button} onPress={() => addToList('favorites')}>
-                  <Text style={styles.buttonText}>{t('addToFavorites')}</Text>
+                <TouchableOpacity
+                  style={[styles.button, membership.favorites && styles.deleteButton]}
+                  onPress={() => toggleList('favorites')}
+                >
+                  <Text style={[styles.buttonText, membership.favorites && styles.deleteButtonText]}>
+                    {membership.favorites ? t('removeFromFavorites') : t('addToFavorites')}
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.button} onPress={() => addToList('wishlist')}>
-                  <Text style={styles.buttonText}>{t('addToWishlist')}</Text>
+                <TouchableOpacity
+                  style={[styles.button, membership.wishlist && styles.deleteButton]}
+                  onPress={() => toggleList('wishlist')}
+                >
+                  <Text style={[styles.buttonText, membership.wishlist && styles.deleteButtonText]}>
+                    {membership.wishlist ? t('removeFromWishlist') : t('addToWishlist')}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
