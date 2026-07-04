@@ -8,6 +8,7 @@ import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
+import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintRow from '../../components/PaintRow';
 
 interface ListItem {
@@ -27,6 +28,7 @@ export default function WishlistScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<ListItem[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     const db = getDB();
@@ -59,7 +61,9 @@ export default function WishlistScreen() {
               </TouchableOpacity>
             )}
           >
-            <PaintRow paint={item} />
+            <TouchableOpacity onPress={() => setDetailPaintId(item.paint_id)}>
+              <PaintRow paint={item} />
+            </TouchableOpacity>
           </Swipeable>
         )}
         ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
@@ -71,6 +75,12 @@ export default function WishlistScreen() {
         visible={showAdd}
         onClose={() => { setShowAdd(false); load(); }}
         defaultStatus="wishlist"
+      />
+      <PaintDetailModal
+        visible={detailPaintId != null}
+        paintId={detailPaintId}
+        onClose={() => setDetailPaintId(null)}
+        onChanged={load}
       />
     </View>
   );

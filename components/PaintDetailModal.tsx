@@ -35,16 +35,14 @@ interface Props {
   paintId: number | null;
   onClose: () => void;
   onChanged?: () => void; // 保存/リセット/削除で内容が変わった時、呼び出し元に一覧再読み込みを促す
-  // 呼び出し元の文脈: 保管箱(owned)から開いた時はそのボックスを、
-  // お気に入り/買い物リストから開いた時はそのリストへ追加する(ボックス選択は不要)。
-  // 未指定(塗料一覧から開いた時など)はデフォルトボックスへの在庫追加として扱う。
-  defaultStatus?: string;
+  // 保管箱から開いた時はそこで選択中のボックスをボックス追加の初期選択にする。
+  // 未指定(塗料一覧・お気に入り・買い物リストから開いた時など)はデフォルトボックス。
   boxId?: number | null;
   // trueで開くと最初から編集モードで表示する(色編集ボタンからの遷移用)。
   initialEditing?: boolean;
 }
 
-export default function PaintDetailModal({ visible, paintId, onClose, onChanged, defaultStatus = 'owned', boxId, initialEditing = false }: Props) {
+export default function PaintDetailModal({ visible, paintId, onClose, onChanged, boxId, initialEditing = false }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [detail, setDetail] = useState<CatalogPaintDetail | null>(null);
@@ -61,8 +59,6 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [selectedBoxId, setSelectedBoxId] = useState<number | null>(null);
-
-  const isInventory = defaultStatus !== 'favorites' && defaultStatus !== 'wishlist';
 
   const master = detail?.source === 'catalog' ? getMasterCatalogPaint(detail.catalog_code) : null;
   const isManual = detail?.source === 'manual';
@@ -90,11 +86,9 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     if (visible) {
       load();
       setIsEditing(initialEditing);
-      if (isInventory) {
-        getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id').then(setBoxes);
-        // boxId指定があればそれを初期選択(保管箱から開いた時)、無指定ならデフォルトボックス(塗料一覧から開いた時)。
-        (boxId !== undefined ? Promise.resolve(boxId) : getDefaultBoxId()).then(setSelectedBoxId);
-      }
+      getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id').then(setBoxes);
+      // boxId指定があればそれを初期選択(保管箱から開いた時)、無指定ならデフォルトボックス。
+      (boxId !== undefined ? Promise.resolve(boxId) : getDefaultBoxId()).then(setSelectedBoxId);
     } else {
       setDetail(null);
       setIsEditing(false);
@@ -107,17 +101,18 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     toastTimer.current = setTimeout(() => setToast(''), 1800);
   };
 
-  const addToInventory = async () => {
+  const addToBox = async () => {
     if (!detail) return;
-    const db = getDB();
-    if (isInventory) {
-      await db.runAsync(
-        'INSERT INTO inventory (paint_id, status, box_id) VALUES (?, ?, ?)',
-        [detail.id, defaultStatus, selectedBoxId]
-      );
-    } else {
-      await db.runAsync('INSERT INTO lists (type, paint_id) VALUES (?, ?)', [defaultStatus, detail.id]);
-    }
+    await getDB().runAsync(
+      'INSERT INTO inventory (paint_id, status, box_id) VALUES (?, ?, ?)',
+      [detail.id, 'owned', selectedBoxId]
+    );
+    showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
+  };
+
+  const addToList = async (type: 'favorites' | 'wishlist') => {
+    if (!detail) return;
+    await getDB().runAsync('INSERT INTO lists (type, paint_id) VALUES (?, ?)', [type, detail.id]);
     showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
   };
 
@@ -219,18 +214,22 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 <CompactInfo label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
               </View>
 
-              {isInventory && (
-                <View style={styles.field}>
-                  <Text style={styles.label}>{t('box')}</Text>
-                  <View style={styles.chipRow}>
-                    {boxes.map((b) => optionChip(String(b.id), selectedBoxId === b.id, b.name, () => setSelectedBoxId(b.id), styles))}
-                  </View>
+              <View style={styles.field}>
+                <Text style={styles.label}>{t('box')}</Text>
+                <View style={styles.chipRow}>
+                  {boxes.map((b) => optionChip(String(b.id), selectedBoxId === b.id, b.name, () => setSelectedBoxId(b.id), styles))}
                 </View>
-              )}
+              </View>
 
               <View style={styles.actionRow}>
-                <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={addToInventory}>
-                  <Text style={styles.primaryButtonText}>{t('addThisColor')}</Text>
+                <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={addToBox}>
+                  <Text style={styles.primaryButtonText}>{t('addToBox')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.button} onPress={() => addToList('favorites')}>
+                  <Text style={styles.buttonText}>{t('addToFavorites')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.button} onPress={() => addToList('wishlist')}>
+                  <Text style={styles.buttonText}>{t('addToWishlist')}</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
