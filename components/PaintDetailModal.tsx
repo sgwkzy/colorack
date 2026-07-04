@@ -265,15 +265,15 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
 
               {isManual ? (
                 <>
+                  <EditField label={t('code')} value={code} onChangeText={setCode} styles={styles} />
                   <EditField label={t('brand')} value={brand} onChangeText={setBrand} styles={styles} />
                   <EditField label={t('series')} value={series} onChangeText={setSeries} styles={styles} />
-                  <EditField label={t('code')} value={code} onChangeText={setCode} styles={styles} />
                 </>
               ) : (
                 <>
+                  <ReadonlyField label={t('code')} value={detail.code} styles={styles} />
                   <ReadonlyField label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
                   <ReadonlyField label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
-                  <ReadonlyField label={t('code')} value={detail.code} styles={styles} />
                 </>
               )}
 

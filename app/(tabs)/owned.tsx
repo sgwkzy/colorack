@@ -43,11 +43,12 @@ const STATUS_TOGGLES: { key: PaintStatus; label: string }[] = [
 
 const EMPTY_FILTER: PaintFilter = { brands: [], series: [], gloss: [], types: [], search: '' };
 
-type Sort = 'added' | 'name' | 'brand';
+type Sort = 'added' | 'name' | 'brand' | 'code';
 const SORT_ORDER: Record<Sort, string> = {
   added: 'i.added_at DESC',
   name: 'c.name_ja COLLATE NOCASE ASC',
   brand: 'c.brand ASC, c.name_ja ASC',
+  code: 'c.code COLLATE NOCASE ASC',
 };
 
 export default function OwnedScreen() {
@@ -205,6 +206,7 @@ export default function OwnedScreen() {
       { key: 'added', label: t('sortAdded') },
       { key: 'name', label: t('sortName') },
       { key: 'brand', label: t('sortBrand') },
+      { key: 'code', label: t('sortCode') },
     ];
     Alert.alert(t('sort'), '', [
       ...opts.map((o) => ({ text: o.label, onPress: () => setSort(o.key) })),
