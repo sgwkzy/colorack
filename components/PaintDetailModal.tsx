@@ -4,7 +4,7 @@
 // 「詳細を見る→戻る→別の色を見る」を繰り返せるようにするため。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconCamera, IconX } from '@tabler/icons-react-native';
+import { IconCamera, IconPencil, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { brandLabel } from '../lib/brands';
 import {
@@ -202,13 +202,22 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
           ) : !isEditing ? (
             <ScrollView contentContainerStyle={styles.content}>
               <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: detail.hex ?? colors.border }]} />
-              <Text style={styles.paintTitle}>{paintName(detail.name_ja, detail.name_en)}</Text>
-              <Info label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
-              <Info label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
-              <Info label={t('code')} value={detail.code} styles={styles} />
-              <Info label={t('hex')} value={displayHex} styles={styles} />
-              <Info label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
-              <Info label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
+
+              <View style={styles.titleRow}>
+                <Text style={styles.paintTitle}>{paintName(detail.name_ja, detail.name_en)}</Text>
+                <TouchableOpacity style={styles.editBtn} onPress={() => setIsEditing(true)} hitSlop={8}>
+                  <IconPencil color={colors.primary} size={20} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.compactGrid}>
+                <CompactInfo label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
+                <CompactInfo label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
+                <CompactInfo label={t('code')} value={detail.code} styles={styles} />
+                <CompactInfo label={t('hex')} value={displayHex} styles={styles} />
+                <CompactInfo label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
+                <CompactInfo label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
+              </View>
 
               {isInventory && (
                 <View style={styles.field}>
@@ -222,9 +231,6 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
               <View style={styles.actionRow}>
                 <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={addToInventory}>
                   <Text style={styles.primaryButtonText}>{t('addThisColor')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.button} onPress={() => setIsEditing(true)}>
-                  <Text style={styles.buttonText}>{t('editPaint')}</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -305,11 +311,11 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   );
 }
 
-function Info({ label, value, styles }: { label: string; value: string; styles: ReturnType<typeof makeStyles> }) {
+function CompactInfo({ label, value, styles }: { label: string; value: string; styles: ReturnType<typeof makeStyles> }) {
   return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value || '—'}</Text>
+    <View style={styles.compactItem}>
+      <Text style={styles.compactLabel}>{label}</Text>
+      <Text style={styles.compactValue}>{value || '—'}</Text>
     </View>
   );
 }
@@ -338,10 +344,13 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   content: { padding: spacing.xl, paddingBottom: 96 },
   swatch: { height: 96, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.xl },
-  paintTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text, marginBottom: spacing.xl },
-  infoRow: { paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  infoLabel: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
-  infoValue: { fontSize: 16, color: colors.text },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
+  paintTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text, flex: 1 },
+  editBtn: { padding: spacing.sm, marginLeft: spacing.md },
+  compactGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.xl },
+  compactItem: { width: '50%', marginBottom: spacing.md },
+  compactLabel: { fontSize: 11, color: colors.textMuted },
+  compactValue: { fontSize: 13, color: colors.textSecondary },
   field: { marginBottom: spacing.lg },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
