@@ -45,7 +45,7 @@ export async function initDB(): Promise<void> {
     '  brand TEXT, series TEXT, series_en TEXT, code TEXT,' +
     '  name_ja TEXT, name_en TEXT, hex TEXT,' +
     '  r INTEGER, g INTEGER, b INTEGER,' +
-    '  l REAL, a_star REAL, b_star REAL, barcode TEXT, gloss TEXT, paint_type TEXT, source TEXT' +
+    '  l REAL, a_star REAL, b_star REAL, barcode TEXT, gloss TEXT, paint_type TEXT, source TEXT, notes TEXT' +
     ');' +
     'CREATE TABLE IF NOT EXISTS boxes (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
@@ -74,6 +74,7 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN paint_type TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN source TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN series_en TEXT'); } catch { /* 既にある */ }
+  try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN notes TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE inventory ADD COLUMN status_changed_at TEXT'); } catch { /* 既にある */ }
 
   // 旧スキーマ(code が UNIQUE でブランドをまたいで衝突する)の端末はテーブルを作り直す。
@@ -90,7 +91,7 @@ export async function initDB(): Promise<void> {
       '  brand TEXT, series TEXT, series_en TEXT, code TEXT,' +
       '  name_ja TEXT, name_en TEXT, hex TEXT,' +
       '  r INTEGER, g INTEGER, b INTEGER,' +
-      '  l REAL, a_star REAL, b_star REAL, barcode TEXT, gloss TEXT, paint_type TEXT, source TEXT' +
+      '  l REAL, a_star REAL, b_star REAL, barcode TEXT, gloss TEXT, paint_type TEXT, source TEXT, notes TEXT' +
       ');' +
       'INSERT INTO catalog_paints' +
       ' (id, catalog_code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source)' +
@@ -205,15 +206,22 @@ export interface CatalogPaintDetail {
   gloss: string | null;
   paint_type: string | null;
   source: string;
+  notes: string | null;
 }
 
 export async function getCatalogPaintDetail(paintId: number): Promise<CatalogPaintDetail | null> {
   const row = await getDB().getFirstAsync<CatalogPaintDetail>(
-    'SELECT id, catalog_code, brand, series, series_en, code, name_ja, name_en, hex, gloss, paint_type, source'
+    'SELECT id, catalog_code, brand, series, series_en, code, name_ja, name_en, hex, gloss, paint_type, source, notes'
     + ' FROM catalog_paints WHERE id = ?',
     [paintId]
   );
   return row ?? null;
+}
+
+// 塗料メモ(塗料そのものに紐づくメモ。編集は色詳細の編集画面からのみ)。
+export async function updateCatalogPaintNotes(paintId: number, notes: string): Promise<void> {
+  const normalized = notes.trim() === '' ? null : notes;
+  await getDB().runAsync('UPDATE catalog_paints SET notes = ? WHERE id = ?', [normalized, paintId]);
 }
 
 // 指定した塗料がお気に入り/買い物リストに登録済みかどうか。
@@ -252,12 +260,13 @@ export interface InventoryDetail {
   gloss: string | null;
   paint_type: string | null;
   source: string;
+  paint_notes: string | null;
 }
 
 export async function getInventoryDetail(inventoryId: number): Promise<InventoryDetail | null> {
   const row = await getDB().getFirstAsync<InventoryDetail>(
     'SELECT i.id, i.paint_id, i.box_id, b.name AS box_name, i.status, i.note, i.added_at, i.status_changed_at,'
-    + ' c.catalog_code, c.brand, c.series, c.series_en, c.code, c.name_ja, c.name_en, c.hex, c.gloss, c.paint_type, c.source'
+    + ' c.catalog_code, c.brand, c.series, c.series_en, c.code, c.name_ja, c.name_en, c.hex, c.gloss, c.paint_type, c.source, c.notes AS paint_notes'
     + ' FROM inventory i'
     + ' JOIN catalog_paints c ON i.paint_id = c.id'
     + ' LEFT JOIN boxes b ON i.box_id = b.id'

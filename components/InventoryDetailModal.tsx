@@ -133,6 +133,11 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
                 <CompactInfo label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
               </View>
 
+              <View style={styles.field}>
+                <Text style={styles.label}>{t('paintNotes')}</Text>
+                <Text style={styles.readonly}>{detail.paint_notes || '—'}</Text>
+              </View>
+
               {/* この在庫固有の情報(主役) */}
               <View style={styles.field}>
                 <Text style={styles.label}>{t('box')}</Text>
@@ -216,6 +221,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   field: { marginBottom: spacing.lg },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
+  readonly: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.sm, padding: 10, color: colors.textFaint, backgroundColor: colors.surfaceAlt },
   noteInput: { minHeight: 96, alignItems: 'flex-start' },
   dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg },
   dropdownLabel: { fontSize: 16, color: colors.text },

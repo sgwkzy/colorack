@@ -17,6 +17,7 @@ import {
   removeFromList,
   resetCatalogPaintToMaster,
   updateCatalogPaintContent,
+  updateCatalogPaintNotes,
   updateManualPaint,
 } from '../lib/db';
 import { glossLabel } from '../lib/gloss';
@@ -53,6 +54,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   const [hex, setHex] = useState('');
   const [paintType, setPaintType] = useState<string | null>(null);
   const [gloss, setGloss] = useState<string | null>(null);
+  const [notes, setNotes] = useState('');
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -72,6 +74,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     setHex(paint.hex ?? '');
     setPaintType(paint.paint_type ?? null);
     setGloss(paint.gloss ?? null);
+    setNotes(paint.notes ?? '');
   }, []);
 
   const load = useCallback(async () => {
@@ -138,6 +141,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       } else {
         await updateCatalogPaintContent(detail.id, { nameJa, hex, gloss, paintType });
       }
+      await updateCatalogPaintNotes(detail.id, notes);
       await load();
       setIsEditing(false);
       onChanged?.();
@@ -224,6 +228,11 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
               </View>
 
               <View style={styles.field}>
+                <Text style={styles.label}>{t('paintNotes')}</Text>
+                <Text style={styles.readonly}>{detail.notes || '—'}</Text>
+              </View>
+
+              <View style={styles.field}>
                 <Text style={styles.label}>{t('box')}</Text>
                 <View style={styles.chipRow}>
                   {boxes.map((b) => optionChip(String(b.id), selectedBoxId === b.id, b.name, () => setSelectedBoxId(b.id), styles))}
@@ -294,6 +303,17 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 {GLOSS_OPTIONS.map((v) => optionChip(v, gloss === v, glossLabel(v), () => setGloss(gloss === v ? null : v), styles))}
               </View>
               {masterLine(gloss, master?.gloss, glossLabel)}
+
+              <View style={styles.field}>
+                <Text style={[styles.label, styles.sectionGap]}>{t('paintNotes')}</Text>
+                <ClearableInput
+                  style={[styles.input, styles.notesInput]}
+                  value={notes}
+                  onChangeText={setNotes}
+                  multiline
+                  textAlignVertical="top"
+                />
+              </View>
 
               <View style={styles.actionRow}>
                 <TouchableOpacity style={styles.button} onPress={cancelEdit}>
@@ -375,6 +395,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   readonly: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.sm, padding: 10, color: colors.textFaint, backgroundColor: colors.surfaceAlt },
   hexRow: { flexDirection: 'row', alignItems: 'center' },
   hexInput: { flex: 1 },
+  notesInput: { minHeight: 80, alignItems: 'flex-start' },
   previewSwatch: { marginLeft: spacing.md, width: touch.min, height: touch.min, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
   cameraBtn: { marginLeft: spacing.md, width: touch.min, height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.xs },
