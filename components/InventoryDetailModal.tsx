@@ -134,12 +134,12 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
                   <IconPencil color={colors.primary} size={20} />
                 </TouchableOpacity>
               </View>
+              {detail.code ? <Text style={styles.codeLine}>{detail.code}</Text> : null}
 
               {/* 色そのものの情報(色詳細と重複するため小さめの2列表示に留める) */}
               <View style={styles.compactGrid}>
                 <CompactInfo label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
                 <CompactInfo label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
-                <CompactInfo label={t('code')} value={detail.code} styles={styles} />
                 <CompactInfo label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
                 <CompactInfo label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
               </View>
@@ -242,8 +242,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   content: { padding: spacing.xl, paddingBottom: 96 },
   swatch: { height: 96, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.xl },
   hexBadge: { position: 'absolute', right: spacing.md, bottom: spacing.md, fontSize: 11, paddingHorizontal: spacing.md, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.9)', color: '#333', overflow: 'hidden' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs },
   paintTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text, flex: 1 },
+  codeLine: { fontSize: 14, color: colors.textMuted, letterSpacing: 0.5, marginBottom: spacing.lg },
   editBtn: { padding: spacing.sm, marginLeft: spacing.md },
   compactGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.xl },
   compactItem: { width: '50%', marginBottom: spacing.md },
