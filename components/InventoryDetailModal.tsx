@@ -2,7 +2,7 @@
 // 保管箱の在庫1点を閲覧するモーダル。色そのものの情報(色詳細と重複する部分)は
 // 小さめの2列レイアウトに留め、この在庫固有の情報(ボックス・ステータス・追加日・
 // 最終更新日・メモ)を主役として大きく扱う。ボックス・ステータスはここで直接変更できる。
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconPencil, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -22,7 +22,6 @@ import { paintName, seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
 import ClearableInput from './ClearableInput';
-import { optionChip } from './PaintFormFields';
 import PaintDetailModal from './PaintDetailModal';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
@@ -50,6 +49,8 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [boxPickerOpen, setBoxPickerOpen] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     if (inventoryId == null) return;
@@ -67,14 +68,23 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
       setNote('');
       setBoxPickerOpen(false);
       setEditVisible(false);
+      setToast('');
     }
   }, [visible, load]);
 
+  const showToast = (message: string) => {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 1800);
+  };
+
   const saveNote = async () => {
     if (!detail) return;
+    if (note === (detail.note ?? '')) return;
     await updateInventoryNote(detail.id, note);
     await load();
     onChanged?.();
+    showToast(t('noteSavedToast'));
   };
 
   const changeBox = async (boxId: number) => {
@@ -114,7 +124,9 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
             <ScrollView contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: detail.hex ?? colors.border }]} />
+              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: detail.hex ?? colors.border }]}>
+                {detail.hex ? <Text style={styles.hexBadge}>{detail.hex.toUpperCase()}</Text> : null}
+              </View>
 
               <View style={styles.titleRow}>
                 <Text style={styles.paintTitle}>{paintName(detail.name_ja, detail.name_en)}</Text>
@@ -128,15 +140,16 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
                 <CompactInfo label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
                 <CompactInfo label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
                 <CompactInfo label={t('code')} value={detail.code} styles={styles} />
-                <CompactInfo label={t('hex')} value={detail.hex ?? ''} styles={styles} />
                 <CompactInfo label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
                 <CompactInfo label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
               </View>
 
               <View style={styles.field}>
                 <Text style={styles.label}>{t('paintNotes')}</Text>
-                <Text style={styles.readonly}>{detail.paint_notes || '—'}</Text>
+                <Text style={styles.quote}>{detail.paint_notes || '—'}</Text>
               </View>
+
+              <View style={styles.divider} />
 
               {/* この在庫固有の情報(主役) */}
               <View style={styles.field}>
@@ -159,7 +172,19 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
               <View style={styles.field}>
                 <Text style={styles.label}>{t('status')}</Text>
                 <View style={styles.chipRow}>
-                  {STATUS_OPTIONS.map((opt) => optionChip(opt.value, detail.status === opt.value, t(opt.labelKey), () => changeStatus(opt.value), styles))}
+                  {STATUS_OPTIONS.map((opt) => {
+                    const selected = detail.status === opt.value;
+                    const statusColor = opt.value === 'owned' ? colors.primary : opt.value === 'in_use' ? colors.inUse : colors.usedUp;
+                    return (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[styles.chip, selected && { backgroundColor: statusColor }]}
+                        onPress={() => changeStatus(opt.value)}
+                      >
+                        <Text style={[styles.chipText, selected && styles.chipTextOn]}>{t(opt.labelKey)}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
 
@@ -189,6 +214,11 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
               />
             </ScrollView>
           )}
+          {toast ? (
+            <View style={styles.toast} pointerEvents="none">
+              <Text style={styles.toastText}>{toast}</Text>
+            </View>
+          ) : null}
         </SafeAreaView>
         </SwipeBack>
       </SafeAreaProvider>
@@ -211,6 +241,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   content: { padding: spacing.xl, paddingBottom: 96 },
   swatch: { height: 96, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.xl },
+  hexBadge: { position: 'absolute', right: spacing.md, bottom: spacing.md, fontSize: 11, paddingHorizontal: spacing.md, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.9)', color: '#333', overflow: 'hidden' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
   paintTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text, flex: 1 },
   editBtn: { padding: spacing.sm, marginLeft: spacing.md },
@@ -221,7 +252,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   field: { marginBottom: spacing.lg },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
-  readonly: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.sm, padding: 10, color: colors.textFaint, backgroundColor: colors.surfaceAlt },
+  quote: { borderLeftWidth: 3, borderLeftColor: colors.border, borderRadius: 0, paddingLeft: 10, paddingVertical: 2, fontSize: 12, color: colors.textFaint },
+  divider: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginBottom: spacing.lg },
   noteInput: { minHeight: 96, alignItems: 'flex-start' },
   dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg },
   dropdownLabel: { fontSize: 16, color: colors.text },
@@ -236,4 +268,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   chipText: { fontSize: 13, color: colors.textSecondary },
   chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
+  toast: { position: 'absolute', left: spacing.xxl, right: spacing.xxl, bottom: 32, backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 20, paddingVertical: 10, paddingHorizontal: spacing.xl, alignItems: 'center' },
+  toastText: { color: colors.onPrimary, fontSize: 14 },
 });

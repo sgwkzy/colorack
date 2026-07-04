@@ -4,7 +4,7 @@
 // 「詳細を見る→戻る→別の色を見る」を繰り返せるようにするため。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconCamera, IconPencil, IconX } from '@tabler/icons-react-native';
+import { IconCamera, IconHeart, IconPencil, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { brandLabel } from '../lib/brands';
 import {
@@ -184,8 +184,6 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     return <Text style={styles.masterText}>{t('masterValue')}: {formatter(masterValue ?? '')}</Text>;
   };
 
-  const displayHex = detail?.hex ?? '';
-
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaProvider>
@@ -204,7 +202,9 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : !isEditing ? (
             <ScrollView contentContainerStyle={styles.content}>
-              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: detail.hex ?? colors.border }]} />
+              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: detail.hex ?? colors.border }]}>
+                {detail.hex ? <Text style={styles.hexBadge}>{detail.hex.toUpperCase()}</Text> : null}
+              </View>
 
               <View style={styles.titleRow}>
                 <Text style={styles.paintTitle}>{paintName(detail.name_ja, detail.name_en)}</Text>
@@ -217,46 +217,48 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 <CompactInfo label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
                 <CompactInfo label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
                 <CompactInfo label={t('code')} value={detail.code} styles={styles} />
-                <CompactInfo label={t('hex')} value={displayHex} styles={styles} />
                 <CompactInfo label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
                 <CompactInfo label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
               </View>
 
               <View style={styles.field}>
                 <Text style={styles.label}>{t('paintNotes')}</Text>
-                <Text style={styles.readonly}>{detail.notes || '—'}</Text>
+                <Text style={styles.quote}>{detail.notes || '—'}</Text>
               </View>
 
-              <View style={styles.field}>
-                <Text style={styles.label}>{t('box')}</Text>
+              <View style={styles.addGroup}>
+                <Text style={styles.label}>{t('targetBox')}</Text>
                 <View style={styles.chipRow}>
                   {boxes.map((b) => optionChip(String(b.id), selectedBoxId === b.id, b.name, () => setSelectedBoxId(b.id), styles))}
                 </View>
-              </View>
-
-              <View style={styles.actionRow}>
-                <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={addToBox}>
+                <TouchableOpacity style={[styles.button, styles.primaryButton, styles.fullWidth]} onPress={addToBox}>
                   <Text style={styles.primaryButtonText}>{t('addToBox')}</Text>
                 </TouchableOpacity>
+              </View>
+
+              <View style={styles.toggleRow}>
                 <TouchableOpacity
-                  style={[styles.button, membership.favorites && styles.deleteButton]}
+                  style={[styles.button, styles.toggleButton, membership.favorites && styles.deleteButton]}
                   onPress={() => toggleList('favorites')}
                 >
-                  <Text style={[styles.buttonText, membership.favorites && styles.deleteButtonText]}>
-                    {membership.favorites ? t('removeFromFavorites') : t('addToFavorites')}
+                  <IconHeart size={16} color={membership.favorites ? colors.danger : colors.text} style={styles.toggleIcon} />
+                  <Text numberOfLines={1} style={[styles.buttonText, membership.favorites && styles.deleteButtonText]}>
+                    {membership.favorites ? t('removeFromFavorites') : t('favorites')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.button, membership.wishlist && styles.deleteButton]}
+                  style={[styles.button, styles.toggleButton, membership.wishlist && styles.deleteButton]}
                   onPress={() => toggleList('wishlist')}
                 >
-                  <Text style={[styles.buttonText, membership.wishlist && styles.deleteButtonText]}>
-                    {membership.wishlist ? t('removeFromWishlist') : t('addToWishlist')}
+                  <IconShoppingCartPlus size={16} color={membership.wishlist ? colors.danger : colors.text} style={styles.toggleIcon} />
+                  <Text numberOfLines={1} style={[styles.buttonText, membership.wishlist && styles.deleteButtonText]}>
+                    {membership.wishlist ? t('removeFromWishlist') : t('wishlist')}
                   </Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
           ) : (
+            <>
             <ScrollView contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <EditField label={t('name')} value={nameJa} onChangeText={setNameJa} styles={styles} />
               {masterLine(nameJa, master?.name_ja)}
@@ -310,22 +312,27 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 />
               </View>
 
-              <View style={styles.actionRow}>
+              <View>
                 {detail.source === 'catalog' && master ? (
-                  <TouchableOpacity style={styles.button} onPress={resetToMaster}>
-                    <Text style={styles.buttonText}>{t('reset')}</Text>
+                  <TouchableOpacity style={styles.textAction} onPress={resetToMaster}>
+                    <Text style={styles.textActionLabel}>{t('resetToMaster')}</Text>
                   </TouchableOpacity>
                 ) : null}
                 {isManual ? (
-                  <TouchableOpacity style={[styles.button, styles.deleteButton]} onPress={remove}>
-                    <Text style={styles.deleteButtonText}>{t('delete')}</Text>
+                  <TouchableOpacity style={styles.textAction} onPress={remove}>
+                    <Text style={styles.textActionLabel}>{t('delete')}</Text>
                   </TouchableOpacity>
                 ) : null}
-                <TouchableOpacity style={[styles.button, styles.primaryButton, !canSave && styles.buttonDisabled]} onPress={save} disabled={!canSave}>
-                  <Text style={styles.primaryButtonText}>{t('save')}</Text>
-                </TouchableOpacity>
               </View>
             </ScrollView>
+            <TouchableOpacity
+              style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
+              onPress={save}
+              disabled={!canSave}
+            >
+              <Text style={styles.saveBtnText}>{t('save')}</Text>
+            </TouchableOpacity>
+            </>
           )}
 
           {toast ? (
@@ -374,6 +381,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   content: { padding: spacing.xl, paddingBottom: 96 },
   swatch: { height: 96, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.xl },
+  hexBadge: { position: 'absolute', right: spacing.md, bottom: spacing.md, fontSize: 11, paddingHorizontal: spacing.md, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.9)', color: '#333', overflow: 'hidden' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
   paintTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text, flex: 1 },
   editBtn: { padding: spacing.sm, marginLeft: spacing.md },
@@ -385,6 +393,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
   readonly: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.sm, padding: 10, color: colors.textFaint, backgroundColor: colors.surfaceAlt },
+  quote: { borderLeftWidth: 3, borderLeftColor: colors.border, borderRadius: 0, paddingLeft: 10, paddingVertical: 2, fontSize: 12, color: colors.textFaint },
   hexRow: { flexDirection: 'row', alignItems: 'center' },
   hexInput: { flex: 1 },
   notesInput: { minHeight: 80, alignItems: 'flex-start' },
@@ -397,14 +406,22 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   sectionGap: { marginTop: spacing.lg },
   masterText: { color: colors.textFaint, fontSize: 12, marginTop: -spacing.md, marginBottom: spacing.lg },
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xl },
+  addGroup: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, marginBottom: spacing.lg },
+  fullWidth: { alignSelf: 'stretch' },
+  toggleRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
+  toggleButton: { flex: 1, flexDirection: 'row' },
+  toggleIcon: { marginRight: spacing.xs },
   button: { minHeight: touch.min, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, alignItems: 'center', justifyContent: 'center' },
   primaryButton: { backgroundColor: colors.primary, borderColor: colors.primary },
-  buttonDisabled: { backgroundColor: colors.primaryDisabled, borderColor: colors.primaryDisabled },
   deleteButton: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
   buttonText: { color: colors.text, fontWeight: 'bold' },
   primaryButtonText: { color: colors.onPrimary, fontWeight: 'bold' },
   deleteButtonText: { color: colors.danger, fontWeight: 'bold' },
+  textAction: { alignSelf: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.xl },
+  textActionLabel: { fontSize: 14, color: colors.danger, fontWeight: 'bold' },
+  saveBtn: { backgroundColor: colors.primary, padding: spacing.xl, alignItems: 'center' },
+  saveBtnDisabled: { backgroundColor: colors.primaryDisabled },
+  saveBtnText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   toast: { position: 'absolute', left: spacing.xxl, right: spacing.xxl, bottom: 32, backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 20, paddingVertical: 10, paddingHorizontal: spacing.xl, alignItems: 'center' },
   toastText: { color: colors.onPrimary, fontSize: 14 },
