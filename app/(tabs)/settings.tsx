@@ -2,9 +2,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { getDB, getDefaultBoxId, resetCatalogToMaster, setSetting } from '../../lib/db';
+import { getDB, getDefaultBoxId, getSetting, resetCatalogToMaster, setSetting } from '../../lib/db';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
+import { signInWithGoogle, signOutUser, useAuthUser } from '../../lib/auth';
+import { fetchBackupSnapshot, pushBackupToFirestore, restoreFromSnapshot, runRestoreDecision } from '../../lib/cloudBackup';
 
 interface Box { id: number; name: string; }
 
@@ -21,6 +23,9 @@ export default function SettingsScreen() {
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [boxPickerOpen, setBoxPickerOpen] = useState(false);
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
+  const [accountBusy, setAccountBusy] = useState(false);
+  const authUser = useAuthUser();
 
   const loadBoxes = useCallback(async () => {
     const db = getDB();
@@ -28,7 +33,14 @@ export default function SettingsScreen() {
     setDefaultBoxId(await getDefaultBoxId());
   }, []);
 
-  useFocusEffect(useCallback(() => { loadBoxes(); }, [loadBoxes]));
+  const loadLastBackupAt = useCallback(async () => {
+    setLastBackupAt(await getSetting('last_backup_at'));
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    loadBoxes();
+    loadLastBackupAt();
+  }, [loadBoxes, loadLastBackupAt]));
 
   const chooseDefaultBox = async (boxId: number) => {
     setDefaultBoxId(boxId);
@@ -69,8 +81,83 @@ export default function SettingsScreen() {
 
   const resetCatalog = () => confirmReset(t('resetCatalog'), resetCatalogToMaster);
 
+  const restoreCloudBackup = async () => {
+    const snapshot = await fetchBackupSnapshot();
+    if (!snapshot) return;
+    await restoreFromSnapshot(snapshot);
+    await loadBoxes();
+  };
+
+  const showConflictAlert = () => {
+    Alert.alert(t('cloudRestoreConflictTitle'), t('cloudRestoreConflictMessage'), [
+      { text: t('cloudRestoreFromCloud'), style: 'destructive', onPress: () => { restoreCloudBackup().catch(console.error); } },
+      { text: t('cloudKeepDeviceData'), style: 'cancel' },
+    ]);
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (accountBusy) return;
+    setAccountBusy(true);
+    try {
+      await signInWithGoogle();
+      const result = await runRestoreDecision();
+      if (result === 'conflict') showConflictAlert();
+      await loadBoxes();
+      await loadLastBackupAt();
+    } catch (e) {
+      console.error('handleGoogleSignIn: failed', e);
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const handleBackupNow = async () => {
+    if (accountBusy) return;
+    setAccountBusy(true);
+    try {
+      await pushBackupToFirestore();
+      await loadLastBackupAt();
+    } catch (e) {
+      console.error('handleBackupNow: failed', e);
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (accountBusy) return;
+    setAccountBusy(true);
+    try {
+      await signOutUser();
+    } catch (e) {
+      console.error('handleSignOut: failed', e);
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('account')}</Text>
+        {authUser ? (
+          <>
+            <Text style={styles.accountText}>{authUser.displayName ?? authUser.email ?? authUser.uid}</Text>
+            {authUser.email ? <Text style={styles.accountSubText}>{authUser.email}</Text> : null}
+            <Text style={styles.accountSubText}>{t('lastBackupAt')}: {lastBackupAt ?? t('lastBackupNever')}</Text>
+            <TouchableOpacity style={[styles.accountBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleBackupNow} disabled={accountBusy}>
+              <Text style={styles.accountBtnText}>{t('backupNow')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.resetBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleSignOut} disabled={accountBusy}>
+              <Text style={styles.resetBtnText}>{t('signOut')}</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <TouchableOpacity style={[styles.accountBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleGoogleSignIn} disabled={accountBusy}>
+            <Text style={styles.accountBtnText}>{t('signInWithGoogle')}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('language')}</Text>
         <View style={styles.langRow}>
@@ -124,12 +211,13 @@ export default function SettingsScreen() {
           <Text style={styles.resetBtnText}>{t('resetCatalog')}</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  container: { flex: 1, padding: spacing.xl, backgroundColor: colors.surface },
+  container: { flex: 1, backgroundColor: colors.surface },
+  content: { padding: spacing.xl },
   section: { marginBottom: spacing.xxl },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: spacing.md, color: colors.text },
   langRow: { flexDirection: 'row', alignItems: 'center' },
@@ -140,6 +228,11 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   themeBtnTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   resetBtn: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
   resetBtnText: { color: colors.danger, fontWeight: 'bold', textAlign: 'center' },
+  accountText: { fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: spacing.xs },
+  accountSubText: { fontSize: 14, color: colors.textSecondary, marginBottom: spacing.md },
+  accountBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
+  accountBtnDisabled: { backgroundColor: colors.primaryDisabled },
+  accountBtnText: { color: colors.onPrimary, fontWeight: 'bold', textAlign: 'center' },
   dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg },
   dropdownLabel: { fontSize: 16, color: colors.text },
   dropdownArrow: { fontSize: 12, color: colors.textFaint },

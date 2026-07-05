@@ -4,6 +4,10 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
+    "@react-native-firebase/app": "^25.1.0",
+    "@react-native-firebase/auth": "^25.1.0",
+    "@react-native-firebase/firestore": "^25.1.0",
+    "@react-native-google-signin/google-signin": "^16.1.2",
     "@tabler/icons-react-native": "^3.44.0",
     "expo": "~54.0.0",
     "expo-camera": "~17.0.10",

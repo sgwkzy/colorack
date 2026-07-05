@@ -7,6 +7,8 @@ import { StatusBar } from 'expo-status-bar';
 import { initDB } from '../lib/db';
 import { initTheme, useTheme } from '../lib/theme';
 import { initLocale } from '../lib/i18n';
+import { initAuth } from '../lib/auth';
+import { initAutoBackup } from '../lib/cloudBackup';
 
 export default function RootLayout() {
   // initDB()/initTheme()/initLocale() 完了まで画面を出さない(getDB()が未初期化で落ちるのを防ぐ)
@@ -14,7 +16,13 @@ export default function RootLayout() {
   const { colors, isDark } = useTheme();
 
   useEffect(() => {
-    initDB().then(() => Promise.all([initTheme(), initLocale()])).then(() => setReady(true)).catch(console.error);
+    initDB()
+      .then(() => Promise.all([initTheme(), initLocale(), initAuth()]))
+      .then(() => {
+        setReady(true);
+        initAutoBackup();
+      })
+      .catch(console.error);
   }, []);
 
   return (

@@ -40,6 +40,8 @@ module.exports = ({ config }) => ({
     'expo-router',
     'expo-localization',
     'expo-camera',
+    '@react-native-firebase/app',
+    '@react-native-google-signin/google-signin',
     [
       'react-native-google-mobile-ads',
       {
