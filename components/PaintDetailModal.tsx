@@ -100,7 +100,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       getDB().getAllAsync<StockStatusRow>(
         'SELECT b.name AS box_name, i.status, COUNT(*) AS n'
         + ' FROM inventory i LEFT JOIN boxes b ON i.box_id = b.id'
-        + ' WHERE i.paint_id = ?'
+        + " WHERE i.paint_id = ? AND i.status != 'used_up'"
         + ' GROUP BY i.box_id, i.status',
         [paintId]
       ),

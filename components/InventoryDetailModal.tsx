@@ -107,9 +107,9 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
 
   const promptAddToWishlist = (item: InventoryDetail) => {
     Alert.alert(t('addToWishlistPrompt'), '', [
-      { text: t('cancel'), style: 'cancel' },
+      { text: t('dontAddToList'), style: 'cancel' },
       {
-        text: t('wishlist'),
+        text: t('add'),
         onPress: async () => {
           const membership = await getListMembership(item.paint_id);
           if (!membership.wishlist) {

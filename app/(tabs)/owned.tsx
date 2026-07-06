@@ -224,9 +224,9 @@ export default function OwnedScreen() {
   };
   const promptAddToWishlist = (item: InventoryItem) => {
     Alert.alert(t('addToWishlistPrompt'), '', [
-      { text: t('cancel'), style: 'cancel' },
+      { text: t('dontAddToList'), style: 'cancel' },
       {
-        text: t('wishlist'),
+        text: t('add'),
         onPress: async () => {
           const membership = await getListMembership(item.paint_id);
           if (!membership.wishlist) {
@@ -424,7 +424,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   statusTabActive: { backgroundColor: colors.primarySoft },
   statusTabText: { fontSize: 12, color: colors.textFaint },
   statusTabTextActive: { color: colors.primary, fontWeight: 'bold' },
-  iconBtn: { paddingHorizontal: 10, borderRadius: 12, marginLeft: spacing.sm, minHeight: touch.min, justifyContent: 'center' },
+  iconBtn: { width: 64, borderRadius: 12, marginLeft: spacing.sm, minHeight: touch.min, alignItems: 'center', justifyContent: 'center' },
   iconBtnText: { color: colors.onPrimary, fontSize: 12, fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
