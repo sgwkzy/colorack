@@ -85,9 +85,10 @@ export default function OwnedScreen() {
     const [boxRows, defaultBox, boxCountRows, statusCountRows, totalRow] = await Promise.all([
       db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'),
       getDefaultBoxId(),
-      db.getAllAsync<BoxCountRow>('SELECT box_id, COUNT(*) AS n FROM inventory GROUP BY box_id'),
+      // ボックスの件数は使用済を除く(在庫+使用中)の合計。使用済は「使い切った」ものとして数えない。
+      db.getAllAsync<BoxCountRow>("SELECT box_id, COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use') GROUP BY box_id"),
       db.getAllAsync<StatusCountRow>('SELECT status, COUNT(*) AS n FROM inventory GROUP BY status'),
-      db.getFirstAsync<CountRow>('SELECT COUNT(*) AS n FROM inventory'),
+      db.getFirstAsync<CountRow>("SELECT COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use')"),
     ]);
     setBoxes(boxRows);
     setDefaultBoxId(defaultBox);
