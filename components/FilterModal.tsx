@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet,
 } from 'react-native';
+import { IconChevronDown, IconChevronUp, IconSquare, IconSquareCheck } from '@tabler/icons-react-native';
 import ClearableInput from './ClearableInput';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { t } from '../lib/i18n';
@@ -83,7 +84,9 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
 
   const checkRow = (key: string, label: string, checked: boolean, onPress: () => void) => (
     <TouchableOpacity key={key} style={styles.checkRow} onPress={onPress}>
-      <Text style={[styles.checkBox, checked && styles.checkBoxOn]}>{checked ? '☑' : '☐'}</Text>
+      {checked
+        ? <IconSquareCheck size={20} color={colors.primary} style={styles.checkIcon} />
+        : <IconSquare size={20} color={colors.textPlaceholder} style={styles.checkIcon} />}
       <Text style={styles.checkLabel}>{label}</Text>
     </TouchableOpacity>
   );
@@ -119,7 +122,9 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
             <Text style={styles.dropdownLabel}>
               {t('brand')}{brands.length ? ` (${brands.length})` : ''}
             </Text>
-            <Text style={styles.dropdownArrow}>{brandOpen ? '▲' : '▼'}</Text>
+            {brandOpen
+              ? <IconChevronUp size={16} color={colors.textFaint} />
+              : <IconChevronDown size={16} color={colors.textFaint} />}
           </TouchableOpacity>
           {brandOpen && (
             <View style={styles.checkList}>
@@ -134,7 +139,9 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
             <Text style={styles.dropdownLabel}>
               {t('series')}{series.length ? ` (${series.length})` : ''}
             </Text>
-            <Text style={styles.dropdownArrow}>{seriesOpen ? '▲' : '▼'}</Text>
+            {seriesOpen
+              ? <IconChevronUp size={16} color={colors.textFaint} />
+              : <IconChevronDown size={16} color={colors.textFaint} />}
           </TouchableOpacity>
           {seriesOpen && (
             <View style={styles.checkList}>
@@ -149,7 +156,9 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
             <Text style={styles.dropdownLabel}>
               {t('gloss')}{gloss.length ? ` (${gloss.length})` : ''}
             </Text>
-            <Text style={styles.dropdownArrow}>{glossOpen ? '▲' : '▼'}</Text>
+            {glossOpen
+              ? <IconChevronUp size={16} color={colors.textFaint} />
+              : <IconChevronDown size={16} color={colors.textFaint} />}
           </TouchableOpacity>
           {glossOpen && (
             <View style={styles.checkList}>
@@ -164,7 +173,9 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
             <Text style={styles.dropdownLabel}>
               {t('paintType')}{types.length ? ` (${types.length})` : ''}
             </Text>
-            <Text style={styles.dropdownArrow}>{typeOpen ? '▲' : '▼'}</Text>
+            {typeOpen
+              ? <IconChevronUp size={16} color={colors.textFaint} />
+              : <IconChevronDown size={16} color={colors.textFaint} />}
           </TouchableOpacity>
           {typeOpen && (
             <View style={styles.checkList}>
@@ -201,11 +212,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginHorizontal: spacing.xl, color: colors.text },
   dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.xl, marginTop: spacing.lg, borderTopWidth: 1, borderColor: colors.borderLight },
   dropdownLabel: { fontSize: 16, color: colors.text },
-  dropdownArrow: { fontSize: 12, color: colors.textFaint },
   checkList: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
   checkRow: { flexDirection: 'row', alignItems: 'center', minHeight: touch.min },
-  checkBox: { fontSize: 18, color: '#bbb', marginRight: 10 },
-  checkBoxOn: { color: colors.primary },
+  checkIcon: { marginRight: 10 },
   checkLabel: { fontSize: 15, color: colors.text },
   emptyOpt: { color: colors.textPlaceholder, paddingVertical: spacing.md },
   applyBtn: { backgroundColor: colors.primary, padding: spacing.xl, alignItems: 'center' },

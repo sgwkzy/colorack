@@ -5,19 +5,19 @@ import { paintTypeIcon } from '../lib/paintType';
 import { useTheme, lightColors } from '../lib/theme';
 
 // ラッカー=◯L / 水性アクリル=◯W のバッジ。該当なしは何も描画しない。
-const COLOR: Record<string, string> = {
-  La: '#c0392b', // ラッカー(赤)
-  Ac: '#2980b9', // 水性アクリル(青)
-  En: '#27ae60', // エナメル(緑)
-  Em: '#8e44ad', // エマルジョン(紫)
-};
+const colorForCode = (colors: typeof lightColors, code: string): string => ({
+  La: colors.typeLacquer, // ラッカー(赤)
+  Ac: colors.typeAcrylic, // 水性アクリル(青)
+  En: colors.typeEnamel, // エナメル(緑)
+  Em: colors.typeEmulsion, // エマルジョン(紫)
+}[code] ?? colors.textFaint);
 
 export default function TypeIcon({ paintType }: { paintType: string | null | undefined }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const code = paintTypeIcon(paintType);
   if (!code) return null;
-  const color = COLOR[code] ?? colors.textFaint;
+  const color = colorForCode(colors, code);
   return (
     <Text style={[styles.badge, { borderColor: color, color }]}>{code}</Text>
   );

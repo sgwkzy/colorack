@@ -3,7 +3,7 @@
 // 編集/削除でき、公式カタログは読み取り専用。右下FABで新規追加。
 import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { IconPlus, IconTrash, IconChevronLeft } from '@tabler/icons-react-native';
+import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
@@ -124,7 +124,7 @@ export default function CatalogScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity style={[styles.navItem, item === ALL && styles.allItem]} onPress={() => openBrand(item)}>
               <Text style={[styles.navText, item === ALL && styles.allText]}>{item === ALL ? t('all') : brandLabel(item)}</Text>
-              <Text style={styles.arrow}>›</Text>
+              <IconChevronRight color={colors.textPlaceholder} size={18} />
             </TouchableOpacity>
           )}
           ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
@@ -150,7 +150,7 @@ export default function CatalogScreen() {
             renderItem={({ item }) => (
               <TouchableOpacity style={[styles.navItem, item.series === ALL && styles.allItem]} onPress={() => openSeries(item.series)}>
                 <Text style={[styles.navText, item.series === ALL && styles.allText]}>{item.series === ALL ? t('all') : seriesLabel(item.series || '—', item.series_en)}</Text>
-                <Text style={styles.arrow}>›</Text>
+                <IconChevronRight color={colors.textPlaceholder} size={18} />
               </TouchableOpacity>
             )}
             ListFooterComponent={<AdBanner />}
@@ -208,7 +208,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   allItem: { backgroundColor: colors.primarySoft },
   navText: { flex: 1, fontSize: 16, color: colors.text },
   allText: { color: colors.primary, fontWeight: 'bold' },
-  arrow: { fontSize: 18, color: colors.textPlaceholder },
   back: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.md, backgroundColor: colors.surfaceAlt },
   backText: { fontSize: 15, color: colors.primary },
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },

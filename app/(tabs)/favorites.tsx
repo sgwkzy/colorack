@@ -12,6 +12,7 @@ import AddPaintModal from '../../components/AddPaint';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintRow from '../../components/PaintRow';
+import Toast from '../../components/Toast';
 
 interface ListItem {
   id: number;
@@ -171,11 +172,7 @@ export default function FavoritesScreen() {
         onClose={() => setDetailPaintId(null)}
         onChanged={reload}
       />
-      {toast ? (
-        <View style={styles.toast} pointerEvents="none">
-          <Text style={styles.toastText}>{toast}</Text>
-        </View>
-      ) : null}
+      <Toast message={toast} />
     </View>
   );
 }
@@ -190,10 +187,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
     width: 56, height: 56, borderRadius: radius.fab,
     alignItems: 'center', justifyContent: 'center',
   },
-  addFab: { bottom: spacing.xxl, backgroundColor: '#e9967a' },
+  addFab: { bottom: spacing.xxl, backgroundColor: colors.favoriteAccent },
   sortFab: { bottom: 92, backgroundColor: colors.neutralAction },
   filterFab: { bottom: 160, backgroundColor: colors.neutralAction },
   filterFabActive: { backgroundColor: colors.primary },
-  toast: { position: 'absolute', left: spacing.xxl, right: spacing.xxl, bottom: 32, backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 20, paddingVertical: 10, paddingHorizontal: spacing.xl, alignItems: 'center' },
-  toastText: { color: colors.onPrimary, fontSize: 14 },
 });

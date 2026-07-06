@@ -4,7 +4,7 @@
 // 最終更新日・メモ)を主役として大きく扱う。ボックス・ステータスはここで直接変更できる。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconPencil, IconX } from '@tabler/icons-react-native';
+import { IconChevronDown, IconChevronUp, IconPencil, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { brandLabel } from '../lib/brands';
 import {
@@ -25,6 +25,7 @@ import ClearableInput from './ClearableInput';
 import PaintDetailModal from './PaintDetailModal';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
+import Toast from './Toast';
 
 interface Box { id: number; name: string; }
 
@@ -132,7 +133,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
             <ScrollView contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: detail.hex ?? colors.border }]}>
+              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: colors.border }]}>
                 {detail.hex ? <Text style={styles.hexBadge}>{detail.hex.toUpperCase()}</Text> : null}
               </View>
 
@@ -164,7 +165,9 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
                 <Text style={styles.label}>{t('box')}</Text>
                 <TouchableOpacity style={styles.dropdown} onPress={() => setBoxPickerOpen((o) => !o)}>
                   <Text style={styles.dropdownLabel}>{boxName}</Text>
-                  <Text style={styles.dropdownArrow}>{boxPickerOpen ? '▲' : '▼'}</Text>
+                  {boxPickerOpen
+                    ? <IconChevronUp size={16} color={colors.textFaint} />
+                    : <IconChevronDown size={16} color={colors.textFaint} />}
                 </TouchableOpacity>
                 {boxPickerOpen && (
                   <ScrollView style={styles.dropdownList} nestedScrollEnabled>
@@ -222,11 +225,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
               />
             </ScrollView>
           )}
-          {toast ? (
-            <View style={styles.toast} pointerEvents="none">
-              <Text style={styles.toastText}>{toast}</Text>
-            </View>
-          ) : null}
+          <Toast message={toast} />
         </SafeAreaView>
         </SwipeBack>
       </SafeAreaProvider>
@@ -266,7 +265,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   noteInput: { minHeight: 96, alignItems: 'flex-start' },
   dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg },
   dropdownLabel: { fontSize: 16, color: colors.text },
-  dropdownArrow: { fontSize: 12, color: colors.textFaint },
   dropdownList: { borderWidth: 1, borderColor: colors.border, borderTopWidth: 0, borderBottomLeftRadius: radius.sm, borderBottomRightRadius: radius.sm, maxHeight: 220 },
   dropdownItem: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.borderLight },
   dropdownItemText: { fontSize: 15, color: colors.text },
@@ -276,6 +274,4 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   chipText: { fontSize: 13, color: colors.textSecondary },
   chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
-  toast: { position: 'absolute', left: spacing.xxl, right: spacing.xxl, bottom: 32, backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 20, paddingVertical: 10, paddingHorizontal: spacing.xl, alignItems: 'center' },
-  toastText: { color: colors.onPrimary, fontSize: 14 },
 });

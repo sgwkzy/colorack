@@ -30,6 +30,7 @@ import ColorCameraPicker from './ColorCameraPicker';
 import { GLOSS_OPTIONS, isValidHex, optionChip, TYPE_OPTIONS } from './PaintFormFields';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
+import Toast from './Toast';
 
 interface Box { id: number; name: string; }
 
@@ -231,7 +232,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : !isEditing ? (
             <ScrollView contentContainerStyle={styles.content}>
-              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: detail.hex ?? colors.border }]}>
+              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: colors.border }]}>
                 {detail.hex ? <Text style={styles.hexBadge}>{detail.hex.toUpperCase()}</Text> : null}
               </View>
 
@@ -364,11 +365,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
             </>
           )}
 
-          {toast ? (
-            <View style={styles.toast} pointerEvents="none">
-              <Text style={styles.toastText}>{toast}</Text>
-            </View>
-          ) : null}
+          <Toast message={toast} />
           <ColorCameraPicker visible={colorPickerVisible} onClose={() => setColorPickerVisible(false)} onPick={setHex} />
         </SafeAreaView>
         </SwipeBack>
@@ -453,6 +450,4 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   saveBtnDisabled: { backgroundColor: colors.primaryDisabled },
   saveBtnText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
-  toast: { position: 'absolute', left: spacing.xxl, right: spacing.xxl, bottom: 32, backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 20, paddingVertical: 10, paddingHorizontal: spacing.xl, alignItems: 'center' },
-  toastText: { color: colors.onPrimary, fontSize: 14 },
 });

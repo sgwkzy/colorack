@@ -29,8 +29,12 @@ export default function PaintRow({ paint, children, style, borderColor, subSuffi
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const sub = `${brandLabel(paint.brand)}${paint.gloss ? ` · ${glossLabel(paint.gloss)}` : ''}${subSuffix ?? ''}`;
+  // 色ストリップは独立Viewで描き、右端に細い縁取りを付ける。
+  // borderLeft方式だと白系/黒系の塗色が行背景・画面背景に溶けて見えなくなるため。
+  const stripColor = borderColor ?? paint.hex ?? null;
   return (
-    <View style={[styles.row, compact && styles.compact, { borderLeftColor: borderColor ?? paint.hex ?? colors.transparent }, style]}>
+    <View style={[styles.row, compact && styles.compact, style]}>
+      {stripColor ? <View style={[styles.strip, { backgroundColor: stripColor }]} /> : null}
       <View style={styles.body}>
         <Text style={[styles.name, compact && styles.compactName]}>
           {paintName(paint.name_ja, paint.name_en)}
@@ -51,12 +55,21 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.lg,
+    paddingLeft: spacing.lg + 8,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
-    borderLeftWidth: 8,
   },
-  compact: { padding: 10 },
+  strip: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 8,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: colors.border,
+  },
+  compact: { padding: 10, paddingLeft: 10 + 8 },
   body: { flex: 1 },
   name: { fontSize: 16, color: colors.text },
   compactName: { fontSize: 14 },

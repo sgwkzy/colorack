@@ -263,7 +263,7 @@ export default function OwnedScreen() {
           {boxTab('all', t('allBoxes'), 'all')}
           {boxes.map((b) => boxTab(`box-${b.id}`, b.name, b.id, () => onBoxLongPress(b)))}
           <TouchableOpacity style={styles.addTab} onPress={addBox}>
-            <Text style={styles.addTabText}>＋</Text>
+            <IconPlus size={16} color={colors.primary} />
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -372,8 +372,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   tabActive: { backgroundColor: colors.primary },
   tabText: { fontSize: 14, color: colors.textSecondary },
   tabTextActive: { color: colors.onPrimary, fontWeight: 'bold' },
-  addTab: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chipAlt },
-  addTabText: { fontSize: 14, color: colors.primary, fontWeight: 'bold' },
+  addTab: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chipAlt, alignItems: 'center', justifyContent: 'center' },
   statusBarWrap: { flexDirection: 'row', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   statusTab: { flex: 1, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md },
   statusTabActive: { backgroundColor: colors.primarySoft },

@@ -13,6 +13,7 @@ import TextSearch from './TextSearch';
 import HierarchyBrowser from './HierarchyBrowser';
 import ColorMatcher from './ColorMatcher';
 import ManualEntry from './ManualEntry';
+import Toast from '../Toast';
 
 interface Paint {
   id: number;
@@ -109,11 +110,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
               />
             )}
           </View>
-          {toast ? (
-            <View style={styles.toast} pointerEvents="none">
-              <Text style={styles.toastText}>{toast}</Text>
-            </View>
-          ) : null}
+          <Toast message={toast} />
           <PaintDetailModal
             visible={detailPaintId != null}
             paintId={detailPaintId}
@@ -135,6 +132,4 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   tabText: { fontSize: 13, color: colors.textPlaceholder },
   tabTextActive: { color: colors.primary, fontWeight: 'bold' },
   content: { flex: 1 },
-  toast: { position: 'absolute', left: spacing.xxl, right: spacing.xxl, bottom: 32, backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 20, paddingVertical: 10, paddingHorizontal: spacing.xl, alignItems: 'center' },
-  toastText: { color: colors.onPrimary, fontSize: 14 },
 });
