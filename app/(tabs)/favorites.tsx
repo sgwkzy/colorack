@@ -25,6 +25,7 @@ interface ListItem {
   gloss: string | null;
   paint_type: string | null;
 }
+interface CountRow { n: number; }
 
 const EMPTY_FILTER: PaintFilter = { brands: [], series: [], gloss: [], types: [], search: '' };
 
@@ -40,6 +41,7 @@ export default function FavoritesScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<ListItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [filter, setFilter] = useState<PaintFilter>(EMPTY_FILTER);
   const [sort, setSort] = useState<Sort>('added');
   const [filterOptions, setFilterOptions] = useState<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }[]>([]);
@@ -51,6 +53,8 @@ export default function FavoritesScreen() {
 
   const load = useCallback(async (f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
+    const totalRow = await db.getFirstAsync<CountRow>('SELECT COUNT(*) AS n FROM lists WHERE type = ?', ['favorites']);
+    setTotalCount(totalRow?.n ?? 0);
     setFilterOptions(await db.getAllAsync<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }>(
       'SELECT DISTINCT c.brand, c.series, c.series_en, c.gloss, c.paint_type FROM lists l'
       + ' JOIN catalog_paints c ON l.paint_id = c.id'
@@ -97,6 +101,7 @@ export default function FavoritesScreen() {
 
   const reload = () => load(filter, sort);
   const filterActive = filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';
+  const emptyMessage = !filterActive && totalCount === 0 ? t('emptyList') : t('noResults');
 
   const showToast = (message: string) => {
     setToast(message);
@@ -118,7 +123,7 @@ export default function FavoritesScreen() {
       { key: 'code', label: t('sortCode') },
     ];
     Alert.alert(t('sort'), '', [
-      ...opts.map((o) => ({ text: o.label, onPress: () => setSort(o.key) })),
+      ...opts.map((o) => ({ text: `${sort === o.key ? '✓ ' : ''}${o.label}`, onPress: () => setSort(o.key) })),
       { text: t('cancel'), style: 'cancel' as const },
     ]);
   };
@@ -142,7 +147,7 @@ export default function FavoritesScreen() {
             </TouchableOpacity>
           </Swipeable>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
         contentContainerStyle={{ paddingBottom: 232 }}
       />
       <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>

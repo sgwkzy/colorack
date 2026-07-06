@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
-import { getDB } from '../../lib/db';
+import { getDB, getOwnedCountMap } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { seriesLabel } from '../../lib/paintLabel';
@@ -40,6 +40,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
   const [seriesList, setSeriesList] = useState<{ series: string; series_en: string | null }[]>([]);
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
   const [paints, setPaints] = useState<Paint[]>([]);
+  const [ownedCounts, setOwnedCounts] = useState<Map<number, number>>(new Map());
   const [nameFilter, setNameFilter] = useState('');
 
   useEffect(() => {
@@ -57,7 +58,12 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
     const sql = 'SELECT id, name_ja, name_en, code, brand, series, series_en, hex, gloss, paint_type FROM catalog_paints'
       + (where.length ? ' WHERE ' + where.join(' AND ') : '')
       + ' ORDER BY code COLLATE NOCASE';
-    setPaints(await getDB().getAllAsync<Paint>(sql, args));
+    const [rows, ownedMap] = await Promise.all([
+      getDB().getAllAsync<Paint>(sql, args),
+      getOwnedCountMap(),
+    ]);
+    setPaints(rows);
+    setOwnedCounts(ownedMap);
     setNameFilter('');
   };
 
@@ -150,7 +156,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
         keyExtractor={(p) => String(p.id)}
         renderItem={({ item }) => (
           <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)}>
-            <PaintRow paint={item} style={styles.itemPaint}>
+            <PaintRow paint={item} style={styles.itemPaint} ownedCount={ownedCounts.get(item.id) ?? 0}>
               <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
                 <IconPlus color={colors.onPrimary} size={22} />
               </TouchableOpacity>

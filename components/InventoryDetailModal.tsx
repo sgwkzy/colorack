@@ -3,13 +3,14 @@
 // 小さめの2列レイアウトに留め、この在庫固有の情報(ボックス・ステータス・追加日・
 // 最終更新日・メモ)を主役として大きく扱う。ボックス・ステータスはここで直接変更できる。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronDown, IconChevronUp, IconPencil, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { brandLabel } from '../lib/brands';
 import {
   getDB,
   getInventoryDetail,
+  getListMembership,
   InventoryDetail,
   PaintStatus,
   setInventoryStatus,
@@ -104,11 +105,30 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
     onChanged?.();
   };
 
+  const promptAddToWishlist = (item: InventoryDetail) => {
+    Alert.alert(t('addToWishlistPrompt'), '', [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('wishlist'),
+        onPress: async () => {
+          const membership = await getListMembership(item.paint_id);
+          if (!membership.wishlist) {
+            await getDB().runAsync("INSERT INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
+          }
+          onChanged?.();
+          showToast(paintName(item.name_ja, item.name_en) + t('addedToast'));
+        },
+      },
+    ]);
+  };
+
   const changeStatus = async (status: PaintStatus) => {
     if (!detail || detail.status === status) return;
+    const previous = detail;
     await setInventoryStatus(detail.id, status);
     await load();
     onChanged?.();
+    if (status === 'used_up') promptAddToWishlist(previous);
   };
 
   // datetime('now') は 'YYYY-MM-DD HH:MM:SS' 形式なので秒を切り落として表示。

@@ -6,7 +6,7 @@ import {
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconSearch, IconArrowsSort, IconPlus } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
-import { getDB, getDefaultBoxId, PaintStatus, setInventoryStatus } from '../../lib/db';
+import { getDB, getDefaultBoxId, getListMembership, PaintStatus, setInventoryStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
@@ -16,8 +16,12 @@ import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import InventoryDetailModal from '../../components/InventoryDetailModal';
 import PaintRow from '../../components/PaintRow';
 import TextPromptModal from '../../components/TextPromptModal';
+import Toast from '../../components/Toast';
 
 interface Box { id: number; name: string; }
+interface CountRow { n: number; }
+interface BoxCountRow { box_id: number | null; n: number; }
+interface StatusCountRow { status: PaintStatus; n: number; }
 
 interface InventoryItem {
   id: number;
@@ -57,6 +61,9 @@ export default function OwnedScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [boxes, setBoxes] = useState<Box[]>([]);
+  const [boxCounts, setBoxCounts] = useState<Map<number | null, number>>(new Map());
+  const [statusCounts, setStatusCounts] = useState<Map<PaintStatus, number>>(new Map());
+  const [inventoryTotal, setInventoryTotal] = useState(0);
   const [selected, setSelected] = useState<Selected>('all');
   const [statuses, setStatuses] = useState<PaintStatus[]>(['owned', 'in_use']);
   const [filter, setFilter] = useState<PaintFilter>(EMPTY_FILTER);
@@ -68,13 +75,25 @@ export default function OwnedScreen() {
   const [showFilter, setShowFilter] = useState(false);
   const [detailInventoryId, setDetailInventoryId] = useState<number | null>(null);
   const [boxPrompt, setBoxPrompt] = useState<{ title: string; initialValue?: string; onSubmit: (text: string) => void } | null>(null);
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const initializedRef = useRef(false);
 
   const load = useCallback(async (sel: Selected, sf: PaintStatus[], f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
-    setBoxes(await db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'));
-    setDefaultBoxId(await getDefaultBoxId());
+    const [boxRows, defaultBox, boxCountRows, statusCountRows, totalRow] = await Promise.all([
+      db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'),
+      getDefaultBoxId(),
+      db.getAllAsync<BoxCountRow>('SELECT box_id, COUNT(*) AS n FROM inventory GROUP BY box_id'),
+      db.getAllAsync<StatusCountRow>('SELECT status, COUNT(*) AS n FROM inventory GROUP BY status'),
+      db.getFirstAsync<CountRow>('SELECT COUNT(*) AS n FROM inventory'),
+    ]);
+    setBoxes(boxRows);
+    setDefaultBoxId(defaultBox);
+    setBoxCounts(new Map(boxCountRows.map((r) => [r.box_id, r.n])));
+    setStatusCounts(new Map(statusCountRows.map((r) => [r.status, r.n])));
+    setInventoryTotal(totalRow?.n ?? 0);
     // 絞り込み候補(所有塗料の brand/series)
     setFilterOptions(await db.getAllAsync<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }>(
       'SELECT DISTINCT c.brand, c.series, c.series_en, c.gloss, c.paint_type FROM inventory i'
@@ -145,6 +164,14 @@ export default function OwnedScreen() {
     load(selected, next, filter, sort);
   };
   const filterActive = filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';
+  const statusDefault = statuses.length === 2 && statuses.includes('owned') && statuses.includes('in_use');
+  const emptyMessage = !filterActive && statusDefault && inventoryTotal === 0 ? t('emptyOwned') : t('noResults');
+
+  const showToast = (message: string) => {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 1800);
+  };
 
   // --- ボックス操作 ---
   const addBox = () => {
@@ -195,13 +222,29 @@ export default function OwnedScreen() {
     await setInventoryStatus(item.id, next);
     reload();
   };
+  const promptAddToWishlist = (item: InventoryItem) => {
+    Alert.alert(t('addToWishlistPrompt'), '', [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('wishlist'),
+        onPress: async () => {
+          const membership = await getListMembership(item.paint_id);
+          if (!membership.wishlist) {
+            await getDB().runAsync("INSERT INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
+          }
+          showToast(paintName(item.name_ja, item.name_en) + t('addedToast'));
+        },
+      },
+    ]);
+  };
   const toggleStockUse = (item: InventoryItem) => {
     if (item.status === 'used_up') { setStatus(item, 'owned'); return; }
     setStatus(item, item.status === 'in_use' ? 'owned' : 'in_use');
   };
-  const markUsedUp = (item: InventoryItem) => {
+  const markUsedUp = async (item: InventoryItem) => {
     swipeRefs.current.get(item.id)?.close();
-    setStatus(item, 'used_up');
+    await setStatus(item, 'used_up');
+    promptAddToWishlist(item);
   };
   const deleteItem = async (item: InventoryItem) => {
     swipeRefs.current.get(item.id)?.close();
@@ -226,10 +269,12 @@ export default function OwnedScreen() {
       { key: 'code', label: t('sortCode') },
     ];
     Alert.alert(t('sort'), '', [
-      ...opts.map((o) => ({ text: o.label, onPress: () => setSort(o.key) })),
+      ...opts.map((o) => ({ text: `${sort === o.key ? '✓ ' : ''}${o.label}`, onPress: () => setSort(o.key) })),
       { text: t('cancel'), style: 'cancel' as const },
     ]);
   };
+
+  const countLabel = (label: string, count: number) => `${label} (${count})`;
 
   const boxTab = (key: string, label: string, sel: Selected, onLong?: () => void) => (
     <TouchableOpacity
@@ -260,8 +305,8 @@ export default function OwnedScreen() {
       {/* 上段: ボックスタブ */}
       <View style={styles.tabBarWrap}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
-          {boxTab('all', t('allBoxes'), 'all')}
-          {boxes.map((b) => boxTab(`box-${b.id}`, b.name, b.id, () => onBoxLongPress(b)))}
+          {boxTab('all', countLabel(t('allBoxes'), inventoryTotal), 'all')}
+          {boxes.map((b) => boxTab(`box-${b.id}`, countLabel(b.name, boxCounts.get(b.id) ?? 0), b.id, () => onBoxLongPress(b)))}
           <TouchableOpacity style={styles.addTab} onPress={addBox}>
             <IconPlus size={16} color={colors.primary} />
           </TouchableOpacity>
@@ -279,7 +324,7 @@ export default function OwnedScreen() {
               onPress={() => toggleStatus(f.key)}
             >
               <Text style={[styles.statusTabText, on && styles.statusTabTextActive]}>
-                {t(f.label)}
+                {countLabel(t(f.label), statusCounts.get(f.key) ?? 0)}
               </Text>
             </TouchableOpacity>
           );
@@ -317,7 +362,7 @@ export default function OwnedScreen() {
             </TouchableOpacity>
           </Swipeable>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
         ListFooterComponent={<AdBanner />}
       />
 
@@ -360,6 +405,7 @@ export default function OwnedScreen() {
         onSubmit={(text) => boxPrompt?.onSubmit(text)}
         onClose={() => setBoxPrompt(null)}
       />
+      <Toast message={toast} />
     </View>
   );
 }

@@ -193,6 +193,14 @@ export async function getDefaultBoxId(): Promise<number | null> {
   return exists ? id : null;
 }
 
+// 一覧表示用: 使用済を除いた所持数を paint_id ごとにまとめる。
+export async function getOwnedCountMap(): Promise<Map<number, number>> {
+  const rows = await getDB().getAllAsync<{ paint_id: number; n: number }>(
+    "SELECT paint_id, COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use') GROUP BY paint_id"
+  );
+  return new Map(rows.map((r) => [r.paint_id, r.n]));
+}
+
 export interface CatalogPaintDetail {
   id: number;
   catalog_code: string;

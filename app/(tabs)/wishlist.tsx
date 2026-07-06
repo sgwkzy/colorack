@@ -4,7 +4,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconArrowsSort, IconPlus, IconSearch } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
-import { getDB } from '../../lib/db';
+import { getDB, getDefaultBoxId } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
@@ -25,6 +25,7 @@ interface ListItem {
   gloss: string | null;
   paint_type: string | null;
 }
+interface CountRow { n: number; }
 
 const EMPTY_FILTER: PaintFilter = { brands: [], series: [], gloss: [], types: [], search: '' };
 
@@ -40,6 +41,7 @@ export default function WishlistScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<ListItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [filter, setFilter] = useState<PaintFilter>(EMPTY_FILTER);
   const [sort, setSort] = useState<Sort>('added');
   const [filterOptions, setFilterOptions] = useState<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }[]>([]);
@@ -51,6 +53,8 @@ export default function WishlistScreen() {
 
   const load = useCallback(async (f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
+    const totalRow = await db.getFirstAsync<CountRow>('SELECT COUNT(*) AS n FROM lists WHERE type = ?', ['wishlist']);
+    setTotalCount(totalRow?.n ?? 0);
     setFilterOptions(await db.getAllAsync<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }>(
       'SELECT DISTINCT c.brand, c.series, c.series_en, c.gloss, c.paint_type FROM lists l'
       + ' JOIN catalog_paints c ON l.paint_id = c.id'
@@ -97,6 +101,7 @@ export default function WishlistScreen() {
 
   const reload = () => load(filter, sort);
   const filterActive = filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';
+  const emptyMessage = !filterActive && totalCount === 0 ? t('emptyList') : t('noResults');
 
   const showToast = (message: string) => {
     setToast(message);
@@ -110,6 +115,18 @@ export default function WishlistScreen() {
     showToast(paintName(item.name_ja, item.name_en) + t('removedToast'));
   };
 
+  const markPurchased = async (item: ListItem) => {
+    const db = getDB();
+    const defaultBoxId = await getDefaultBoxId();
+    await db.runAsync(
+      "INSERT INTO inventory (paint_id, status, box_id) VALUES (?, 'owned', ?)",
+      [item.paint_id, defaultBoxId]
+    );
+    await db.runAsync('DELETE FROM lists WHERE id = ?', [item.id]);
+    reload();
+    showToast(paintName(item.name_ja, item.name_en) + t('purchasedToast'));
+  };
+
   const openSort = () => {
     const opts: { key: Sort; label: string }[] = [
       { key: 'added', label: t('sortAdded') },
@@ -118,7 +135,7 @@ export default function WishlistScreen() {
       { key: 'code', label: t('sortCode') },
     ];
     Alert.alert(t('sort'), '', [
-      ...opts.map((o) => ({ text: o.label, onPress: () => setSort(o.key) })),
+      ...opts.map((o) => ({ text: `${sort === o.key ? '✓ ' : ''}${o.label}`, onPress: () => setSort(o.key) })),
       { text: t('cancel'), style: 'cancel' as const },
     ]);
   };
@@ -131,6 +148,12 @@ export default function WishlistScreen() {
         renderItem={({ item }) => (
           <Swipeable
             overshootRight={false}
+            overshootLeft={false}
+            renderLeftActions={() => (
+              <TouchableOpacity style={styles.purchasedAction} onPress={() => markPurchased(item)}>
+                <Text style={styles.purchasedActionText}>{t('purchased')}</Text>
+              </TouchableOpacity>
+            )}
             renderRightActions={() => (
               <TouchableOpacity style={styles.deleteAction} onPress={() => deleteItem(item)}>
                 <Text style={styles.deleteActionText}>{t('delete')}</Text>
@@ -142,7 +165,7 @@ export default function WishlistScreen() {
             </TouchableOpacity>
           </Swipeable>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
         contentContainerStyle={{ paddingBottom: 232 }}
       />
       <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
@@ -180,6 +203,8 @@ export default function WishlistScreen() {
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
+  purchasedAction: { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', width: 96 },
+  purchasedActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   fab: {

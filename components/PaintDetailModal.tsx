@@ -33,6 +33,7 @@ import SwipeDownHeader from './SwipeDownHeader';
 import Toast from './Toast';
 
 interface Box { id: number; name: string; }
+interface StockStatusRow { box_name: string | null; status: string; n: number; }
 
 interface Props {
   visible: boolean;
@@ -62,6 +63,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [selectedBoxId, setSelectedBoxId] = useState<number | null>(null);
   const [membership, setMembership] = useState({ favorites: false, wishlist: false });
+  const [stockStatus, setStockStatus] = useState<StockStatusRow[]>([]);
 
   const master = detail?.source === 'catalog' ? getMasterCatalogPaint(detail.catalog_code) : null;
   const isManual = detail?.source === 'manual';
@@ -93,7 +95,18 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     const row = await getCatalogPaintDetail(paintId);
     setDetail(row);
     if (row) syncFields(row);
-    setMembership(await getListMembership(paintId));
+    const [nextMembership, stockRows] = await Promise.all([
+      getListMembership(paintId),
+      getDB().getAllAsync<StockStatusRow>(
+        'SELECT b.name AS box_name, i.status, COUNT(*) AS n'
+        + ' FROM inventory i LEFT JOIN boxes b ON i.box_id = b.id'
+        + ' WHERE i.paint_id = ?'
+        + ' GROUP BY i.box_id, i.status',
+        [paintId]
+      ),
+    ]);
+    setMembership(nextMembership);
+    setStockStatus(stockRows);
   }, [paintId, syncFields]);
 
   // 開くたびに対象を読み込み、閉じている間は状態をリセットしておく。
@@ -107,6 +120,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       setDetail(null);
       setIsEditing(false);
       setMembership({ favorites: false, wishlist: false });
+      setStockStatus([]);
     }
   }, [visible, load, initialEditing]);
 
@@ -214,6 +228,17 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     return <Text style={styles.masterText}>{t('masterValue')}: {formatter(masterValue ?? '')}</Text>;
   };
 
+  const statusLabel = (status: string) => {
+    if (status === 'owned') return t('statusOwned');
+    if (status === 'in_use') return t('statusInUse');
+    if (status === 'used_up') return t('statusUsedUp');
+    return status;
+  };
+
+  const stockStatusText = stockStatus
+    .map((row) => `${row.status === 'owned' ? (row.box_name ?? t('unassigned')) : statusLabel(row.status)} ×${row.n}`)
+    .join(' · ');
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={requestClose}>
       <SafeAreaProvider>
@@ -250,6 +275,13 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 <CompactInfo label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
                 <CompactInfo label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
               </View>
+
+              {stockStatus.length > 0 ? (
+                <View style={styles.stockStatusRow}>
+                  <Text style={styles.stockStatusLabel}>{t('ownedStatus')}</Text>
+                  <Text style={styles.stockStatusText}>{stockStatusText}</Text>
+                </View>
+              ) : null}
 
               <View style={styles.field}>
                 <Text style={styles.label}>{t('paintNotes')}</Text>
@@ -416,6 +448,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   compactItem: { width: '50%', marginBottom: spacing.md },
   compactLabel: { fontSize: 11, color: colors.textMuted },
   compactValue: { fontSize: 13, color: colors.textSecondary },
+  stockStatusRow: { marginTop: -spacing.md, marginBottom: spacing.xl },
+  stockStatusLabel: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
+  stockStatusText: { fontSize: 13, color: colors.textSecondary },
   field: { marginBottom: spacing.lg },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },

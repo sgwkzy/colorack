@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native
 import { IconCamera, IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
 import ColorCameraPicker from '../ColorCameraPicker';
-import { getDB } from '../../lib/db';
+import { getDB, getOwnedCountMap } from '../../lib/db';
 import { rgb_to_lab, delta_e, hex_to_rgb } from '../../lib/color';
 import { t } from '../../lib/i18n';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
@@ -38,20 +38,25 @@ export default function ColorMatcher({ onSelect, onSelectView }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [hex, setHex] = useState('');
   const [results, setResults] = useState<(Paint & { de: number })[]>([]);
+  const [ownedCounts, setOwnedCounts] = useState<Map<number, number>>(new Map());
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const canMatchHex = isValidHex(hex);
 
   const search = async (ri: number, gi: number, bi: number) => {
     const targetLab = rgb_to_lab(ri, gi, bi);
     const db = getDB();
-    const all = await db.getAllAsync<Paint>(
-      'SELECT id, name_ja, name_en, code, brand, hex, gloss, paint_type, r, g, b, l, a_star, b_star FROM catalog_paints WHERE l IS NOT NULL'
-    );
+    const [all, ownedMap] = await Promise.all([
+      db.getAllAsync<Paint>(
+        'SELECT id, name_ja, name_en, code, brand, hex, gloss, paint_type, r, g, b, l, a_star, b_star FROM catalog_paints WHERE l IS NOT NULL'
+      ),
+      getOwnedCountMap(),
+    ]);
     const scored = all
       .map((p) => ({ ...p, de: delta_e(targetLab, { L: p.l, a: p.a_star, b: p.b_star }) }))
       .sort((a, b) => a.de - b.de)
       .slice(0, 10);
     setResults(scored);
+    setOwnedCounts(ownedMap);
   };
 
   const matchHex = () => {
@@ -97,7 +102,7 @@ export default function ColorMatcher({ onSelect, onSelectView }: Props) {
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)}>
-            <PaintRow paint={item} compact subSuffix={` · ΔE=${item.de.toFixed(1)}`}>
+            <PaintRow paint={item} compact subSuffix={` · ΔE=${item.de.toFixed(1)}`} ownedCount={ownedCounts.get(item.id) ?? 0}>
               <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
                 <IconPlus color={colors.onPrimary} size={22} />
               </TouchableOpacity>

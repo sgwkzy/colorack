@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 import { View, FlatList, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
-import { getDB } from '../../lib/db';
+import { getDB, getOwnedCountMap } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import PaintRow from '../PaintRow';
@@ -29,18 +29,23 @@ export default function TextSearch({ onSelect, onSelectView }: Props) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Paint[]>([]);
+  const [ownedCounts, setOwnedCounts] = useState<Map<number, number>>(new Map());
 
   const search = async (q: string) => {
     setQuery(q);
     if (!q.trim()) { setResults([]); return; }
     const db = getDB();
-    const rows = await db.getAllAsync<Paint>(
-      'SELECT id, name_ja, name_en, code, brand, hex, gloss, paint_type FROM catalog_paints'
-      + ' WHERE name_ja LIKE ? OR name_en LIKE ? OR brand LIKE ? OR series LIKE ?'
-      + ' LIMIT 50',
-      [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`]
-    );
+    const [rows, ownedMap] = await Promise.all([
+      db.getAllAsync<Paint>(
+        'SELECT id, name_ja, name_en, code, brand, hex, gloss, paint_type FROM catalog_paints'
+        + ' WHERE name_ja LIKE ? OR name_en LIKE ? OR brand LIKE ? OR series LIKE ?'
+        + ' LIMIT 50',
+        [`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`]
+      ),
+      getOwnedCountMap(),
+    ]);
     setResults(rows);
+    setOwnedCounts(ownedMap);
   };
 
   return (
@@ -59,7 +64,7 @@ export default function TextSearch({ onSelect, onSelectView }: Props) {
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)}>
-            <PaintRow paint={item}>
+            <PaintRow paint={item} ownedCount={ownedCounts.get(item.id) ?? 0}>
               <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
                 <IconPlus color={colors.onPrimary} size={22} />
               </TouchableOpacity>
