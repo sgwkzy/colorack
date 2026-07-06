@@ -9,6 +9,7 @@ import { rgb_to_lab, delta_e, hex_to_rgb } from '../../lib/color';
 import { t } from '../../lib/i18n';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import PaintRow from '../PaintRow';
+import { isValidHex } from '../PaintFormFields';
 
 interface Paint {
   id: number;
@@ -38,6 +39,7 @@ export default function ColorMatcher({ onSelect, onSelectView }: Props) {
   const [hex, setHex] = useState('');
   const [results, setResults] = useState<(Paint & { de: number })[]>([]);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
+  const canMatchHex = isValidHex(hex);
 
   const search = async (ri: number, gi: number, bi: number) => {
     const targetLab = rgb_to_lab(ri, gi, bi);
@@ -78,7 +80,11 @@ export default function ColorMatcher({ onSelect, onSelectView }: Props) {
         >
           <IconCamera color={colors.primary} size={22} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.btn} onPress={matchHex}>
+        <TouchableOpacity
+          style={[styles.btn, !canMatchHex && styles.btnDisabled]}
+          onPress={matchHex}
+          disabled={!canMatchHex}
+        >
           <Text style={styles.btnText}>{t('colorMatch')}</Text>
         </TouchableOpacity>
       </View>
@@ -115,6 +121,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   hexInput: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.md, marginRight: spacing.sm, color: colors.text },
   cameraBtn: { marginRight: spacing.sm, width: touch.min, height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   btn: { backgroundColor: colors.primary, paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.sm, minHeight: touch.min, justifyContent: 'center' },
+  btnDisabled: { backgroundColor: colors.primaryDisabled },
   btnText: { color: colors.onPrimary, fontSize: 13 },
   addBtn: { width: touch.min, height: touch.min, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
 });

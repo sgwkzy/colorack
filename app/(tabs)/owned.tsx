@@ -8,12 +8,14 @@ import { IconSearch, IconArrowsSort, IconPlus } from '@tabler/icons-react-native
 import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId, PaintStatus, setInventoryStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
-import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
+import { paintName } from '../../lib/paintLabel';
+import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
 import AdBanner from '../../components/AdBanner';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import InventoryDetailModal from '../../components/InventoryDetailModal';
 import PaintRow from '../../components/PaintRow';
+import TextPromptModal from '../../components/TextPromptModal';
 
 interface Box { id: number; name: string; }
 
@@ -65,6 +67,7 @@ export default function OwnedScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [detailInventoryId, setDetailInventoryId] = useState<number | null>(null);
+  const [boxPrompt, setBoxPrompt] = useState<{ title: string; initialValue?: string; onSubmit: (text: string) => void } | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const initializedRef = useRef(false);
 
@@ -145,23 +148,28 @@ export default function OwnedScreen() {
 
   // --- ボックス操作 ---
   const addBox = () => {
-    Alert.prompt(t('addBox'), t('boxName'), async (name) => {
-      if (!name || !name.trim()) return;
-      const db = getDB();
-      const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', [name.trim()]);
-      selectBox(res.lastInsertRowId);
+    setBoxPrompt({
+      title: t('addBox'),
+      onSubmit: async (name) => {
+        const db = getDB();
+        const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', [name]);
+        selectBox(res.lastInsertRowId);
+      },
     });
   };
   const renameBox = (box: Box) => {
-    Alert.prompt(t('rename'), t('boxName'), async (name) => {
-      if (!name || !name.trim()) return;
-      const db = getDB();
-      await db.runAsync('UPDATE boxes SET name = ? WHERE id = ?', [name.trim(), box.id]);
-      reload();
-    }, undefined, box.name);
+    setBoxPrompt({
+      title: t('rename'),
+      initialValue: box.name,
+      onSubmit: async (name) => {
+        const db = getDB();
+        await db.runAsync('UPDATE boxes SET name = ? WHERE id = ?', [name, box.id]);
+        reload();
+      },
+    });
   };
   const deleteBox = (box: Box) => {
-    Alert.alert(box.name, t('delete'), [
+    Alert.alert(box.name, t('deleteBoxConfirm'), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('delete'), style: 'destructive',
@@ -196,9 +204,18 @@ export default function OwnedScreen() {
     setStatus(item, 'used_up');
   };
   const deleteItem = async (item: InventoryItem) => {
-    const db = getDB();
-    await db.runAsync('DELETE FROM inventory WHERE id = ?', [item.id]);
-    reload();
+    swipeRefs.current.get(item.id)?.close();
+    Alert.alert(paintName(item.name_ja, item.name_en), t('deleteInventoryConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'), style: 'destructive',
+        onPress: async () => {
+          const db = getDB();
+          await db.runAsync('DELETE FROM inventory WHERE id = ?', [item.id]);
+          reload();
+        },
+      },
+    ]);
   };
 
   const openSort = () => {
@@ -336,6 +353,13 @@ export default function OwnedScreen() {
         onClose={() => setDetailInventoryId(null)}
         onChanged={reload}
       />
+      <TextPromptModal
+        visible={boxPrompt != null}
+        title={boxPrompt?.title ?? ''}
+        initialValue={boxPrompt?.initialValue}
+        onSubmit={(text) => boxPrompt?.onSubmit(text)}
+        onClose={() => setBoxPrompt(null)}
+      />
     </View>
   );
 }
@@ -351,11 +375,11 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   addTab: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chipAlt },
   addTabText: { fontSize: 14, color: colors.primary, fontWeight: 'bold' },
   statusBarWrap: { flexDirection: 'row', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  statusTab: { flex: 1, paddingVertical: spacing.sm, alignItems: 'center', borderRadius: radius.md },
+  statusTab: { flex: 1, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md },
   statusTabActive: { backgroundColor: colors.primarySoft },
   statusTabText: { fontSize: 12, color: colors.textFaint },
   statusTabTextActive: { color: colors.primary, fontWeight: 'bold' },
-  iconBtn: { paddingHorizontal: 10, paddingVertical: spacing.sm, borderRadius: 12, marginLeft: spacing.sm, minHeight: 32, justifyContent: 'center' },
+  iconBtn: { paddingHorizontal: 10, borderRadius: 12, marginLeft: spacing.sm, minHeight: touch.min, justifyContent: 'center' },
   iconBtnText: { color: colors.onPrimary, fontSize: 12, fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },

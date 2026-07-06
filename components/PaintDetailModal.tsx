@@ -65,6 +65,16 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   const master = detail?.source === 'catalog' ? getMasterCatalogPaint(detail.catalog_code) : null;
   const isManual = detail?.source === 'manual';
   const canSave = nameJa.trim() !== '' && (isManual ? brand.trim() !== '' && series.trim() !== '' : true);
+  const hasUnsavedChanges = isEditing && detail != null && (
+    nameJa !== (detail.name_ja ?? '')
+    || brand !== (detail.brand ?? '')
+    || series !== (detail.series ?? '')
+    || code !== (detail.code ?? '')
+    || hex !== (detail.hex ?? '')
+    || paintType !== (detail.paint_type ?? null)
+    || gloss !== (detail.gloss ?? null)
+    || notes !== (detail.notes ?? '')
+  );
 
   const syncFields = useCallback((paint: CatalogPaintDetail) => {
     setNameJa(paint.name_ja ?? '');
@@ -180,20 +190,38 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     ]);
   };
 
+  const requestClose = () => {
+    if (!hasUnsavedChanges) {
+      onClose();
+      return;
+    }
+    Alert.alert(t('discardChangesConfirm'), '', [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('discard'), style: 'destructive',
+        onPress: () => {
+          if (detail) syncFields(detail);
+          setIsEditing(false);
+          onClose();
+        },
+      },
+    ]);
+  };
+
   const masterLine = (currentValue: string | null, masterValue: string | null | undefined, formatter = (v: string) => v) => {
     if (!master || (currentValue ?? '') === (masterValue ?? '')) return null;
     return <Text style={styles.masterText}>{t('masterValue')}: {formatter(masterValue ?? '')}</Text>;
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={requestClose}>
       <SafeAreaProvider>
-        <SwipeBack enabled={visible} onBack={onClose}>
+        <SwipeBack enabled={visible && !isEditing} onBack={requestClose}>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={onClose}>
+          <SwipeDownHeader onClose={requestClose}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('paintDetailTitle')}</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <TouchableOpacity onPress={requestClose} hitSlop={8}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>

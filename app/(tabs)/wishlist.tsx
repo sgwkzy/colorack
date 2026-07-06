@@ -1,11 +1,12 @@
 // app/(tabs)/wishlist.tsx
-import { useCallback, useState, useMemo } from 'react';
+import { useCallback, useRef, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconArrowsSort, IconPlus, IconSearch } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
+import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
@@ -44,6 +45,8 @@ export default function WishlistScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
@@ -94,9 +97,16 @@ export default function WishlistScreen() {
   const reload = () => load(filter, sort);
   const filterActive = filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';
 
+  const showToast = (message: string) => {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 1800);
+  };
+
   const deleteItem = async (item: ListItem) => {
     await getDB().runAsync('DELETE FROM lists WHERE id = ?', [item.id]);
     reload();
+    showToast(paintName(item.name_ja, item.name_en) + t('removedToast'));
   };
 
   const openSort = () => {
@@ -161,6 +171,11 @@ export default function WishlistScreen() {
         onClose={() => setDetailPaintId(null)}
         onChanged={reload}
       />
+      {toast ? (
+        <View style={styles.toast} pointerEvents="none">
+          <Text style={styles.toastText}>{toast}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -179,4 +194,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   sortFab: { bottom: 92, backgroundColor: colors.neutralAction },
   filterFab: { bottom: 160, backgroundColor: colors.neutralAction },
   filterFabActive: { backgroundColor: colors.primary },
+  toast: { position: 'absolute', left: spacing.xxl, right: spacing.xxl, bottom: 32, backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 20, paddingVertical: 10, paddingHorizontal: spacing.xl, alignItems: 'center' },
+  toastText: { color: colors.onPrimary, fontSize: 14 },
 });

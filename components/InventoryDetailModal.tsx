@@ -87,6 +87,14 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
     showToast(t('noteSavedToast'));
   };
 
+  const closeAfterSavingNote = async () => {
+    if (detail && note !== (detail.note ?? '')) {
+      await updateInventoryNote(detail.id, note);
+      onChanged?.();
+    }
+    onClose();
+  };
+
   const changeBox = async (boxId: number) => {
     if (!detail) return;
     setBoxPickerOpen(false);
@@ -107,14 +115,14 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   const boxName = boxes.find((b) => b.id === detail?.box_id)?.name ?? t('unassigned');
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={closeAfterSavingNote}>
       <SafeAreaProvider>
-        <SwipeBack enabled={visible} onBack={onClose}>
+        <SwipeBack enabled={visible} onBack={closeAfterSavingNote}>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={onClose}>
+          <SwipeDownHeader onClose={closeAfterSavingNote}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('inventoryDetailTitle')}</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <TouchableOpacity onPress={closeAfterSavingNote} hitSlop={8}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>

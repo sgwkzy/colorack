@@ -10,7 +10,7 @@ import { brandLabel } from '../lib/brands';
 import { glossLabel } from '../lib/gloss';
 import { seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
-import { useTheme, lightColors, radius, spacing } from '../lib/theme';
+import { useTheme, lightColors, radius, spacing, touch } from '../lib/theme';
 import SwipeDownHeader from './SwipeDownHeader';
 
 export interface PaintFilter {
@@ -203,7 +203,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   dropdownLabel: { fontSize: 16, color: colors.text },
   dropdownArrow: { fontSize: 12, color: colors.textFaint },
   checkList: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
-  checkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md },
+  checkRow: { flexDirection: 'row', alignItems: 'center', minHeight: touch.min },
   checkBox: { fontSize: 18, color: '#bbb', marginRight: 10 },
   checkBoxOn: { color: colors.primary },
   checkLabel: { fontSize: 15, color: colors.text },
