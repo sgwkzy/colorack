@@ -1,16 +1,18 @@
 // app/(tabs)/favorites.tsx
-import { useCallback, useState, useMemo } from 'react';
+import { useCallback, useRef, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconArrowsSort, IconPlus, IconSearch } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
+import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintRow from '../../components/PaintRow';
+import Toast from '../../components/Toast';
 
 interface ListItem {
   id: number;
@@ -23,6 +25,7 @@ interface ListItem {
   gloss: string | null;
   paint_type: string | null;
 }
+interface CountRow { n: number; }
 
 const EMPTY_FILTER: PaintFilter = { brands: [], series: [], gloss: [], types: [], search: '' };
 
@@ -38,15 +41,20 @@ export default function FavoritesScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<ListItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [filter, setFilter] = useState<PaintFilter>(EMPTY_FILTER);
   const [sort, setSort] = useState<Sort>('added');
   const [filterOptions, setFilterOptions] = useState<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
+    const totalRow = await db.getFirstAsync<CountRow>('SELECT COUNT(*) AS n FROM lists WHERE type = ?', ['favorites']);
+    setTotalCount(totalRow?.n ?? 0);
     setFilterOptions(await db.getAllAsync<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }>(
       'SELECT DISTINCT c.brand, c.series, c.series_en, c.gloss, c.paint_type FROM lists l'
       + ' JOIN catalog_paints c ON l.paint_id = c.id'
@@ -93,10 +101,18 @@ export default function FavoritesScreen() {
 
   const reload = () => load(filter, sort);
   const filterActive = filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';
+  const emptyMessage = !filterActive && totalCount === 0 ? t('emptyList') : t('noResults');
+
+  const showToast = (message: string) => {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 1800);
+  };
 
   const deleteItem = async (item: ListItem) => {
     await getDB().runAsync('DELETE FROM lists WHERE id = ?', [item.id]);
     reload();
+    showToast(paintName(item.name_ja, item.name_en) + t('removedToast'));
   };
 
   const openSort = () => {
@@ -107,7 +123,7 @@ export default function FavoritesScreen() {
       { key: 'code', label: t('sortCode') },
     ];
     Alert.alert(t('sort'), '', [
-      ...opts.map((o) => ({ text: o.label, onPress: () => setSort(o.key) })),
+      ...opts.map((o) => ({ text: `${sort === o.key ? '✓ ' : ''}${o.label}`, onPress: () => setSort(o.key) })),
       { text: t('cancel'), style: 'cancel' as const },
     ]);
   };
@@ -131,7 +147,7 @@ export default function FavoritesScreen() {
             </TouchableOpacity>
           </Swipeable>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
         contentContainerStyle={{ paddingBottom: 232 }}
       />
       <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
@@ -161,6 +177,7 @@ export default function FavoritesScreen() {
         onClose={() => setDetailPaintId(null)}
         onChanged={reload}
       />
+      <Toast message={toast} />
     </View>
   );
 }
@@ -175,7 +192,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
     width: 56, height: 56, borderRadius: radius.fab,
     alignItems: 'center', justifyContent: 'center',
   },
-  addFab: { bottom: spacing.xxl, backgroundColor: '#e9967a' },
+  addFab: { bottom: spacing.xxl, backgroundColor: colors.favoriteAccent },
   sortFab: { bottom: 92, backgroundColor: colors.neutralAction },
   filterFab: { bottom: 160, backgroundColor: colors.neutralAction },
   filterFabActive: { backgroundColor: colors.primary },

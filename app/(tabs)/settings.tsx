@@ -1,6 +1,7 @@
 // app/(tabs)/settings.tsx
 import { useCallback, useMemo, useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { IconChevronDown, IconChevronUp } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId, resetCatalogToMaster, setSetting } from '../../lib/db';
 import { t, setLocale, getLocale } from '../../lib/i18n';
@@ -97,7 +98,9 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{t('defaultBox')}</Text>
         <TouchableOpacity style={styles.dropdown} onPress={() => setBoxPickerOpen((o) => !o)}>
           <Text style={styles.dropdownLabel}>{defaultBoxName}</Text>
-          <Text style={styles.dropdownArrow}>{boxPickerOpen ? '▲' : '▼'}</Text>
+          {boxPickerOpen
+            ? <IconChevronUp size={16} color={colors.textFaint} />
+            : <IconChevronDown size={16} color={colors.textFaint} />}
         </TouchableOpacity>
         {boxPickerOpen && (
           <ScrollView style={styles.dropdownList} nestedScrollEnabled>
@@ -142,7 +145,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   resetBtnText: { color: colors.danger, fontWeight: 'bold', textAlign: 'center' },
   dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg },
   dropdownLabel: { fontSize: 16, color: colors.text },
-  dropdownArrow: { fontSize: 12, color: colors.textFaint },
   dropdownList: { borderWidth: 1, borderColor: colors.border, borderTopWidth: 0, borderBottomLeftRadius: radius.sm, borderBottomRightRadius: radius.sm, maxHeight: 220 },
   dropdownItem: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.borderLight },
   dropdownItemText: { fontSize: 15, color: colors.text },

@@ -3,13 +3,14 @@
 // 小さめの2列レイアウトに留め、この在庫固有の情報(ボックス・ステータス・追加日・
 // 最終更新日・メモ)を主役として大きく扱う。ボックス・ステータスはここで直接変更できる。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconPencil, IconX } from '@tabler/icons-react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { IconChevronDown, IconChevronUp, IconPencil, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { brandLabel } from '../lib/brands';
 import {
   getDB,
   getInventoryDetail,
+  getListMembership,
   InventoryDetail,
   PaintStatus,
   setInventoryStatus,
@@ -25,6 +26,7 @@ import ClearableInput from './ClearableInput';
 import PaintDetailModal from './PaintDetailModal';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
+import Toast from './Toast';
 
 interface Box { id: number; name: string; }
 
@@ -87,6 +89,14 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
     showToast(t('noteSavedToast'));
   };
 
+  const closeAfterSavingNote = async () => {
+    if (detail && note !== (detail.note ?? '')) {
+      await updateInventoryNote(detail.id, note);
+      onChanged?.();
+    }
+    onClose();
+  };
+
   const changeBox = async (boxId: number) => {
     if (!detail) return;
     setBoxPickerOpen(false);
@@ -95,11 +105,30 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
     onChanged?.();
   };
 
+  const promptAddToWishlist = (item: InventoryDetail) => {
+    Alert.alert(t('addToWishlistPrompt'), '', [
+      { text: t('dontAddToList'), style: 'cancel' },
+      {
+        text: t('add'),
+        onPress: async () => {
+          const membership = await getListMembership(item.paint_id);
+          if (!membership.wishlist) {
+            await getDB().runAsync("INSERT INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
+          }
+          onChanged?.();
+          showToast(paintName(item.name_ja, item.name_en) + t('addedToast'));
+        },
+      },
+    ]);
+  };
+
   const changeStatus = async (status: PaintStatus) => {
     if (!detail || detail.status === status) return;
+    const previous = detail;
     await setInventoryStatus(detail.id, status);
     await load();
     onChanged?.();
+    if (status === 'used_up') promptAddToWishlist(previous);
   };
 
   // datetime('now') は 'YYYY-MM-DD HH:MM:SS' 形式なので秒を切り落として表示。
@@ -107,14 +136,14 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   const boxName = boxes.find((b) => b.id === detail?.box_id)?.name ?? t('unassigned');
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={closeAfterSavingNote}>
       <SafeAreaProvider>
-        <SwipeBack enabled={visible} onBack={onClose}>
+        <SwipeBack enabled={visible} onBack={closeAfterSavingNote}>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={onClose}>
+          <SwipeDownHeader onClose={closeAfterSavingNote}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('inventoryDetailTitle')}</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <TouchableOpacity onPress={closeAfterSavingNote} hitSlop={8}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
@@ -124,7 +153,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
             <ScrollView contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: detail.hex ?? colors.border }]}>
+              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: colors.border }]}>
                 {detail.hex ? <Text style={styles.hexBadge}>{detail.hex.toUpperCase()}</Text> : null}
               </View>
 
@@ -156,7 +185,9 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
                 <Text style={styles.label}>{t('box')}</Text>
                 <TouchableOpacity style={styles.dropdown} onPress={() => setBoxPickerOpen((o) => !o)}>
                   <Text style={styles.dropdownLabel}>{boxName}</Text>
-                  <Text style={styles.dropdownArrow}>{boxPickerOpen ? '▲' : '▼'}</Text>
+                  {boxPickerOpen
+                    ? <IconChevronUp size={16} color={colors.textFaint} />
+                    : <IconChevronDown size={16} color={colors.textFaint} />}
                 </TouchableOpacity>
                 {boxPickerOpen && (
                   <ScrollView style={styles.dropdownList} nestedScrollEnabled>
@@ -214,11 +245,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
               />
             </ScrollView>
           )}
-          {toast ? (
-            <View style={styles.toast} pointerEvents="none">
-              <Text style={styles.toastText}>{toast}</Text>
-            </View>
-          ) : null}
+          <Toast message={toast} />
         </SafeAreaView>
         </SwipeBack>
       </SafeAreaProvider>
@@ -258,7 +285,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   noteInput: { minHeight: 96, alignItems: 'flex-start' },
   dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg },
   dropdownLabel: { fontSize: 16, color: colors.text },
-  dropdownArrow: { fontSize: 12, color: colors.textFaint },
   dropdownList: { borderWidth: 1, borderColor: colors.border, borderTopWidth: 0, borderBottomLeftRadius: radius.sm, borderBottomRightRadius: radius.sm, maxHeight: 220 },
   dropdownItem: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.borderLight },
   dropdownItemText: { fontSize: 15, color: colors.text },
@@ -268,6 +294,4 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   chipText: { fontSize: 13, color: colors.textSecondary },
   chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
-  toast: { position: 'absolute', left: spacing.xxl, right: spacing.xxl, bottom: 32, backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 20, paddingVertical: 10, paddingHorizontal: spacing.xl, alignItems: 'center' },
-  toastText: { color: colors.onPrimary, fontSize: 14 },
 });

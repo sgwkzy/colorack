@@ -27,5 +27,5 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   // alignSelf:'stretch' で親(wrap)の高さいっぱいに広げる。複数行入力(高さ指定あり)の時、
   // 親のalignItems:'center'によりテキスト部分だけが中央に縮んでタップ判定が狭くなるのを防ぐ。
   input: { flex: 1, padding: 0, color: colors.text, alignSelf: 'stretch' },
-  clear: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#c4c4c4', alignItems: 'center', justifyContent: 'center', marginLeft: spacing.sm },
+  clear: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.textFaint, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.sm },
 });
