@@ -9,6 +9,7 @@ import { initTheme, useTheme } from '../lib/theme';
 import { initLocale } from '../lib/i18n';
 import { initAuth } from '../lib/auth';
 import { initAutoBackup } from '../lib/cloudBackup';
+import { initAnalytics } from '../lib/analytics';
 
 export default function RootLayout() {
   // initDB()/initTheme()/initLocale() 完了まで画面を出さない(getDB()が未初期化で落ちるのを防ぐ)
@@ -17,7 +18,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     initDB()
-      .then(() => Promise.all([initTheme(), initLocale(), initAuth()]))
+      .then(() => Promise.all([initTheme(), initLocale(), initAuth(), initAnalytics()]))
       .then(() => {
         setReady(true);
         initAutoBackup();

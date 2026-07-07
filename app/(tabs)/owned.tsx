@@ -7,6 +7,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { IconSearch, IconArrowsSort, IconPlus } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId, getListMembership, PaintStatus, setInventoryStatus } from '../../lib/db';
+import { logEvent, useScreenView } from '../../lib/analytics';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
@@ -79,6 +80,8 @@ export default function OwnedScreen() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const initializedRef = useRef(false);
+
+  useScreenView('Owned');
 
   const load = useCallback(async (sel: Selected, sf: PaintStatus[], f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
@@ -181,6 +184,7 @@ export default function OwnedScreen() {
       onSubmit: async (name) => {
         const db = getDB();
         const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', [name]);
+        logEvent('create_box');
         selectBox(res.lastInsertRowId);
       },
     });
@@ -245,6 +249,7 @@ export default function OwnedScreen() {
   const markUsedUp = async (item: InventoryItem) => {
     swipeRefs.current.get(item.id)?.close();
     await setStatus(item, 'used_up');
+    logEvent('mark_used_up');
     promptAddToWishlist(item);
   };
   const deleteItem = async (item: InventoryItem) => {

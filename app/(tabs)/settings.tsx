@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
+import { isAnalyticsEnabled, logEvent, setAnalyticsEnabled, useScreenView } from '../../lib/analytics';
 import { getDB, getDefaultBoxId, getSetting, resetCatalogToMaster, setSetting } from '../../lib/db';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
@@ -21,12 +22,15 @@ export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
   const { colors, mode } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [analyticsOn, setAnalyticsOn] = useState(isAnalyticsEnabled());
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [boxPickerOpen, setBoxPickerOpen] = useState(false);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
   const authUser = useAuthUser();
+
+  useScreenView('Settings');
 
   const loadBoxes = useCallback(async () => {
     const db = getDB();
@@ -56,6 +60,11 @@ export default function SettingsScreen() {
     setLocale(val ? 'ja' : 'en');
   };
 
+  const toggleAnalytics = async (val: boolean) => {
+    setAnalyticsOn(val);
+    await setAnalyticsEnabled(val);
+  };
+
   const confirmReset = (title: string, onConfirm: () => Promise<void>) => {
     Alert.alert(title, t('resetConfirmMessage'), [
       { text: t('cancel'), style: 'cancel' },
@@ -70,17 +79,23 @@ export default function SettingsScreen() {
     const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', ['Box']);
     await setSetting('default_box_id', String(res.lastInsertRowId));
     await loadBoxes();
+    logEvent('reset_data', { target: 'owned' });
   });
 
   const resetFavorites = () => confirmReset(t('resetFavorites'), async () => {
     await getDB().runAsync("DELETE FROM lists WHERE type = 'favorites'");
+    logEvent('reset_data', { target: 'favorites' });
   });
 
   const resetWishlist = () => confirmReset(t('resetWishlist'), async () => {
     await getDB().runAsync("DELETE FROM lists WHERE type = 'wishlist'");
+    logEvent('reset_data', { target: 'wishlist' });
   });
 
-  const resetCatalog = () => confirmReset(t('resetCatalog'), resetCatalogToMaster);
+  const resetCatalog = () => confirmReset(t('resetCatalog'), async () => {
+    await resetCatalogToMaster();
+    logEvent('reset_data', { target: 'catalog' });
+  });
 
   const restoreCloudBackup = async () => {
     const snapshot = await fetchBackupSnapshot();
@@ -158,6 +173,13 @@ export default function SettingsScreen() {
             <Text style={styles.accountBtnText}>{t('signInWithGoogle')}</Text>
           </TouchableOpacity>
         )}
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('analytics')}</Text>
+        <View style={styles.langRow}>
+          <Text style={{ color: colors.text }}>{t('analyticsEnabled')}</Text>
+          <Switch value={analyticsOn} onValueChange={toggleAnalytics} style={{ marginHorizontal: 8 }} />
+        </View>
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('language')}</Text>

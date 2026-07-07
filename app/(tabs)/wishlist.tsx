@@ -4,6 +4,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconArrowsSort, IconPlus, IconSearch } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
+import { logEvent, useScreenView } from '../../lib/analytics';
 import { getDB, getDefaultBoxId } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
@@ -50,6 +51,8 @@ export default function WishlistScreen() {
   const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useScreenView('Wishlist');
 
   const load = useCallback(async (f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
@@ -123,6 +126,7 @@ export default function WishlistScreen() {
       [item.paint_id, defaultBoxId]
     );
     await db.runAsync('DELETE FROM lists WHERE id = ?', [item.id]);
+    logEvent('wishlist_purchased');
     reload();
     showToast(paintName(item.name_ja, item.name_en) + t('purchasedToast'));
   };

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconCamera, IconHeart, IconPencil, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { logEvent } from '../lib/analytics';
 import { brandLabel } from '../lib/brands';
 import {
   CatalogPaintDetail,
@@ -145,9 +146,11 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     const isMember = membership[type];
     if (isMember) {
       await removeFromList(detail.id, type);
+      logEvent('add_to_list', { list_type: type, action: 'remove' });
       showToast(paintName(detail.name_ja, detail.name_en) + t('removedToast'));
     } else {
       await getDB().runAsync('INSERT INTO lists (type, paint_id) VALUES (?, ?)', [type, detail.id]);
+      logEvent('add_to_list', { list_type: type, action: 'add' });
       showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
     }
     setMembership((m) => ({ ...m, [type]: !isMember }));

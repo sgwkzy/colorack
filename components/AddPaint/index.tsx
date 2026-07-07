@@ -3,6 +3,7 @@ import { useRef, useState, useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { logEvent } from '../../lib/analytics';
 import { getDB, getListMembership, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
@@ -58,11 +59,13 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
         'INSERT INTO lists (type, paint_id) VALUES (?, ?)',
         [defaultStatus, paint.id]
       );
+      logEvent('add_to_list', { list_type: defaultStatus, action: 'add' });
     } else {
       await db.runAsync(
         'INSERT INTO inventory (paint_id, status, box_id) VALUES (?, ?, ?)',
         [paint.id, opts?.status ?? defaultStatus, opts?.boxId !== undefined ? opts.boxId : boxId]
       );
+      logEvent('add_to_inventory', { source: tab, brand: paint.brand });
     }
     setToast(paintName(paint.name_ja, paint.name_en) + t('addedToast'));
     if (toastTimer.current) clearTimeout(toastTimer.current);

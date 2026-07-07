@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronDown, IconChevronUp, IconPencil, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { logEvent } from '../lib/analytics';
 import { brandLabel } from '../lib/brands';
 import {
   getDB,
@@ -126,6 +127,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
     if (!detail || detail.status === status) return;
     const previous = detail;
     await setInventoryStatus(detail.id, status);
+    if (status === 'used_up') logEvent('mark_used_up');
     await load();
     onChanged?.();
     if (status === 'used_up') promptAddToWishlist(previous);

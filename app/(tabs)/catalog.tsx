@@ -5,6 +5,7 @@ import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
+import { useScreenView } from '../../lib/analytics';
 import { getDB, getOwnedCountMap } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
@@ -36,6 +37,8 @@ export default function CatalogScreen() {
   const [editing, setEditing] = useState<EditablePaint | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
+
+  useScreenView('Catalog');
 
   const loadBrands = useCallback(async () => {
     const db = getDB();
