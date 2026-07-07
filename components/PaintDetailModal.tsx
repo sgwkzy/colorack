@@ -30,8 +30,10 @@ import ColorCameraPicker from './ColorCameraPicker';
 import { GLOSS_OPTIONS, isValidHex, optionChip, TYPE_OPTIONS } from './PaintFormFields';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
+import Toast from './Toast';
 
 interface Box { id: number; name: string; }
+interface StockStatusRow { box_name: string | null; status: string; n: number; }
 
 interface Props {
   visible: boolean;
@@ -61,10 +63,21 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [selectedBoxId, setSelectedBoxId] = useState<number | null>(null);
   const [membership, setMembership] = useState({ favorites: false, wishlist: false });
+  const [stockStatus, setStockStatus] = useState<StockStatusRow[]>([]);
 
   const master = detail?.source === 'catalog' ? getMasterCatalogPaint(detail.catalog_code) : null;
   const isManual = detail?.source === 'manual';
   const canSave = nameJa.trim() !== '' && (isManual ? brand.trim() !== '' && series.trim() !== '' : true);
+  const hasUnsavedChanges = isEditing && detail != null && (
+    nameJa !== (detail.name_ja ?? '')
+    || brand !== (detail.brand ?? '')
+    || series !== (detail.series ?? '')
+    || code !== (detail.code ?? '')
+    || hex !== (detail.hex ?? '')
+    || paintType !== (detail.paint_type ?? null)
+    || gloss !== (detail.gloss ?? null)
+    || notes !== (detail.notes ?? '')
+  );
 
   const syncFields = useCallback((paint: CatalogPaintDetail) => {
     setNameJa(paint.name_ja ?? '');
@@ -82,7 +95,18 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     const row = await getCatalogPaintDetail(paintId);
     setDetail(row);
     if (row) syncFields(row);
-    setMembership(await getListMembership(paintId));
+    const [nextMembership, stockRows] = await Promise.all([
+      getListMembership(paintId),
+      getDB().getAllAsync<StockStatusRow>(
+        'SELECT b.name AS box_name, i.status, COUNT(*) AS n'
+        + ' FROM inventory i LEFT JOIN boxes b ON i.box_id = b.id'
+        + " WHERE i.paint_id = ? AND i.status != 'used_up'"
+        + ' GROUP BY i.box_id, i.status',
+        [paintId]
+      ),
+    ]);
+    setMembership(nextMembership);
+    setStockStatus(stockRows);
   }, [paintId, syncFields]);
 
   // 開くたびに対象を読み込み、閉じている間は状態をリセットしておく。
@@ -96,6 +120,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       setDetail(null);
       setIsEditing(false);
       setMembership({ favorites: false, wishlist: false });
+      setStockStatus([]);
     }
   }, [visible, load, initialEditing]);
 
@@ -180,20 +205,49 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     ]);
   };
 
+  const requestClose = () => {
+    if (!hasUnsavedChanges) {
+      onClose();
+      return;
+    }
+    Alert.alert(t('discardChangesConfirm'), '', [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('discard'), style: 'destructive',
+        onPress: () => {
+          if (detail) syncFields(detail);
+          setIsEditing(false);
+          onClose();
+        },
+      },
+    ]);
+  };
+
   const masterLine = (currentValue: string | null, masterValue: string | null | undefined, formatter = (v: string) => v) => {
     if (!master || (currentValue ?? '') === (masterValue ?? '')) return null;
     return <Text style={styles.masterText}>{t('masterValue')}: {formatter(masterValue ?? '')}</Text>;
   };
 
+  const statusLabel = (status: string) => {
+    if (status === 'owned') return t('statusOwned');
+    if (status === 'in_use') return t('statusInUse');
+    if (status === 'used_up') return t('statusUsedUp');
+    return status;
+  };
+
+  const stockStatusText = stockStatus
+    .map((row) => `${row.status === 'owned' ? (row.box_name ?? t('unassigned')) : statusLabel(row.status)} ×${row.n}`)
+    .join(' · ');
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={requestClose}>
       <SafeAreaProvider>
-        <SwipeBack enabled={visible} onBack={onClose}>
+        <SwipeBack enabled={visible && !isEditing} onBack={requestClose}>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={onClose}>
+          <SwipeDownHeader onClose={requestClose}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('paintDetailTitle')}</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <TouchableOpacity onPress={requestClose} hitSlop={8}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
@@ -203,7 +257,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : !isEditing ? (
             <ScrollView contentContainerStyle={styles.content}>
-              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: detail.hex ?? colors.border }]}>
+              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: colors.border }]}>
                 {detail.hex ? <Text style={styles.hexBadge}>{detail.hex.toUpperCase()}</Text> : null}
               </View>
 
@@ -221,6 +275,13 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 <CompactInfo label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
                 <CompactInfo label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
               </View>
+
+              {stockStatus.length > 0 ? (
+                <View style={styles.stockStatusRow}>
+                  <Text style={styles.stockStatusLabel}>{t('ownedStatus')}</Text>
+                  <Text style={styles.stockStatusText}>{stockStatusText}</Text>
+                </View>
+              ) : null}
 
               <View style={styles.field}>
                 <Text style={styles.label}>{t('paintNotes')}</Text>
@@ -336,11 +397,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
             </>
           )}
 
-          {toast ? (
-            <View style={styles.toast} pointerEvents="none">
-              <Text style={styles.toastText}>{toast}</Text>
-            </View>
-          ) : null}
+          <Toast message={toast} />
           <ColorCameraPicker visible={colorPickerVisible} onClose={() => setColorPickerVisible(false)} onPick={setHex} />
         </SafeAreaView>
         </SwipeBack>
@@ -391,6 +448,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   compactItem: { width: '50%', marginBottom: spacing.md },
   compactLabel: { fontSize: 11, color: colors.textMuted },
   compactValue: { fontSize: 13, color: colors.textSecondary },
+  stockStatusRow: { marginTop: -spacing.md, marginBottom: spacing.xl },
+  stockStatusLabel: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
+  stockStatusText: { fontSize: 13, color: colors.textSecondary },
   field: { marginBottom: spacing.lg },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
@@ -425,6 +485,4 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   saveBtnDisabled: { backgroundColor: colors.primaryDisabled },
   saveBtnText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
-  toast: { position: 'absolute', left: spacing.xxl, right: spacing.xxl, bottom: 32, backgroundColor: 'rgba(0,0,0,0.82)', borderRadius: 20, paddingVertical: 10, paddingHorizontal: spacing.xl, alignItems: 'center' },
-  toastText: { color: colors.onPrimary, fontSize: 14 },
 });

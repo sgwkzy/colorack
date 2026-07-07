@@ -1,9 +1,9 @@
 // components/AddPaint/HierarchyBrowser.tsx
 import { useEffect, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
-import { IconPlus } from '@tabler/icons-react-native';
+import { IconChevronLeft, IconChevronRight, IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
-import { getDB } from '../../lib/db';
+import { getDB, getOwnedCountMap } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { seriesLabel } from '../../lib/paintLabel';
@@ -40,6 +40,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
   const [seriesList, setSeriesList] = useState<{ series: string; series_en: string | null }[]>([]);
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
   const [paints, setPaints] = useState<Paint[]>([]);
+  const [ownedCounts, setOwnedCounts] = useState<Map<number, number>>(new Map());
   const [nameFilter, setNameFilter] = useState('');
 
   useEffect(() => {
@@ -57,7 +58,12 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
     const sql = 'SELECT id, name_ja, name_en, code, brand, series, series_en, hex, gloss, paint_type FROM catalog_paints'
       + (where.length ? ' WHERE ' + where.join(' AND ') : '')
       + ' ORDER BY code COLLATE NOCASE';
-    setPaints(await getDB().getAllAsync<Paint>(sql, args));
+    const [rows, ownedMap] = await Promise.all([
+      getDB().getAllAsync<Paint>(sql, args),
+      getOwnedCountMap(),
+    ]);
+    setPaints(rows);
+    setOwnedCounts(ownedMap);
     setNameFilter('');
   };
 
@@ -100,7 +106,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
         renderItem={({ item }) => (
           <TouchableOpacity style={[styles.item, item === ALL && styles.allItem]} onPress={() => selectBrand(item)}>
             <Text style={[styles.itemText, item === ALL && styles.allText]}>{item === ALL ? t('all') : brandLabel(item)}</Text>
-            <Text style={styles.arrow}>›</Text>
+            <IconChevronRight color={colors.textPlaceholder} size={18} />
           </TouchableOpacity>
         )}
       />
@@ -112,7 +118,8 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
       <SwipeBack enabled onBack={() => setSelectedBrand(null)}>
         <View style={styles.container}>
           <TouchableOpacity style={styles.back} onPress={() => setSelectedBrand(null)}>
-            <Text style={styles.backText}>‹ {brandLabel(selectedBrand)}</Text>
+            <IconChevronLeft color={colors.primary} size={18} />
+            <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
           </TouchableOpacity>
           <FlatList
             data={[{ series: ALL, series_en: null }, ...seriesList]}
@@ -120,7 +127,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
             renderItem={({ item }) => (
               <TouchableOpacity style={[styles.item, item.series === ALL && styles.allItem]} onPress={() => selectSeries(item.series)}>
                 <Text style={[styles.itemText, item.series === ALL && styles.allText]}>{item.series === ALL ? t('all') : seriesLabel(item.series, item.series_en)}</Text>
-                <Text style={styles.arrow}>›</Text>
+                <IconChevronRight color={colors.textPlaceholder} size={18} />
               </TouchableOpacity>
             )}
           />
@@ -133,7 +140,8 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
     <SwipeBack enabled onBack={backFromPaints}>
     <View style={styles.container}>
       <TouchableOpacity style={styles.back} onPress={backFromPaints}>
-        <Text style={styles.backText}>‹ {selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries, paints.find((p) => p.series === selectedSeries)?.series_en)}</Text>
+        <IconChevronLeft color={colors.primary} size={18} />
+        <Text style={styles.backText}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries, paints.find((p) => p.series === selectedSeries)?.series_en)}</Text>
       </TouchableOpacity>
       <ClearableInput
         style={styles.filterInput}
@@ -148,7 +156,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
         keyExtractor={(p) => String(p.id)}
         renderItem={({ item }) => (
           <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)}>
-            <PaintRow paint={item} style={styles.itemPaint}>
+            <PaintRow paint={item} style={styles.itemPaint} ownedCount={ownedCounts.get(item.id) ?? 0}>
               <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
                 <IconPlus color={colors.onPrimary} size={22} />
               </TouchableOpacity>
@@ -169,8 +177,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   itemText: { flex: 1, fontSize: 15, color: colors.text },
   allText: { color: colors.primary, fontWeight: 'bold' },
   addBtn: { width: touch.min, height: touch.min, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
-  arrow: { fontSize: 18, color: colors.textPlaceholder },
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
-  back: { padding: spacing.lg, backgroundColor: colors.surfaceAlt },
+  back: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg, backgroundColor: colors.surfaceAlt },
   backText: { fontSize: 15, color: colors.primary },
 });

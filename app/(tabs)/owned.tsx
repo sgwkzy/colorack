@@ -6,16 +6,22 @@ import {
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconSearch, IconArrowsSort, IconPlus } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
-import { getDB, getDefaultBoxId, PaintStatus, setInventoryStatus } from '../../lib/db';
+import { getDB, getDefaultBoxId, getListMembership, PaintStatus, setInventoryStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
-import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
+import { paintName } from '../../lib/paintLabel';
+import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
 import AdBanner from '../../components/AdBanner';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import InventoryDetailModal from '../../components/InventoryDetailModal';
 import PaintRow from '../../components/PaintRow';
+import TextPromptModal from '../../components/TextPromptModal';
+import Toast from '../../components/Toast';
 
 interface Box { id: number; name: string; }
+interface CountRow { n: number; }
+interface BoxCountRow { box_id: number | null; n: number; }
+interface StatusCountRow { status: PaintStatus; n: number; }
 
 interface InventoryItem {
   id: number;
@@ -55,6 +61,9 @@ export default function OwnedScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [boxes, setBoxes] = useState<Box[]>([]);
+  const [boxCounts, setBoxCounts] = useState<Map<number | null, number>>(new Map());
+  const [statusCounts, setStatusCounts] = useState<Map<PaintStatus, number>>(new Map());
+  const [inventoryTotal, setInventoryTotal] = useState(0);
   const [selected, setSelected] = useState<Selected>('all');
   const [statuses, setStatuses] = useState<PaintStatus[]>(['owned', 'in_use']);
   const [filter, setFilter] = useState<PaintFilter>(EMPTY_FILTER);
@@ -65,13 +74,27 @@ export default function OwnedScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [detailInventoryId, setDetailInventoryId] = useState<number | null>(null);
+  const [boxPrompt, setBoxPrompt] = useState<{ title: string; initialValue?: string; onSubmit: (text: string) => void } | null>(null);
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const initializedRef = useRef(false);
 
   const load = useCallback(async (sel: Selected, sf: PaintStatus[], f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
-    setBoxes(await db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'));
-    setDefaultBoxId(await getDefaultBoxId());
+    const [boxRows, defaultBox, boxCountRows, statusCountRows, totalRow] = await Promise.all([
+      db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'),
+      getDefaultBoxId(),
+      // ボックスの件数は使用済を除く(在庫+使用中)の合計。使用済は「使い切った」ものとして数えない。
+      db.getAllAsync<BoxCountRow>("SELECT box_id, COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use') GROUP BY box_id"),
+      db.getAllAsync<StatusCountRow>('SELECT status, COUNT(*) AS n FROM inventory GROUP BY status'),
+      db.getFirstAsync<CountRow>("SELECT COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use')"),
+    ]);
+    setBoxes(boxRows);
+    setDefaultBoxId(defaultBox);
+    setBoxCounts(new Map(boxCountRows.map((r) => [r.box_id, r.n])));
+    setStatusCounts(new Map(statusCountRows.map((r) => [r.status, r.n])));
+    setInventoryTotal(totalRow?.n ?? 0);
     // 絞り込み候補(所有塗料の brand/series)
     setFilterOptions(await db.getAllAsync<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }>(
       'SELECT DISTINCT c.brand, c.series, c.series_en, c.gloss, c.paint_type FROM inventory i'
@@ -142,26 +165,39 @@ export default function OwnedScreen() {
     load(selected, next, filter, sort);
   };
   const filterActive = filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';
+  const statusDefault = statuses.length === 2 && statuses.includes('owned') && statuses.includes('in_use');
+  const emptyMessage = !filterActive && statusDefault && inventoryTotal === 0 ? t('emptyOwned') : t('noResults');
+
+  const showToast = (message: string) => {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 1800);
+  };
 
   // --- ボックス操作 ---
   const addBox = () => {
-    Alert.prompt(t('addBox'), t('boxName'), async (name) => {
-      if (!name || !name.trim()) return;
-      const db = getDB();
-      const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', [name.trim()]);
-      selectBox(res.lastInsertRowId);
+    setBoxPrompt({
+      title: t('addBox'),
+      onSubmit: async (name) => {
+        const db = getDB();
+        const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', [name]);
+        selectBox(res.lastInsertRowId);
+      },
     });
   };
   const renameBox = (box: Box) => {
-    Alert.prompt(t('rename'), t('boxName'), async (name) => {
-      if (!name || !name.trim()) return;
-      const db = getDB();
-      await db.runAsync('UPDATE boxes SET name = ? WHERE id = ?', [name.trim(), box.id]);
-      reload();
-    }, undefined, box.name);
+    setBoxPrompt({
+      title: t('rename'),
+      initialValue: box.name,
+      onSubmit: async (name) => {
+        const db = getDB();
+        await db.runAsync('UPDATE boxes SET name = ? WHERE id = ?', [name, box.id]);
+        reload();
+      },
+    });
   };
   const deleteBox = (box: Box) => {
-    Alert.alert(box.name, t('delete'), [
+    Alert.alert(box.name, t('deleteBoxConfirm'), [
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('delete'), style: 'destructive',
@@ -187,18 +223,43 @@ export default function OwnedScreen() {
     await setInventoryStatus(item.id, next);
     reload();
   };
+  const promptAddToWishlist = (item: InventoryItem) => {
+    Alert.alert(t('addToWishlistPrompt'), '', [
+      { text: t('dontAddToList'), style: 'cancel' },
+      {
+        text: t('add'),
+        onPress: async () => {
+          const membership = await getListMembership(item.paint_id);
+          if (!membership.wishlist) {
+            await getDB().runAsync("INSERT INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
+          }
+          showToast(paintName(item.name_ja, item.name_en) + t('addedToast'));
+        },
+      },
+    ]);
+  };
   const toggleStockUse = (item: InventoryItem) => {
     if (item.status === 'used_up') { setStatus(item, 'owned'); return; }
     setStatus(item, item.status === 'in_use' ? 'owned' : 'in_use');
   };
-  const markUsedUp = (item: InventoryItem) => {
+  const markUsedUp = async (item: InventoryItem) => {
     swipeRefs.current.get(item.id)?.close();
-    setStatus(item, 'used_up');
+    await setStatus(item, 'used_up');
+    promptAddToWishlist(item);
   };
   const deleteItem = async (item: InventoryItem) => {
-    const db = getDB();
-    await db.runAsync('DELETE FROM inventory WHERE id = ?', [item.id]);
-    reload();
+    swipeRefs.current.get(item.id)?.close();
+    Alert.alert(paintName(item.name_ja, item.name_en), t('deleteInventoryConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'), style: 'destructive',
+        onPress: async () => {
+          const db = getDB();
+          await db.runAsync('DELETE FROM inventory WHERE id = ?', [item.id]);
+          reload();
+        },
+      },
+    ]);
   };
 
   const openSort = () => {
@@ -209,10 +270,12 @@ export default function OwnedScreen() {
       { key: 'code', label: t('sortCode') },
     ];
     Alert.alert(t('sort'), '', [
-      ...opts.map((o) => ({ text: o.label, onPress: () => setSort(o.key) })),
+      ...opts.map((o) => ({ text: `${sort === o.key ? '✓ ' : ''}${o.label}`, onPress: () => setSort(o.key) })),
       { text: t('cancel'), style: 'cancel' as const },
     ]);
   };
+
+  const countLabel = (label: string, count: number) => `${label} (${count})`;
 
   const boxTab = (key: string, label: string, sel: Selected, onLong?: () => void) => (
     <TouchableOpacity
@@ -243,10 +306,10 @@ export default function OwnedScreen() {
       {/* 上段: ボックスタブ */}
       <View style={styles.tabBarWrap}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
-          {boxTab('all', t('allBoxes'), 'all')}
-          {boxes.map((b) => boxTab(`box-${b.id}`, b.name, b.id, () => onBoxLongPress(b)))}
+          {boxTab('all', countLabel(t('allBoxes'), inventoryTotal), 'all')}
+          {boxes.map((b) => boxTab(`box-${b.id}`, countLabel(b.name, boxCounts.get(b.id) ?? 0), b.id, () => onBoxLongPress(b)))}
           <TouchableOpacity style={styles.addTab} onPress={addBox}>
-            <Text style={styles.addTabText}>＋</Text>
+            <IconPlus size={16} color={colors.primary} />
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -262,7 +325,7 @@ export default function OwnedScreen() {
               onPress={() => toggleStatus(f.key)}
             >
               <Text style={[styles.statusTabText, on && styles.statusTabTextActive]}>
-                {t(f.label)}
+                {countLabel(t(f.label), statusCounts.get(f.key) ?? 0)}
               </Text>
             </TouchableOpacity>
           );
@@ -300,7 +363,7 @@ export default function OwnedScreen() {
             </TouchableOpacity>
           </Swipeable>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
+        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
         ListFooterComponent={<AdBanner />}
       />
 
@@ -336,6 +399,14 @@ export default function OwnedScreen() {
         onClose={() => setDetailInventoryId(null)}
         onChanged={reload}
       />
+      <TextPromptModal
+        visible={boxPrompt != null}
+        title={boxPrompt?.title ?? ''}
+        initialValue={boxPrompt?.initialValue}
+        onSubmit={(text) => boxPrompt?.onSubmit(text)}
+        onClose={() => setBoxPrompt(null)}
+      />
+      <Toast message={toast} />
     </View>
   );
 }
@@ -348,14 +419,13 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   tabActive: { backgroundColor: colors.primary },
   tabText: { fontSize: 14, color: colors.textSecondary },
   tabTextActive: { color: colors.onPrimary, fontWeight: 'bold' },
-  addTab: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chipAlt },
-  addTabText: { fontSize: 14, color: colors.primary, fontWeight: 'bold' },
+  addTab: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chipAlt, alignItems: 'center', justifyContent: 'center' },
   statusBarWrap: { flexDirection: 'row', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  statusTab: { flex: 1, paddingVertical: spacing.sm, alignItems: 'center', borderRadius: radius.md },
+  statusTab: { flex: 1, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md },
   statusTabActive: { backgroundColor: colors.primarySoft },
   statusTabText: { fontSize: 12, color: colors.textFaint },
   statusTabTextActive: { color: colors.primary, fontWeight: 'bold' },
-  iconBtn: { paddingHorizontal: 10, paddingVertical: spacing.sm, borderRadius: 12, marginLeft: spacing.sm, minHeight: 32, justifyContent: 'center' },
+  iconBtn: { width: 64, borderRadius: 12, marginLeft: spacing.sm, minHeight: touch.min, alignItems: 'center', justifyContent: 'center' },
   iconBtnText: { color: colors.onPrimary, fontSize: 12, fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },

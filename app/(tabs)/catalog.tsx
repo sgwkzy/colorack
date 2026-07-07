@@ -3,9 +3,9 @@
 // 編集/削除でき、公式カタログは読み取り専用。右下FABで新規追加。
 import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { IconPlus, IconTrash, IconChevronLeft } from '@tabler/icons-react-native';
+import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
-import { getDB } from '../../lib/db';
+import { getDB, getOwnedCountMap } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { paintName, seriesLabel } from '../../lib/paintLabel';
@@ -31,6 +31,7 @@ export default function CatalogScreen() {
   const [seriesList, setSeriesList] = useState<{ series: string; series_en: string | null }[]>([]);
   const [selectedSeries, setSelectedSeries] = useState<string | null>(null);
   const [paints, setPaints] = useState<Paint[]>([]);
+  const [ownedCounts, setOwnedCounts] = useState<Map<number, number>>(new Map());
   const [nameFilter, setNameFilter] = useState('');
   const [editing, setEditing] = useState<EditablePaint | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -59,7 +60,12 @@ export default function CatalogScreen() {
     const sql = 'SELECT id, name_ja, name_en, brand, series, series_en, code, hex, gloss, paint_type, source FROM catalog_paints'
       + (where.length ? ' WHERE ' + where.join(' AND ') : '')
       + ' ORDER BY code COLLATE NOCASE';
-    setPaints(await db.getAllAsync<Paint>(sql, args));
+    const [rows, ownedMap] = await Promise.all([
+      db.getAllAsync<Paint>(sql, args),
+      getOwnedCountMap(),
+    ]);
+    setPaints(rows);
+    setOwnedCounts(ownedMap);
   }, []);
 
   // フォーカス時は現在の階層を再取得(追加/編集の反映)。
@@ -124,7 +130,7 @@ export default function CatalogScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity style={[styles.navItem, item === ALL && styles.allItem]} onPress={() => openBrand(item)}>
               <Text style={[styles.navText, item === ALL && styles.allText]}>{item === ALL ? t('all') : brandLabel(item)}</Text>
-              <Text style={styles.arrow}>›</Text>
+              <IconChevronRight color={colors.textPlaceholder} size={18} />
             </TouchableOpacity>
           )}
           ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
@@ -150,7 +156,7 @@ export default function CatalogScreen() {
             renderItem={({ item }) => (
               <TouchableOpacity style={[styles.navItem, item.series === ALL && styles.allItem]} onPress={() => openSeries(item.series)}>
                 <Text style={[styles.navText, item.series === ALL && styles.allText]}>{item.series === ALL ? t('all') : seriesLabel(item.series || '—', item.series_en)}</Text>
-                <Text style={styles.arrow}>›</Text>
+                <IconChevronRight color={colors.textPlaceholder} size={18} />
               </TouchableOpacity>
             )}
             ListFooterComponent={<AdBanner />}
@@ -184,7 +190,7 @@ export default function CatalogScreen() {
             <TouchableOpacity
               onPress={() => setDetailPaintId(item.id)}
             >
-              <PaintRow paint={item} borderColor={item.hex ?? colors.transparent}>
+              <PaintRow paint={item} borderColor={item.hex ?? colors.transparent} ownedCount={ownedCounts.get(item.id) ?? 0}>
               {manual ? (
                 <TouchableOpacity style={styles.delBtn} onPress={() => remove(item)} hitSlop={8}>
                   <IconTrash color={colors.danger} size={22} />
@@ -194,6 +200,7 @@ export default function CatalogScreen() {
             </TouchableOpacity>
           );
         }}
+        ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
         ListFooterComponent={<AdBanner />}
       />
       {fab}
@@ -208,7 +215,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   allItem: { backgroundColor: colors.primarySoft },
   navText: { flex: 1, fontSize: 16, color: colors.text },
   allText: { color: colors.primary, fontWeight: 'bold' },
-  arrow: { fontSize: 18, color: colors.textPlaceholder },
   back: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.md, backgroundColor: colors.surfaceAlt },
   backText: { fontSize: 15, color: colors.primary },
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
