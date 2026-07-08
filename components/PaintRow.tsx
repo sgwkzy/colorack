@@ -28,10 +28,10 @@ interface Props {
   ownedCount?: number;
 }
 
-const FONT_SIZES: Record<ListFontSize, { name: number; compactName: number; code: number; compactCode: number; sub: number; compactSub: number }> = {
-  small: { name: 14, compactName: 13, code: 11, compactCode: 10, sub: 11, compactSub: 10 },
-  medium: { name: 16, compactName: 14, code: 12, compactCode: 11, sub: 12, compactSub: 11 },
-  large: { name: 18, compactName: 16, code: 13, compactCode: 12, sub: 13, compactSub: 12 },
+const FONT_SIZES: Record<ListFontSize, { name: number; compactName: number; code: number; compactCode: number; sub: number; compactSub: number; badge: number }> = {
+  small: { name: 14, compactName: 13, code: 11, compactCode: 10, sub: 11, compactSub: 10, badge: 10 },
+  medium: { name: 16, compactName: 14, code: 12, compactCode: 11, sub: 12, compactSub: 11, badge: 11 },
+  large: { name: 18, compactName: 16, code: 13, compactCode: 12, sub: 13, compactSub: 12, badge: 12 },
 };
 
 export default function PaintRow({ paint, children, style, borderColor, subSuffix, compact = false, ownedCount = 0 }: Props) {
@@ -53,7 +53,7 @@ export default function PaintRow({ paint, children, style, borderColor, subSuffi
         </Text>
         <View style={styles.subRow}>
           <TypeIcon paintType={paint.paint_type} />
-          <Text style={[styles.sub, compact && styles.compactSub]}>{sub}</Text>
+          <Text style={[styles.sub, compact && styles.compactSub]} numberOfLines={1}>{sub}</Text>
         </View>
       </View>
       {ownedCount > 0 ? (
@@ -94,9 +94,9 @@ const makeStyles = (colors: typeof lightColors, fontSize: ListFontSize) => {
   code: { fontSize: sizes.code, color: colors.textPlaceholder, fontWeight: 'normal' },
   compactCode: { fontSize: sizes.compactCode },
   subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  sub: { fontSize: sizes.sub, color: colors.textMuted },
-  compactSub: { fontSize: sizes.compactSub },
+  sub: { fontSize: sizes.sub, color: colors.textMuted, flexShrink: 1 },
+  compactSub: { fontSize: sizes.compactSub, flexShrink: 1 },
   ownedBadge: { backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 3, marginLeft: spacing.sm },
-  ownedBadgeText: { color: colors.primary, fontSize: 11, fontWeight: 'bold' },
+  ownedBadgeText: { color: colors.primary, fontSize: sizes.badge, fontWeight: 'bold' },
 });
 };

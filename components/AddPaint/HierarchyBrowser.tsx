@@ -8,6 +8,7 @@ import { t } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { seriesLabel } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
+import { useUiPrefs, type ListFontSize } from '../../lib/uiPrefs';
 import PaintRow from '../PaintRow';
 import SwipeBack from '../SwipeBack';
 
@@ -34,7 +35,8 @@ const ALL = 'ALL';
 
 export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { listFontSize } = useUiPrefs();
+  const styles = useMemo(() => makeStyles(colors, listFontSize), [colors, listFontSize]);
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [seriesList, setSeriesList] = useState<{ series: string; series_en: string | null }[]>([]);
@@ -169,15 +171,18 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
   );
 }
 
-const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
+const makeStyles = (colors: typeof lightColors, listFontSize: ListFontSize) => {
+  const ITEM_TEXT_SIZE: Record<ListFontSize, number> = { small: 14, medium: 15, large: 17 };
+  return StyleSheet.create({
   container: { flex: 1 },
   item: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   itemPaint: { padding: 14 },
   allItem: { backgroundColor: colors.primarySoft },
-  itemText: { flex: 1, fontSize: 15, color: colors.text },
+  itemText: { flex: 1, fontSize: ITEM_TEXT_SIZE[listFontSize], color: colors.text },
   allText: { color: colors.primary, fontWeight: 'bold' },
   addBtn: { width: touch.min, height: touch.min, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
   back: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg, backgroundColor: colors.surfaceAlt },
   backText: { fontSize: 15, color: colors.primary },
 });
+};
