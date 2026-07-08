@@ -6,6 +6,7 @@ import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId, resetCatalogToMaster, setSetting } from '../../lib/db';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
+import { useUiPrefs, setFabSide, setListFontSize } from '../../lib/uiPrefs';
 
 interface Box { id: number; name: string; }
 
@@ -18,6 +19,7 @@ const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
 export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
   const { colors, mode } = useTheme();
+  const { fabSide, listFontSize } = useUiPrefs();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
@@ -92,6 +94,31 @@ export default function SettingsScreen() {
               <Text style={[styles.themeBtnText, mode === opt.value && styles.themeBtnTextOn]} numberOfLines={1}>{t(opt.labelKey)}</Text>
             </TouchableOpacity>
           ))}
+        </View>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('fabPosition')}</Text>
+        <View style={styles.themeRow}>
+          <TouchableOpacity style={[styles.themeBtn, fabSide === 'right' && styles.themeBtnOn]} onPress={() => setFabSide('right')}>
+            <Text style={[styles.themeBtnText, fabSide === 'right' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionRight')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.themeBtn, fabSide === 'left' && styles.themeBtnOn]} onPress={() => setFabSide('left')}>
+            <Text style={[styles.themeBtnText, fabSide === 'left' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionLeft')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('listFontSize')}</Text>
+        <View style={styles.themeRow}>
+          <TouchableOpacity style={[styles.themeBtn, listFontSize === 'small' && styles.themeBtnOn]} onPress={() => setListFontSize('small')}>
+            <Text style={[styles.themeBtnText, listFontSize === 'small' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fontSizeSmall')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.themeBtn, listFontSize === 'medium' && styles.themeBtnOn]} onPress={() => setListFontSize('medium')}>
+            <Text style={[styles.themeBtnText, listFontSize === 'medium' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fontSizeMedium')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.themeBtn, listFontSize === 'large' && styles.themeBtnOn]} onPress={() => setListFontSize('large')}>
+            <Text style={[styles.themeBtnText, listFontSize === 'large' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fontSizeLarge')}</Text>
+          </TouchableOpacity>
         </View>
       </View>
       <View style={styles.section}>

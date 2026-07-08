@@ -8,6 +8,7 @@ import { getDB, getDefaultBoxId } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
+import { useUiPrefs, type FabSide } from '../../lib/uiPrefs';
 import AddPaintModal from '../../components/AddPaint';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import PaintDetailModal from '../../components/PaintDetailModal';
@@ -39,7 +40,8 @@ const SORT_ORDER: Record<Sort, string> = {
 
 export default function WishlistScreen() {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fabSide } = useUiPrefs();
+  const styles = useMemo(() => makeStyles(colors, fabSide), [colors, fabSide]);
   const [items, setItems] = useState<ListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [filter, setFilter] = useState<PaintFilter>(EMPTY_FILTER);
@@ -200,7 +202,7 @@ export default function WishlistScreen() {
   );
 }
 
-const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
+const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   purchasedAction: { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', width: 96 },
@@ -208,7 +210,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   fab: {
-    position: 'absolute', right: spacing.xxl,
+    position: 'absolute',
+    ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }),
     width: 56, height: 56, borderRadius: radius.fab,
     alignItems: 'center', justifyContent: 'center',
   },

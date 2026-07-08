@@ -10,6 +10,7 @@ import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { paintName, seriesLabel } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
+import { useUiPrefs, type FabSide } from '../../lib/uiPrefs';
 import AdBanner from '../../components/AdBanner';
 import ClearableInput from '../../components/ClearableInput';
 import PaintDetailModal from '../../components/PaintDetailModal';
@@ -24,7 +25,8 @@ const ALL = 'ALL';
 
 export default function CatalogScreen() {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fabSide } = useUiPrefs();
+  const styles = useMemo(() => makeStyles(colors, fabSide), [colors, fabSide]);
   useLocale();
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -209,7 +211,7 @@ export default function CatalogScreen() {
   );
 }
 
-const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
+const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },
@@ -220,5 +222,5 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
   delBtn: { padding: spacing.md, marginLeft: spacing.md },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
-  fab: { position: 'absolute', right: spacing.xxl, bottom: spacing.xxl, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  fab: { position: 'absolute', ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }), bottom: spacing.xxl, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 });
