@@ -7,6 +7,7 @@ import { getDB, getListMembership, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, spacing } from '../../lib/theme';
+import AdBanner from '../AdBanner';
 import PaintDetailModal from '../PaintDetailModal';
 import SwipeDownHeader from '../SwipeDownHeader';
 import TextSearch from './TextSearch';
@@ -110,6 +111,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
               />
             )}
           </View>
+          <View style={styles.adBar}><AdBanner /></View>
           <Toast message={toast} />
           <PaintDetailModal
             visible={detailPaintId != null}
@@ -132,4 +134,5 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   tabText: { fontSize: 13, color: colors.textPlaceholder },
   tabTextActive: { color: colors.primary, fontWeight: 'bold' },
   content: { flex: 1 },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
 });
