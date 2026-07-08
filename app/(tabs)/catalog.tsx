@@ -124,6 +124,7 @@ export default function CatalogScreen() {
   if (!selectedBrand) {
     return (
       <View style={styles.container}>
+        <View style={styles.adBar}><AdBanner /></View>
         <FlatList
           data={[ALL, ...brands]}
           keyExtractor={(b) => b || '(none)'}
@@ -135,7 +136,6 @@ export default function CatalogScreen() {
           )}
           ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
         />
-        <View style={styles.adBar}><AdBanner /></View>
         {fab}
       </View>
     );
@@ -150,6 +150,7 @@ export default function CatalogScreen() {
             <IconChevronLeft color={colors.primary} size={18} />
             <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
           </TouchableOpacity>
+          <View style={styles.adBar}><AdBanner /></View>
           <FlatList
             data={[{ series: ALL, series_en: null }, ...seriesList]}
             keyExtractor={(s) => s.series || '(none)'}
@@ -160,7 +161,6 @@ export default function CatalogScreen() {
               </TouchableOpacity>
             )}
           />
-          <View style={styles.adBar}><AdBanner /></View>
           {fab}
         </View>
       </SwipeBack>
@@ -179,6 +179,7 @@ export default function CatalogScreen() {
         <Text style={styles.backText}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries || '—', currentSeries?.series_en)}</Text>
       </TouchableOpacity>
       <ClearableInput style={styles.filterInput} placeholder={t('colorName')} value={nameFilter} onChangeText={setNameFilter} />
+      <View style={styles.adBar}><AdBanner /></View>
       <FlatList
         data={shown}
         keyExtractor={(p) => String(p.id)}
@@ -202,7 +203,6 @@ export default function CatalogScreen() {
         }}
         ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
       />
-      <View style={styles.adBar}><AdBanner /></View>
       {fab}
     </View>
     </SwipeBack>
@@ -211,7 +211,7 @@ export default function CatalogScreen() {
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, minHeight: 72, justifyContent: 'center' },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },
   navText: { flex: 1, fontSize: 16, color: colors.text },
@@ -221,5 +221,5 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
   delBtn: { padding: spacing.md, marginLeft: spacing.md },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
-  fab: { position: 'absolute', right: spacing.xxl, bottom: spacing.xxl + 72, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  fab: { position: 'absolute', right: spacing.xxl, bottom: spacing.xxl, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 });

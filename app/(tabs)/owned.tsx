@@ -332,10 +332,12 @@ export default function OwnedScreen() {
         })}
       </View>
 
+      <View style={styles.adBar}><AdBanner /></View>
+
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ paddingBottom: 304 }}
+        contentContainerStyle={{ paddingBottom: 232 }}
         renderItem={({ item }) => (
           <Swipeable
             ref={(r) => { if (r) swipeRefs.current.set(item.id, r); else swipeRefs.current.delete(item.id); }}
@@ -365,7 +367,6 @@ export default function OwnedScreen() {
         )}
         ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
       />
-      <View style={styles.adBar}><AdBanner /></View>
 
       {/* 右下: フィルター / 並び替え / 追加 を縦に */}
       <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
@@ -413,7 +414,7 @@ export default function OwnedScreen() {
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, minHeight: 72, justifyContent: 'center' },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
   tabBarWrap: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   tabBar: { alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   tab: { paddingHorizontal: 14, paddingVertical: spacing.md, marginRight: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.chip },
@@ -438,8 +439,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
     width: 56, height: 56, borderRadius: radius.fab,
     alignItems: 'center', justifyContent: 'center',
   },
-  addFab: { bottom: spacing.xxl + 72, backgroundColor: colors.primary },
-  sortFab: { bottom: 164, backgroundColor: colors.neutralAction },
-  filterFab: { bottom: 232, backgroundColor: colors.neutralAction },
+  addFab: { bottom: spacing.xxl, backgroundColor: colors.primary },
+  sortFab: { bottom: 92, backgroundColor: colors.neutralAction },
+  filterFab: { bottom: 160, backgroundColor: colors.neutralAction },
   filterFabActive: { backgroundColor: colors.primary },
 });
