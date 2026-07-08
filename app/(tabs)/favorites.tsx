@@ -131,7 +131,6 @@ export default function FavoritesScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.adBar}><AdBanner /></View>
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.id)}
@@ -150,8 +149,9 @@ export default function FavoritesScreen() {
           </Swipeable>
         )}
         ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
-        contentContainerStyle={{ paddingBottom: 232 }}
+        contentContainerStyle={{ paddingBottom: 304 }}
       />
+      <View style={styles.adBar}><AdBanner /></View>
       <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
         <IconSearch color={colors.onPrimary} size={26} />
       </TouchableOpacity>
@@ -186,7 +186,7 @@ export default function FavoritesScreen() {
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  adBar: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, minHeight: 72, justifyContent: 'center' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
@@ -195,8 +195,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
     width: 56, height: 56, borderRadius: radius.fab,
     alignItems: 'center', justifyContent: 'center',
   },
-  addFab: { bottom: spacing.xxl, backgroundColor: colors.favoriteAccent },
-  sortFab: { bottom: 92, backgroundColor: colors.neutralAction },
-  filterFab: { bottom: 160, backgroundColor: colors.neutralAction },
+  addFab: { bottom: spacing.xxl + 72, backgroundColor: colors.favoriteAccent },
+  sortFab: { bottom: 164, backgroundColor: colors.neutralAction },
+  filterFab: { bottom: 232, backgroundColor: colors.neutralAction },
   filterFabActive: { backgroundColor: colors.primary },
 });
