@@ -9,6 +9,7 @@ import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
+import AdBanner from '../../components/AdBanner';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintRow from '../../components/PaintRow';
@@ -130,6 +131,7 @@ export default function FavoritesScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.adBar}><AdBanner /></View>
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.id)}
@@ -184,6 +186,7 @@ export default function FavoritesScreen() {
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
+  adBar: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },

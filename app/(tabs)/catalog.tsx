@@ -124,6 +124,7 @@ export default function CatalogScreen() {
   if (!selectedBrand) {
     return (
       <View style={styles.container}>
+        <View style={styles.adBar}><AdBanner /></View>
         <FlatList
           data={[ALL, ...brands]}
           keyExtractor={(b) => b || '(none)'}
@@ -134,7 +135,6 @@ export default function CatalogScreen() {
             </TouchableOpacity>
           )}
           ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
-          ListFooterComponent={<AdBanner />}
         />
         {fab}
       </View>
@@ -146,6 +146,7 @@ export default function CatalogScreen() {
     return (
       <SwipeBack enabled onBack={() => setSelectedBrand(null)}>
         <View style={styles.container}>
+          <View style={styles.adBar}><AdBanner /></View>
           <TouchableOpacity style={styles.back} onPress={() => setSelectedBrand(null)}>
             <IconChevronLeft color={colors.primary} size={18} />
             <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
@@ -159,7 +160,6 @@ export default function CatalogScreen() {
                 <IconChevronRight color={colors.textPlaceholder} size={18} />
               </TouchableOpacity>
             )}
-            ListFooterComponent={<AdBanner />}
           />
           {fab}
         </View>
@@ -174,6 +174,7 @@ export default function CatalogScreen() {
   return (
     <SwipeBack enabled onBack={backFromPaints}>
     <View style={styles.container}>
+      <View style={styles.adBar}><AdBanner /></View>
       <TouchableOpacity style={styles.back} onPress={backFromPaints}>
         <IconChevronLeft color={colors.primary} size={18} />
         <Text style={styles.backText}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries || '—', currentSeries?.series_en)}</Text>
@@ -201,7 +202,6 @@ export default function CatalogScreen() {
           );
         }}
         ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
-        ListFooterComponent={<AdBanner />}
       />
       {fab}
     </View>
@@ -211,6 +211,7 @@ export default function CatalogScreen() {
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
+  adBar: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },
   navText: { flex: 1, fontSize: 16, color: colors.text },
