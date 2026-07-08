@@ -8,6 +8,7 @@ import { getDB, getDefaultBoxId } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
+import { useUiPrefs, type FabSide } from '../../lib/uiPrefs';
 import AddPaintModal from '../../components/AddPaint';
 import AdBanner from '../../components/AdBanner';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
@@ -40,7 +41,8 @@ const SORT_ORDER: Record<Sort, string> = {
 
 export default function WishlistScreen() {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fabSide } = useUiPrefs();
+  const styles = useMemo(() => makeStyles(colors, fabSide), [colors, fabSide]);
   const [items, setItems] = useState<ListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [filter, setFilter] = useState<PaintFilter>(EMPTY_FILTER);
@@ -152,15 +154,19 @@ export default function WishlistScreen() {
             overshootRight={false}
             overshootLeft={false}
             renderLeftActions={() => (
-              <TouchableOpacity style={styles.purchasedAction} onPress={() => markPurchased(item)}>
+              <View style={styles.purchasedAction}>
                 <Text style={styles.purchasedActionText}>{t('purchased')}</Text>
-              </TouchableOpacity>
+              </View>
             )}
             renderRightActions={() => (
-              <TouchableOpacity style={styles.deleteAction} onPress={() => deleteItem(item)}>
+              <View style={styles.deleteAction}>
                 <Text style={styles.deleteActionText}>{t('delete')}</Text>
-              </TouchableOpacity>
+              </View>
             )}
+            onSwipeableOpen={(direction) => {
+              if (direction === 'right') deleteItem(item);
+              else markPurchased(item);
+            }}
           >
             <TouchableOpacity onPress={() => setDetailPaintId(item.paint_id)}>
               <PaintRow paint={item} />
@@ -170,15 +176,17 @@ export default function WishlistScreen() {
         ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
         contentContainerStyle={{ paddingBottom: 232 }}
       />
-      <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
-        <IconSearch color={colors.onPrimary} size={26} />
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
-        <IconArrowsSort color={colors.onPrimary} size={24} />
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
-        <IconPlus color={colors.onPrimary} size={28} />
-      </TouchableOpacity>
+      <View style={styles.fabContainer}>
+        <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
+          <IconSearch color={colors.onPrimary} size={26} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
+          <IconArrowsSort color={colors.onPrimary} size={24} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
+          <IconPlus color={colors.onPrimary} size={28} />
+        </TouchableOpacity>
+      </View>
       <FilterModal
         visible={showFilter}
         options={filterOptions}
@@ -202,7 +210,7 @@ export default function WishlistScreen() {
   );
 }
 
-const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
+const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
@@ -210,13 +218,26 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   purchasedActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
+  fabContainer: fabSide === 'bottom' ? {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: spacing.xxl,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.lg,
+  } : {},
   fab: {
-    position: 'absolute', right: spacing.xxl,
+    ...(fabSide === 'bottom' ? {} : {
+      position: 'absolute',
+      ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }),
+    }),
     width: 56, height: 56, borderRadius: radius.fab,
     alignItems: 'center', justifyContent: 'center',
   },
-  addFab: { bottom: spacing.xxl, backgroundColor: colors.wishlistAccent },
-  sortFab: { bottom: 92, backgroundColor: colors.neutralAction },
-  filterFab: { bottom: 160, backgroundColor: colors.neutralAction },
+  addFab: fabSide === 'bottom' ? { backgroundColor: colors.wishlistAccent } : { bottom: spacing.xxl, backgroundColor: colors.wishlistAccent },
+  sortFab: fabSide === 'bottom' ? { backgroundColor: colors.neutralAction } : { bottom: 92, backgroundColor: colors.neutralAction },
+  filterFab: fabSide === 'bottom' ? { backgroundColor: colors.neutralAction } : { bottom: 160, backgroundColor: colors.neutralAction },
   filterFabActive: { backgroundColor: colors.primary },
 });

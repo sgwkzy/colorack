@@ -10,6 +10,7 @@ import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { paintName, seriesLabel } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
+import { useUiPrefs, type FabSide, type ListFontSize } from '../../lib/uiPrefs';
 import AdBanner from '../../components/AdBanner';
 import ClearableInput from '../../components/ClearableInput';
 import PaintDetailModal from '../../components/PaintDetailModal';
@@ -24,7 +25,8 @@ const ALL = 'ALL';
 
 export default function CatalogScreen() {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fabSide, listFontSize } = useUiPrefs();
+  const styles = useMemo(() => makeStyles(colors, fabSide, listFontSize), [colors, fabSide, listFontSize]);
   useLocale();
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -107,9 +109,11 @@ export default function CatalogScreen() {
 
   const fab = (
     <>
-      <TouchableOpacity style={styles.fab} onPress={openNew}>
-        <IconPlus color={colors.onPrimary} size={28} />
-      </TouchableOpacity>
+      <View style={styles.fabContainer}>
+        <TouchableOpacity style={styles.fab} onPress={openNew}>
+          <IconPlus color={colors.onPrimary} size={28} />
+        </TouchableOpacity>
+      </View>
       <PaintFormModal visible={showForm} paint={editing} onClose={() => setShowForm(false)} onSaved={reload} />
       <PaintDetailModal
         visible={detailPaintId != null}
@@ -209,17 +213,23 @@ export default function CatalogScreen() {
   );
 }
 
-const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
+const makeStyles = (colors: typeof lightColors, fabSide: FabSide, listFontSize: ListFontSize) => {
+  const NAV_TEXT_SIZE: Record<ListFontSize, number> = { small: 14, medium: 16, large: 18 };
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },
-  navText: { flex: 1, fontSize: 16, color: colors.text },
+  navText: { flex: 1, fontSize: NAV_TEXT_SIZE[listFontSize], color: colors.text },
   allText: { color: colors.primary, fontWeight: 'bold' },
   back: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.md, backgroundColor: colors.surfaceAlt },
   backText: { fontSize: 15, color: colors.primary },
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
   delBtn: { padding: spacing.md, marginLeft: spacing.md },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
-  fab: { position: 'absolute', right: spacing.xxl, bottom: spacing.xxl, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  fabContainer: fabSide === 'bottom' ? { position: 'absolute', left: 0, right: 0, bottom: spacing.xxl, alignItems: 'center' } : {},
+  fab: fabSide === 'bottom'
+    ? { width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }
+    : { position: 'absolute', ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }), bottom: spacing.xxl, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 });
+};

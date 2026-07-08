@@ -10,6 +10,7 @@ import { getDB, getDefaultBoxId, getListMembership, PaintStatus, setInventorySta
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
+import { useUiPrefs, type FabSide } from '../../lib/uiPrefs';
 import AddPaintModal from '../../components/AddPaint';
 import AdBanner from '../../components/AdBanner';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
@@ -59,7 +60,8 @@ const SORT_ORDER: Record<Sort, string> = {
 
 export default function OwnedScreen() {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fabSide } = useUiPrefs();
+  const styles = useMemo(() => makeStyles(colors, fabSide), [colors, fabSide]);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [boxCounts, setBoxCounts] = useState<Map<number | null, number>>(new Map());
   const [statusCounts, setStatusCounts] = useState<Map<PaintStatus, number>>(new Map());
@@ -82,12 +84,15 @@ export default function OwnedScreen() {
 
   const load = useCallback(async (sel: Selected, sf: PaintStatus[], f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
+    // 状態トグル(在庫/使用中/使用済)の件数は、選択中のボックスに絞った数を表示する(「一覧」選択時は全ボックス合計)。
+    const statusWhere = sel === 'all' ? '' : ' WHERE box_id = ?';
+    const statusArgs = sel === 'all' ? [] : [sel];
     const [boxRows, defaultBox, boxCountRows, statusCountRows, totalRow] = await Promise.all([
       db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'),
       getDefaultBoxId(),
       // ボックスの件数は使用済を除く(在庫+使用中)の合計。使用済は「使い切った」ものとして数えない。
       db.getAllAsync<BoxCountRow>("SELECT box_id, COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use') GROUP BY box_id"),
-      db.getAllAsync<StatusCountRow>('SELECT status, COUNT(*) AS n FROM inventory GROUP BY status'),
+      db.getAllAsync<StatusCountRow>(`SELECT status, COUNT(*) AS n FROM inventory${statusWhere} GROUP BY status`, statusArgs),
       db.getFirstAsync<CountRow>("SELECT COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use')"),
     ]);
     setBoxes(boxRows);
@@ -245,6 +250,7 @@ export default function OwnedScreen() {
   const markUsedUp = async (item: InventoryItem) => {
     swipeRefs.current.get(item.id)?.close();
     await setStatus(item, 'used_up');
+    showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast'));
     promptAddToWishlist(item);
   };
   const deleteItem = async (item: InventoryItem) => {
@@ -257,6 +263,7 @@ export default function OwnedScreen() {
           const db = getDB();
           await db.runAsync('DELETE FROM inventory WHERE id = ?', [item.id]);
           reload();
+          showToast(paintName(item.name_ja, item.name_en) + t('removedToast'));
         },
       },
     ]);
@@ -288,17 +295,17 @@ export default function OwnedScreen() {
     </TouchableOpacity>
   );
 
-  const renderRightActions = (item: InventoryItem) => (
-    <TouchableOpacity style={styles.deleteAction} onPress={() => deleteItem(item)}>
+  const renderRightActions = () => (
+    <View style={styles.deleteAction}>
       <Text style={styles.deleteActionText}>{t('delete')}</Text>
-    </TouchableOpacity>
+    </View>
   );
 
-  // 左→右スワイプで使用済(再操作で在庫へ戻す)
-  const renderLeftActions = (item: InventoryItem) => (
-    <TouchableOpacity style={styles.usedAction} onPress={() => markUsedUp(item)}>
+  // 左→右スワイプで使用済(再操作で在庫へ戻す)。スワイプが完全に開いた時点で確定する(onSwipeableOpenで発火)。
+  const renderLeftActions = () => (
+    <View style={styles.usedAction}>
       <Text style={styles.usedActionText}>{t('statusUsedUp')}</Text>
-    </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -341,8 +348,12 @@ export default function OwnedScreen() {
         renderItem={({ item }) => (
           <Swipeable
             ref={(r) => { if (r) swipeRefs.current.set(item.id, r); else swipeRefs.current.delete(item.id); }}
-            renderRightActions={() => renderRightActions(item)}
-            renderLeftActions={item.status === 'used_up' ? undefined : () => renderLeftActions(item)}
+            renderRightActions={renderRightActions}
+            renderLeftActions={item.status === 'used_up' ? undefined : renderLeftActions}
+            onSwipeableOpen={(direction) => {
+              if (direction === 'right') deleteItem(item);
+              else markUsedUp(item);
+            }}
             overshootRight={false}
             overshootLeft={false}
           >
@@ -369,15 +380,17 @@ export default function OwnedScreen() {
       />
 
       {/* 右下: フィルター / 並び替え / 追加 を縦に */}
-      <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
-        <IconSearch color={colors.onPrimary} size={26} />
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
-        <IconArrowsSort color={colors.onPrimary} size={24} />
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
-        <IconPlus color={colors.onPrimary} size={28} />
-      </TouchableOpacity>
+      <View style={styles.fabContainer}>
+        <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
+          <IconSearch color={colors.onPrimary} size={26} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
+          <IconArrowsSort color={colors.onPrimary} size={24} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
+          <IconPlus color={colors.onPrimary} size={28} />
+        </TouchableOpacity>
+      </View>
 
       <FilterModal
         visible={showFilter}
@@ -412,7 +425,7 @@ export default function OwnedScreen() {
   );
 }
 
-const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
+const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
   tabBarWrap: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
@@ -434,13 +447,26 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   usedAction: { backgroundColor: colors.darkAction, justifyContent: 'center', alignItems: 'center', width: 88 },
   usedActionText: { color: colors.onPrimary, fontWeight: 'bold' },
+  fabContainer: fabSide === 'bottom' ? {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: spacing.xxl,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.lg,
+  } : {},
   fab: {
-    position: 'absolute', right: spacing.xxl,
+    ...(fabSide === 'bottom' ? {} : {
+      position: 'absolute',
+      ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }),
+    }),
     width: 56, height: 56, borderRadius: radius.fab,
     alignItems: 'center', justifyContent: 'center',
   },
-  addFab: { bottom: spacing.xxl, backgroundColor: colors.primary },
-  sortFab: { bottom: 92, backgroundColor: colors.neutralAction },
-  filterFab: { bottom: 160, backgroundColor: colors.neutralAction },
+  addFab: fabSide === 'bottom' ? { backgroundColor: colors.primary } : { bottom: spacing.xxl, backgroundColor: colors.primary },
+  sortFab: fabSide === 'bottom' ? { backgroundColor: colors.neutralAction } : { bottom: 92, backgroundColor: colors.neutralAction },
+  filterFab: fabSide === 'bottom' ? { backgroundColor: colors.neutralAction } : { bottom: 160, backgroundColor: colors.neutralAction },
   filterFabActive: { backgroundColor: colors.primary },
 });
