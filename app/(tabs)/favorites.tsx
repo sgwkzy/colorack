@@ -139,10 +139,13 @@ export default function FavoritesScreen() {
           <Swipeable
             overshootRight={false}
             renderRightActions={() => (
-              <TouchableOpacity style={styles.deleteAction} onPress={() => deleteItem(item)}>
+              <View style={styles.deleteAction}>
                 <Text style={styles.deleteActionText}>{t('delete')}</Text>
-              </TouchableOpacity>
+              </View>
             )}
+            onSwipeableOpen={(direction) => {
+              if (direction === 'right') deleteItem(item);
+            }}
           >
             <TouchableOpacity onPress={() => setDetailPaintId(item.paint_id)}>
               <PaintRow paint={item} />

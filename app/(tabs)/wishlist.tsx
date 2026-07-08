@@ -152,15 +152,19 @@ export default function WishlistScreen() {
             overshootRight={false}
             overshootLeft={false}
             renderLeftActions={() => (
-              <TouchableOpacity style={styles.purchasedAction} onPress={() => markPurchased(item)}>
+              <View style={styles.purchasedAction}>
                 <Text style={styles.purchasedActionText}>{t('purchased')}</Text>
-              </TouchableOpacity>
+              </View>
             )}
             renderRightActions={() => (
-              <TouchableOpacity style={styles.deleteAction} onPress={() => deleteItem(item)}>
+              <View style={styles.deleteAction}>
                 <Text style={styles.deleteActionText}>{t('delete')}</Text>
-              </TouchableOpacity>
+              </View>
             )}
+            onSwipeableOpen={(direction) => {
+              if (direction === 'right') deleteItem(item);
+              else markPurchased(item);
+            }}
           >
             <TouchableOpacity onPress={() => setDetailPaintId(item.paint_id)}>
               <PaintRow paint={item} />

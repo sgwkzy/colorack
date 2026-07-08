@@ -247,6 +247,7 @@ export default function OwnedScreen() {
   const markUsedUp = async (item: InventoryItem) => {
     swipeRefs.current.get(item.id)?.close();
     await setStatus(item, 'used_up');
+    showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast'));
     promptAddToWishlist(item);
   };
   const deleteItem = async (item: InventoryItem) => {
@@ -259,6 +260,7 @@ export default function OwnedScreen() {
           const db = getDB();
           await db.runAsync('DELETE FROM inventory WHERE id = ?', [item.id]);
           reload();
+          showToast(paintName(item.name_ja, item.name_en) + t('removedToast'));
         },
       },
     ]);
@@ -290,17 +292,17 @@ export default function OwnedScreen() {
     </TouchableOpacity>
   );
 
-  const renderRightActions = (item: InventoryItem) => (
-    <TouchableOpacity style={styles.deleteAction} onPress={() => deleteItem(item)}>
+  const renderRightActions = () => (
+    <View style={styles.deleteAction}>
       <Text style={styles.deleteActionText}>{t('delete')}</Text>
-    </TouchableOpacity>
+    </View>
   );
 
-  // 左→右スワイプで使用済(再操作で在庫へ戻す)
-  const renderLeftActions = (item: InventoryItem) => (
-    <TouchableOpacity style={styles.usedAction} onPress={() => markUsedUp(item)}>
+  // 左→右スワイプで使用済(再操作で在庫へ戻す)。スワイプが完全に開いた時点で確定する(onSwipeableOpenで発火)。
+  const renderLeftActions = () => (
+    <View style={styles.usedAction}>
       <Text style={styles.usedActionText}>{t('statusUsedUp')}</Text>
-    </TouchableOpacity>
+    </View>
   );
 
   return (
@@ -341,8 +343,12 @@ export default function OwnedScreen() {
         renderItem={({ item }) => (
           <Swipeable
             ref={(r) => { if (r) swipeRefs.current.set(item.id, r); else swipeRefs.current.delete(item.id); }}
-            renderRightActions={() => renderRightActions(item)}
-            renderLeftActions={item.status === 'used_up' ? undefined : () => renderLeftActions(item)}
+            renderRightActions={renderRightActions}
+            renderLeftActions={item.status === 'used_up' ? undefined : renderLeftActions}
+            onSwipeableOpen={(direction) => {
+              if (direction === 'right') deleteItem(item);
+              else markUsedUp(item);
+            }}
             overshootRight={false}
             overshootLeft={false}
           >
