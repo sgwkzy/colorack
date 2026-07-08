@@ -109,9 +109,11 @@ export default function CatalogScreen() {
 
   const fab = (
     <>
-      <TouchableOpacity style={styles.fab} onPress={openNew}>
-        <IconPlus color={colors.onPrimary} size={28} />
-      </TouchableOpacity>
+      <View style={styles.fabContainer}>
+        <TouchableOpacity style={styles.fab} onPress={openNew}>
+          <IconPlus color={colors.onPrimary} size={28} />
+        </TouchableOpacity>
+      </View>
       <PaintFormModal visible={showForm} paint={editing} onClose={() => setShowForm(false)} onSaved={reload} />
       <PaintDetailModal
         visible={detailPaintId != null}
@@ -224,6 +226,9 @@ const makeStyles = (colors: typeof lightColors, fabSide: FabSide, listFontSize: 
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
   delBtn: { padding: spacing.md, marginLeft: spacing.md },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
-  fab: { position: 'absolute', ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }), bottom: spacing.xxl, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  fabContainer: fabSide === 'bottom' ? { position: 'absolute', left: 0, right: 0, bottom: spacing.xxl, alignItems: 'center' } : {},
+  fab: fabSide === 'bottom'
+    ? { width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }
+    : { position: 'absolute', ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }), bottom: spacing.xxl, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 });
 };

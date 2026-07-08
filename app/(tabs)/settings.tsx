@@ -105,6 +105,9 @@ export default function SettingsScreen() {
           <TouchableOpacity style={[styles.themeBtn, fabSide === 'right' && styles.themeBtnOn]} onPress={() => setFabSide('right')}>
             <Text style={[styles.themeBtnText, fabSide === 'right' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionRight')}</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={[styles.themeBtn, fabSide === 'bottom' && styles.themeBtnOn]} onPress={() => setFabSide('bottom')}>
+            <Text style={[styles.themeBtnText, fabSide === 'bottom' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionBottom')}</Text>
+          </TouchableOpacity>
         </View>
       </View>
       <View style={styles.section}>

@@ -1,7 +1,7 @@
 import { useEffect, useReducer } from 'react';
 import { getSetting, setSetting } from './db';
 
-export type FabSide = 'left' | 'right';
+export type FabSide = 'left' | 'right' | 'bottom';
 export type ListFontSize = 'small' | 'medium' | 'large';
 
 const FAB_SIDE_KEY = 'fab_side';
@@ -21,7 +21,7 @@ export async function initUiPrefs(): Promise<void> {
       getSetting(FAB_SIDE_KEY),
       getSetting(LIST_FONT_SIZE_KEY),
     ]);
-    if (fabSide === 'left' || fabSide === 'right') {
+    if (fabSide === 'left' || fabSide === 'right' || fabSide === 'bottom') {
       currentFabSide = fabSide;
     }
     if (listFontSize === 'small' || listFontSize === 'medium' || listFontSize === 'large') {

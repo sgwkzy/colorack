@@ -84,12 +84,15 @@ export default function OwnedScreen() {
 
   const load = useCallback(async (sel: Selected, sf: PaintStatus[], f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
+    // 状態トグル(在庫/使用中/使用済)の件数は、選択中のボックスに絞った数を表示する(「一覧」選択時は全ボックス合計)。
+    const statusWhere = sel === 'all' ? '' : ' WHERE box_id = ?';
+    const statusArgs = sel === 'all' ? [] : [sel];
     const [boxRows, defaultBox, boxCountRows, statusCountRows, totalRow] = await Promise.all([
       db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'),
       getDefaultBoxId(),
       // ボックスの件数は使用済を除く(在庫+使用中)の合計。使用済は「使い切った」ものとして数えない。
       db.getAllAsync<BoxCountRow>("SELECT box_id, COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use') GROUP BY box_id"),
-      db.getAllAsync<StatusCountRow>('SELECT status, COUNT(*) AS n FROM inventory GROUP BY status'),
+      db.getAllAsync<StatusCountRow>(`SELECT status, COUNT(*) AS n FROM inventory${statusWhere} GROUP BY status`, statusArgs),
       db.getFirstAsync<CountRow>("SELECT COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use')"),
     ]);
     setBoxes(boxRows);
@@ -376,15 +379,17 @@ export default function OwnedScreen() {
       />
 
       {/* 右下: フィルター / 並び替え / 追加 を縦に */}
-      <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
-        <IconSearch color={colors.onPrimary} size={26} />
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
-        <IconArrowsSort color={colors.onPrimary} size={24} />
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
-        <IconPlus color={colors.onPrimary} size={28} />
-      </TouchableOpacity>
+      <View style={styles.fabContainer}>
+        <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
+          <IconSearch color={colors.onPrimary} size={26} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
+          <IconArrowsSort color={colors.onPrimary} size={24} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
+          <IconPlus color={colors.onPrimary} size={28} />
+        </TouchableOpacity>
+      </View>
 
       <FilterModal
         visible={showFilter}
@@ -440,14 +445,26 @@ const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   usedAction: { backgroundColor: colors.darkAction, justifyContent: 'center', alignItems: 'center', width: 88 },
   usedActionText: { color: colors.onPrimary, fontWeight: 'bold' },
-  fab: {
+  fabContainer: fabSide === 'bottom' ? {
     position: 'absolute',
-    ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }),
+    left: 0,
+    right: 0,
+    bottom: spacing.xxl,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.lg,
+  } : {},
+  fab: {
+    ...(fabSide === 'bottom' ? {} : {
+      position: 'absolute',
+      ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }),
+    }),
     width: 56, height: 56, borderRadius: radius.fab,
     alignItems: 'center', justifyContent: 'center',
   },
-  addFab: { bottom: spacing.xxl, backgroundColor: colors.primary },
-  sortFab: { bottom: 92, backgroundColor: colors.neutralAction },
-  filterFab: { bottom: 160, backgroundColor: colors.neutralAction },
+  addFab: fabSide === 'bottom' ? { backgroundColor: colors.primary } : { bottom: spacing.xxl, backgroundColor: colors.primary },
+  sortFab: fabSide === 'bottom' ? { backgroundColor: colors.neutralAction } : { bottom: 92, backgroundColor: colors.neutralAction },
+  filterFab: fabSide === 'bottom' ? { backgroundColor: colors.neutralAction } : { bottom: 160, backgroundColor: colors.neutralAction },
   filterFabActive: { backgroundColor: colors.primary },
 });

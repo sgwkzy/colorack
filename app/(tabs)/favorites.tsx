@@ -155,15 +155,17 @@ export default function FavoritesScreen() {
         ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
         contentContainerStyle={{ paddingBottom: 232 }}
       />
-      <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
-        <IconSearch color={colors.onPrimary} size={26} />
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
-        <IconArrowsSort color={colors.onPrimary} size={24} />
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
-        <IconPlus color={colors.onPrimary} size={28} />
-      </TouchableOpacity>
+      <View style={styles.fabContainer}>
+        <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
+          <IconSearch color={colors.onPrimary} size={26} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
+          <IconArrowsSort color={colors.onPrimary} size={24} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
+          <IconPlus color={colors.onPrimary} size={28} />
+        </TouchableOpacity>
+      </View>
       <FilterModal
         visible={showFilter}
         options={filterOptions}
@@ -192,14 +194,26 @@ const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
-  fab: {
+  fabContainer: fabSide === 'bottom' ? {
     position: 'absolute',
-    ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }),
+    left: 0,
+    right: 0,
+    bottom: spacing.xxl,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.lg,
+  } : {},
+  fab: {
+    ...(fabSide === 'bottom' ? {} : {
+      position: 'absolute',
+      ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }),
+    }),
     width: 56, height: 56, borderRadius: radius.fab,
     alignItems: 'center', justifyContent: 'center',
   },
-  addFab: { bottom: spacing.xxl, backgroundColor: colors.favoriteAccent },
-  sortFab: { bottom: 92, backgroundColor: colors.neutralAction },
-  filterFab: { bottom: 160, backgroundColor: colors.neutralAction },
+  addFab: fabSide === 'bottom' ? { backgroundColor: colors.favoriteAccent } : { bottom: spacing.xxl, backgroundColor: colors.favoriteAccent },
+  sortFab: fabSide === 'bottom' ? { backgroundColor: colors.neutralAction } : { bottom: 92, backgroundColor: colors.neutralAction },
+  filterFab: fabSide === 'bottom' ? { backgroundColor: colors.neutralAction } : { bottom: 160, backgroundColor: colors.neutralAction },
   filterFabActive: { backgroundColor: colors.primary },
 });
