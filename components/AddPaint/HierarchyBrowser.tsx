@@ -11,6 +11,7 @@ import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import { useUiPrefs, type ListFontSize } from '../../lib/uiPrefs';
 import PaintRow from '../PaintRow';
 import SwipeBack from '../SwipeBack';
+import { swipeDownCloseProps } from '../SwipeDownScrollView';
 
 interface Paint {
   id: number;
@@ -28,15 +29,18 @@ interface Paint {
 interface Props {
   onSelect: (paint: Paint) => void;
   onSelectView: (paint: Paint) => void;
+  // 一覧を最上部からさらに引っ張って離した時に親モーダルを閉じる
+  onRequestClose?: () => void;
 }
 
 // 階層を横断して「すべて」を表す番兵。実データと衝突しない値。
 const ALL = 'ALL';
 
-export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
+export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClose }: Props) {
   const { colors } = useTheme();
   const { listFontSize } = useUiPrefs();
   const styles = useMemo(() => makeStyles(colors, listFontSize), [colors, listFontSize]);
+  const closeProps = onRequestClose ? swipeDownCloseProps(onRequestClose) : undefined;
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [seriesList, setSeriesList] = useState<{ series: string; series_en: string | null }[]>([]);
@@ -104,6 +108,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
     return (
       <FlatList
         data={[ALL, ...brands]}
+        {...closeProps}
         keyExtractor={(b) => b}
         renderItem={({ item }) => (
           <TouchableOpacity style={[styles.item, item === ALL && styles.allItem]} onPress={() => selectBrand(item)}>
@@ -125,6 +130,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
           </TouchableOpacity>
           <FlatList
             data={[{ series: ALL, series_en: null }, ...seriesList]}
+            {...closeProps}
             keyExtractor={(s) => s.series}
             renderItem={({ item }) => (
               <TouchableOpacity style={[styles.item, item.series === ALL && styles.allItem]} onPress={() => selectSeries(item.series)}>
@@ -153,6 +159,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView }: Props) {
       />
       <FlatList
         data={shownPaints}
+        {...closeProps}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         keyExtractor={(p) => String(p.id)}

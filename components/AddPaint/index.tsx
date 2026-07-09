@@ -100,9 +100,9 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
             ))}
           </View>
           <View style={styles.content}>
-            {tab === 'hierarchy' && <HierarchyBrowser onSelect={addToInventory} onSelectView={viewPaintDetail} />}
-            {tab === 'textSearch' && <TextSearch onSelect={addToInventory} onSelectView={viewPaintDetail} />}
-            {tab === 'colorMatch' && <ColorMatcher onSelect={addToInventory} onSelectView={viewPaintDetail} />}
+            {tab === 'hierarchy' && <HierarchyBrowser onSelect={addToInventory} onSelectView={viewPaintDetail} onRequestClose={onClose} />}
+            {tab === 'textSearch' && <TextSearch onSelect={addToInventory} onSelectView={viewPaintDetail} onRequestClose={onClose} />}
+            {tab === 'colorMatch' && <ColorMatcher onSelect={addToInventory} onSelectView={viewPaintDetail} onRequestClose={onClose} />}
             {tab === 'manual' && (
               <ManualEntry
                 onSelect={addToInventory}

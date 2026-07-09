@@ -1,8 +1,8 @@
 // app/(tabs)/favorites.tsx
 import { useCallback, useRef, useState, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, LayoutAnimation } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-import { IconArrowsSort, IconPlus, IconSearch } from '@tabler/icons-react-native';
+import { IconArrowsSort, IconPlus, IconSearch, IconHeart } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
@@ -10,7 +10,9 @@ import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import { useUiPrefs, type FabSide } from '../../lib/uiPrefs';
 import AddPaintModal from '../../components/AddPaint';
+import ActionSheet, { ActionSheetButton } from '../../components/ActionSheet';
 import AdBanner from '../../components/AdBanner';
+import EmptyState from '../../components/EmptyState';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintRow from '../../components/PaintRow';
@@ -51,8 +53,11 @@ export default function FavoritesScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
+  const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
   const [toast, setToast] = useState('');
+  const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const swipeRefs = useRef(new Map<number, Swipeable>());
 
   const load = useCallback(async (f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
@@ -104,18 +109,29 @@ export default function FavoritesScreen() {
 
   const reload = () => load(filter, sort);
   const filterActive = filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';
-  const emptyMessage = !filterActive && totalCount === 0 ? t('emptyList') : t('noResults');
+  const trulyEmpty = !filterActive && totalCount === 0;
+  const emptyMessage = trulyEmpty ? t('emptyList') : t('noResults');
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, actionLabel?: string, onAction?: () => void) => {
     setToast(message);
+    setToastAction(actionLabel && onAction ? { label: actionLabel, onPress: onAction } : null);
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(''), 1800);
+    toastTimer.current = setTimeout(() => { setToast(''); setToastAction(null); }, actionLabel ? 3000 : 1800);
   };
 
   const deleteItem = async (item: ListItem) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    swipeRefs.current.get(item.id)?.close();
     await getDB().runAsync('DELETE FROM lists WHERE id = ?', [item.id]);
     reload();
-    showToast(paintName(item.name_ja, item.name_en) + t('removedToast'));
+    showToast(
+      paintName(item.name_ja, item.name_en) + t('removedToast'),
+      t('undo'),
+      async () => {
+        await getDB().runAsync("INSERT INTO lists (type, paint_id) VALUES ('favorites', ?)", [item.paint_id]);
+        reload();
+      }
+    );
   };
 
   const openSort = () => {
@@ -125,10 +141,10 @@ export default function FavoritesScreen() {
       { key: 'brand', label: t('sortBrand') },
       { key: 'code', label: t('sortCode') },
     ];
-    Alert.alert(t('sort'), '', [
+    setActionSheet({ title: t('sort'), message: '', buttons: [
       ...opts.map((o) => ({ text: `${sort === o.key ? '✓ ' : ''}${o.label}`, onPress: () => setSort(o.key) })),
       { text: t('cancel'), style: 'cancel' as const },
-    ]);
+    ] });
   };
 
   return (
@@ -139,6 +155,7 @@ export default function FavoritesScreen() {
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <Swipeable
+            ref={(r) => { if (r) swipeRefs.current.set(item.id, r); else swipeRefs.current.delete(item.id); }}
             overshootRight={false}
             renderRightActions={() => (
               <View style={styles.deleteAction}>
@@ -154,17 +171,24 @@ export default function FavoritesScreen() {
             </TouchableOpacity>
           </Swipeable>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+        ListEmptyComponent={(
+          <EmptyState
+            icon={IconHeart}
+            title={emptyMessage}
+            actionLabel={trulyEmpty ? t('addPaint') : undefined}
+            onAction={trulyEmpty ? () => setShowAdd(true) : undefined}
+          />
+        )}
         contentContainerStyle={{ paddingBottom: 232 }}
       />
-      <View style={styles.fabContainer}>
-        <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
+      <View style={styles.fabContainer} pointerEvents="box-none">
+        <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)} accessibilityRole="button" accessibilityLabel={t('filter')}>
           <IconSearch color={colors.onPrimary} size={26} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
+        <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort} accessibilityRole="button" accessibilityLabel={t('sort')}>
           <IconArrowsSort color={colors.onPrimary} size={24} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
+        <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)} accessibilityRole="button" accessibilityLabel={t('addPaint')}>
           <IconPlus color={colors.onPrimary} size={28} />
         </TouchableOpacity>
       </View>
@@ -186,7 +210,14 @@ export default function FavoritesScreen() {
         onClose={() => setDetailPaintId(null)}
         onChanged={reload}
       />
-      <Toast message={toast} />
+      <ActionSheet
+        visible={!!actionSheet}
+        title={actionSheet?.title}
+        message={actionSheet?.message}
+        buttons={actionSheet?.buttons ?? []}
+        onClose={() => setActionSheet(null)}
+      />
+      <Toast message={toast} actionLabel={toastAction?.label} onAction={toastAction?.onPress} />
     </View>
   );
 }
@@ -194,7 +225,6 @@ export default function FavoritesScreen() {
 const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
-  empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   fabContainer: fabSide === 'bottom' ? {

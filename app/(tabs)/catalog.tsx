@@ -3,7 +3,7 @@
 // 編集/削除でき、公式カタログは読み取り専用。右下FABで新規追加。
 import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '@tabler/icons-react-native';
+import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconPalette } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB, getOwnedCountMap } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
@@ -13,6 +13,7 @@ import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import { useUiPrefs, type FabSide, type ListFontSize } from '../../lib/uiPrefs';
 import AdBanner from '../../components/AdBanner';
 import ClearableInput from '../../components/ClearableInput';
+import EmptyState from '../../components/EmptyState';
 import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintFormModal, { EditablePaint } from '../../components/PaintFormModal';
 import SwipeBack from '../../components/SwipeBack';
@@ -109,8 +110,8 @@ export default function CatalogScreen() {
 
   const fab = (
     <>
-      <View style={styles.fabContainer}>
-        <TouchableOpacity style={styles.fab} onPress={openNew}>
+      <View style={styles.fabContainer} pointerEvents="box-none">
+        <TouchableOpacity style={styles.fab} onPress={openNew} accessibilityRole="button" accessibilityLabel={t('addPaint')}>
           <IconPlus color={colors.onPrimary} size={28} />
         </TouchableOpacity>
       </View>
@@ -138,7 +139,7 @@ export default function CatalogScreen() {
               <IconChevronRight color={colors.textPlaceholder} size={18} />
             </TouchableOpacity>
           )}
-          ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
+          ListEmptyComponent={<EmptyState icon={IconPalette} title={t('noResults')} />}
         />
         {fab}
       </View>
@@ -205,7 +206,7 @@ export default function CatalogScreen() {
             </TouchableOpacity>
           );
         }}
-        ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
+        ListEmptyComponent={<EmptyState icon={IconPalette} title={t('noResults')} />}
       />
       {fab}
     </View>
@@ -226,7 +227,6 @@ const makeStyles = (colors: typeof lightColors, fabSide: FabSide, listFontSize: 
   backText: { fontSize: 15, color: colors.primary },
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
   delBtn: { padding: spacing.md, marginLeft: spacing.md },
-  empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   fabContainer: fabSide === 'bottom' ? { position: 'absolute', left: 0, right: 0, bottom: spacing.xxl, alignItems: 'center' } : {},
   fab: fabSide === 'bottom'
     ? { width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }
