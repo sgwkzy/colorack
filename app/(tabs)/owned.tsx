@@ -1,7 +1,7 @@
 // app/(tabs)/owned.tsx
 import { useCallback, useRef, useState, useMemo } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, ScrollView, StyleSheet, Alert,
+  View, Text, FlatList, TouchableOpacity, ScrollView, StyleSheet, Alert, LayoutAnimation,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconSearch, IconArrowsSort, IconPlus, IconBox } from '@tabler/icons-react-native';
@@ -13,6 +13,7 @@ import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import { useUiPrefs, type FabSide } from '../../lib/uiPrefs';
 import AddPaintModal from '../../components/AddPaint';
 import AdBanner from '../../components/AdBanner';
+import ActionSheet, { ActionSheetButton } from '../../components/ActionSheet';
 import EmptyState from '../../components/EmptyState';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import InventoryDetailModal from '../../components/InventoryDetailModal';
@@ -78,6 +79,7 @@ export default function OwnedScreen() {
   const [showFilter, setShowFilter] = useState(false);
   const [detailInventoryId, setDetailInventoryId] = useState<number | null>(null);
   const [boxPrompt, setBoxPrompt] = useState<{ title: string; initialValue?: string; onSubmit: (text: string) => void } | null>(null);
+  const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
   const [toast, setToast] = useState('');
   const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -220,11 +222,11 @@ export default function OwnedScreen() {
     ]);
   };
   const onBoxLongPress = (box: Box) => {
-    Alert.alert(box.name, '', [
+    setActionSheet({ title: box.name, message: '', buttons: [
       { text: t('rename'), onPress: () => renameBox(box) },
       { text: t('delete'), style: 'destructive', onPress: () => deleteBox(box) },
       { text: t('cancel'), style: 'cancel' },
-    ]);
+    ] });
   };
 
   // --- 塗料の状態/削除 ---
@@ -233,7 +235,7 @@ export default function OwnedScreen() {
     reload();
   };
   const promptAddToWishlist = (item: InventoryItem) => {
-    Alert.alert(t('addToWishlistPrompt'), '', [
+    setActionSheet({ title: t('addToWishlistPrompt'), message: '', buttons: [
       { text: t('dontAddToList'), style: 'cancel' },
       {
         text: t('add'),
@@ -245,19 +247,22 @@ export default function OwnedScreen() {
           showToast(paintName(item.name_ja, item.name_en) + t('addedToast'));
         },
       },
-    ]);
+    ] });
   };
   const toggleStockUse = (item: InventoryItem) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (item.status === 'used_up') { setStatus(item, 'owned'); return; }
     setStatus(item, item.status === 'in_use' ? 'owned' : 'in_use');
   };
   const markUsedUp = async (item: InventoryItem) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     swipeRefs.current.get(item.id)?.close();
     await setStatus(item, 'used_up');
     showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast'));
     promptAddToWishlist(item);
   };
   const deleteItem = async (item: InventoryItem) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     swipeRefs.current.get(item.id)?.close();
     Alert.alert(paintName(item.name_ja, item.name_en), t('deleteInventoryConfirm'), [
       { text: t('cancel'), style: 'cancel' },
@@ -280,10 +285,10 @@ export default function OwnedScreen() {
       { key: 'brand', label: t('sortBrand') },
       { key: 'code', label: t('sortCode') },
     ];
-    Alert.alert(t('sort'), '', [
+    setActionSheet({ title: t('sort'), message: '', buttons: [
       ...opts.map((o) => ({ text: `${sort === o.key ? '✓ ' : ''}${o.label}`, onPress: () => setSort(o.key) })),
       { text: t('cancel'), style: 'cancel' as const },
-    ]);
+    ] });
   };
 
   const countLabel = (label: string, count: number) => `${label} (${count})`;
@@ -394,13 +399,13 @@ export default function OwnedScreen() {
 
       {/* 右下: フィルター / 並び替え / 追加 を縦に */}
       <View style={styles.fabContainer} pointerEvents="box-none">
-        <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
+        <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)} accessibilityRole="button" accessibilityLabel={t('filter')}>
           <IconSearch color={colors.onPrimary} size={26} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
+        <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort} accessibilityRole="button" accessibilityLabel={t('sort')}>
           <IconArrowsSort color={colors.onPrimary} size={24} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
+        <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)} accessibilityRole="button" accessibilityLabel={t('addPaint')}>
           <IconPlus color={colors.onPrimary} size={28} />
         </TouchableOpacity>
       </View>
@@ -432,6 +437,13 @@ export default function OwnedScreen() {
         initialValue={boxPrompt?.initialValue}
         onSubmit={(text) => boxPrompt?.onSubmit(text)}
         onClose={() => setBoxPrompt(null)}
+      />
+      <ActionSheet
+        visible={!!actionSheet}
+        title={actionSheet?.title}
+        message={actionSheet?.message}
+        buttons={actionSheet?.buttons ?? []}
+        onClose={() => setActionSheet(null)}
       />
       <Toast message={toast} actionLabel={toastAction?.label} onAction={toastAction?.onPress} />
     </View>

@@ -111,7 +111,7 @@ export default function CatalogScreen() {
   const fab = (
     <>
       <View style={styles.fabContainer} pointerEvents="box-none">
-        <TouchableOpacity style={styles.fab} onPress={openNew}>
+        <TouchableOpacity style={styles.fab} onPress={openNew} accessibilityRole="button" accessibilityLabel={t('addPaint')}>
           <IconPlus color={colors.onPrimary} size={28} />
         </TouchableOpacity>
       </View>

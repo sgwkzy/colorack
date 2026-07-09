@@ -1,6 +1,6 @@
 // app/(tabs)/favorites.tsx
 import { useCallback, useRef, useState, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, LayoutAnimation } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconArrowsSort, IconPlus, IconSearch, IconHeart } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
@@ -10,6 +10,7 @@ import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import { useUiPrefs, type FabSide } from '../../lib/uiPrefs';
 import AddPaintModal from '../../components/AddPaint';
+import ActionSheet, { ActionSheetButton } from '../../components/ActionSheet';
 import EmptyState from '../../components/EmptyState';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import PaintDetailModal from '../../components/PaintDetailModal';
@@ -51,6 +52,7 @@ export default function FavoritesScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
+  const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
   const [toast, setToast] = useState('');
   const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,6 +119,7 @@ export default function FavoritesScreen() {
   };
 
   const deleteItem = async (item: ListItem) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     swipeRefs.current.get(item.id)?.close();
     await getDB().runAsync('DELETE FROM lists WHERE id = ?', [item.id]);
     reload();
@@ -137,10 +140,10 @@ export default function FavoritesScreen() {
       { key: 'brand', label: t('sortBrand') },
       { key: 'code', label: t('sortCode') },
     ];
-    Alert.alert(t('sort'), '', [
+    setActionSheet({ title: t('sort'), message: '', buttons: [
       ...opts.map((o) => ({ text: `${sort === o.key ? '✓ ' : ''}${o.label}`, onPress: () => setSort(o.key) })),
       { text: t('cancel'), style: 'cancel' as const },
-    ]);
+    ] });
   };
 
   return (
@@ -177,13 +180,13 @@ export default function FavoritesScreen() {
         contentContainerStyle={{ paddingBottom: 232 }}
       />
       <View style={styles.fabContainer} pointerEvents="box-none">
-        <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
+        <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)} accessibilityRole="button" accessibilityLabel={t('filter')}>
           <IconSearch color={colors.onPrimary} size={26} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort}>
+        <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort} accessibilityRole="button" accessibilityLabel={t('sort')}>
           <IconArrowsSort color={colors.onPrimary} size={24} />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)}>
+        <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)} accessibilityRole="button" accessibilityLabel={t('addPaint')}>
           <IconPlus color={colors.onPrimary} size={28} />
         </TouchableOpacity>
       </View>
@@ -204,6 +207,13 @@ export default function FavoritesScreen() {
         paintId={detailPaintId}
         onClose={() => setDetailPaintId(null)}
         onChanged={reload}
+      />
+      <ActionSheet
+        visible={!!actionSheet}
+        title={actionSheet?.title}
+        message={actionSheet?.message}
+        buttons={actionSheet?.buttons ?? []}
+        onClose={() => setActionSheet(null)}
       />
       <Toast message={toast} actionLabel={toastAction?.label} onAction={toastAction?.onPress} />
     </View>

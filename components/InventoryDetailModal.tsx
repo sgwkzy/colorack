@@ -3,7 +3,7 @@
 // 小さめの2列レイアウトに留め、この在庫固有の情報(ボックス・ステータス・追加日・
 // 最終更新日・メモ)を主役として大きく扱う。ボックス・ステータスはここで直接変更できる。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronDown, IconChevronUp, IconPencil, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { brandLabel } from '../lib/brands';
@@ -22,6 +22,7 @@ import { t } from '../lib/i18n';
 import { paintName, seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
+import ActionSheet, { ActionSheetButton } from './ActionSheet';
 import ClearableInput from './ClearableInput';
 import PaintDetailModal from './PaintDetailModal';
 import SwipeBack from './SwipeBack';
@@ -51,6 +52,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [boxPickerOpen, setBoxPickerOpen] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
+  const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -70,6 +72,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
       setNote('');
       setBoxPickerOpen(false);
       setEditVisible(false);
+      setActionSheet(null);
       setToast('');
     }
   }, [visible, load]);
@@ -106,7 +109,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   };
 
   const promptAddToWishlist = (item: InventoryDetail) => {
-    Alert.alert(t('addToWishlistPrompt'), '', [
+    setActionSheet({ title: t('addToWishlistPrompt'), message: '', buttons: [
       { text: t('dontAddToList'), style: 'cancel' },
       {
         text: t('add'),
@@ -119,7 +122,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
           showToast(paintName(item.name_ja, item.name_en) + t('addedToast'));
         },
       },
-    ]);
+    ] });
   };
 
   const changeStatus = async (status: PaintStatus) => {
@@ -245,6 +248,13 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
               />
             </ScrollView>
           )}
+          <ActionSheet
+            visible={!!actionSheet}
+            title={actionSheet?.title}
+            message={actionSheet?.message}
+            buttons={actionSheet?.buttons ?? []}
+            onClose={() => setActionSheet(null)}
+          />
           <Toast message={toast} />
         </SafeAreaView>
         </SwipeBack>

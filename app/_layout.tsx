@@ -1,6 +1,6 @@
 // app/_layout.tsx
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -8,6 +8,10 @@ import { initDB } from '../lib/db';
 import { initTheme, useTheme } from '../lib/theme';
 import { initLocale } from '../lib/i18n';
 import { initUiPrefs } from '../lib/uiPrefs';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export default function RootLayout() {
   // initDB()/initTheme()/initLocale() 完了まで画面を出さない(getDB()が未初期化で落ちるのを防ぐ)
