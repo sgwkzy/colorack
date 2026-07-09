@@ -78,6 +78,7 @@ export default function OwnedScreen() {
   const [detailInventoryId, setDetailInventoryId] = useState<number | null>(null);
   const [boxPrompt, setBoxPrompt] = useState<{ title: string; initialValue?: string; onSubmit: (text: string) => void } | null>(null);
   const [toast, setToast] = useState('');
+  const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const initializedRef = useRef(false);
@@ -173,10 +174,11 @@ export default function OwnedScreen() {
   const statusDefault = statuses.length === 2 && statuses.includes('owned') && statuses.includes('in_use');
   const emptyMessage = !filterActive && statusDefault && inventoryTotal === 0 ? t('emptyOwned') : t('noResults');
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, actionLabel?: string, onAction?: () => void) => {
     setToast(message);
+    setToastAction(actionLabel && onAction ? { label: actionLabel, onPress: onAction } : null);
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(''), 1800);
+    toastTimer.current = setTimeout(() => { setToast(''); setToastAction(null); }, actionLabel ? 3000 : 1800);
   };
 
   // --- ボックス操作 ---
@@ -379,7 +381,7 @@ export default function OwnedScreen() {
       />
 
       {/* 右下: フィルター / 並び替え / 追加 を縦に */}
-      <View style={styles.fabContainer}>
+      <View style={styles.fabContainer} pointerEvents="box-none">
         <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
           <IconSearch color={colors.onPrimary} size={26} />
         </TouchableOpacity>
@@ -419,7 +421,7 @@ export default function OwnedScreen() {
         onSubmit={(text) => boxPrompt?.onSubmit(text)}
         onClose={() => setBoxPrompt(null)}
       />
-      <Toast message={toast} />
+      <Toast message={toast} actionLabel={toastAction?.label} onAction={toastAction?.onPress} />
     </View>
   );
 }

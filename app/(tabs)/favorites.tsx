@@ -51,7 +51,9 @@ export default function FavoritesScreen() {
   const [showFilter, setShowFilter] = useState(false);
   const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
   const [toast, setToast] = useState('');
+  const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const swipeRefs = useRef(new Map<number, Swipeable>());
 
   const load = useCallback(async (f: PaintFilter, sortBy: Sort) => {
     const db = getDB();
@@ -105,16 +107,25 @@ export default function FavoritesScreen() {
   const filterActive = filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';
   const emptyMessage = !filterActive && totalCount === 0 ? t('emptyList') : t('noResults');
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, actionLabel?: string, onAction?: () => void) => {
     setToast(message);
+    setToastAction(actionLabel && onAction ? { label: actionLabel, onPress: onAction } : null);
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(''), 1800);
+    toastTimer.current = setTimeout(() => { setToast(''); setToastAction(null); }, actionLabel ? 3000 : 1800);
   };
 
   const deleteItem = async (item: ListItem) => {
+    swipeRefs.current.get(item.id)?.close();
     await getDB().runAsync('DELETE FROM lists WHERE id = ?', [item.id]);
     reload();
-    showToast(paintName(item.name_ja, item.name_en) + t('removedToast'));
+    showToast(
+      paintName(item.name_ja, item.name_en) + t('removedToast'),
+      t('undo'),
+      async () => {
+        await getDB().runAsync("INSERT INTO lists (type, paint_id) VALUES ('favorites', ?)", [item.paint_id]);
+        reload();
+      }
+    );
   };
 
   const openSort = () => {
@@ -137,6 +148,7 @@ export default function FavoritesScreen() {
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <Swipeable
+            ref={(r) => { if (r) swipeRefs.current.set(item.id, r); else swipeRefs.current.delete(item.id); }}
             overshootRight={false}
             renderRightActions={() => (
               <View style={styles.deleteAction}>
@@ -155,7 +167,7 @@ export default function FavoritesScreen() {
         ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
         contentContainerStyle={{ paddingBottom: 232 }}
       />
-      <View style={styles.fabContainer}>
+      <View style={styles.fabContainer} pointerEvents="box-none">
         <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)}>
           <IconSearch color={colors.onPrimary} size={26} />
         </TouchableOpacity>
@@ -184,7 +196,7 @@ export default function FavoritesScreen() {
         onClose={() => setDetailPaintId(null)}
         onChanged={reload}
       />
-      <Toast message={toast} />
+      <Toast message={toast} actionLabel={toastAction?.label} onAction={toastAction?.onPress} />
     </View>
   );
 }

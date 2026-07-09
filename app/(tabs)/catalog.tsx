@@ -109,7 +109,7 @@ export default function CatalogScreen() {
 
   const fab = (
     <>
-      <View style={styles.fabContainer}>
+      <View style={styles.fabContainer} pointerEvents="box-none">
         <TouchableOpacity style={styles.fab} onPress={openNew}>
           <IconPlus color={colors.onPrimary} size={28} />
         </TouchableOpacity>
