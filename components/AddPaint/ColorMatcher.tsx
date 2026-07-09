@@ -12,6 +12,7 @@ import { t } from '../../lib/i18n';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import PaintRow from '../PaintRow';
 import { isValidHex } from '../PaintFormFields';
+import { swipeDownCloseProps } from '../SwipeDownScrollView';
 
 interface Paint {
   id: number;
@@ -33,11 +34,14 @@ interface Paint {
 interface Props {
   onSelect: (paint: Paint) => void;
   onSelectView: (paint: Paint) => void;
+  // 一覧を最上部からさらに引っ張って離した時に親モーダルを閉じる
+  onRequestClose?: () => void;
 }
 
-export default function ColorMatcher({ onSelect, onSelectView }: Props) {
+export default function ColorMatcher({ onSelect, onSelectView, onRequestClose }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const closeProps = onRequestClose ? swipeDownCloseProps(onRequestClose) : undefined;
   const [hex, setHex] = useState('');
   const [results, setResults] = useState<(Paint & { de: number })[]>([]);
   const [ownedCounts, setOwnedCounts] = useState<Map<number, number>>(new Map());
@@ -164,6 +168,7 @@ export default function ColorMatcher({ onSelect, onSelectView }: Props) {
       {results.length > 0 && <Text style={styles.label}>{t('topMatches')}</Text>}
       <FlatList
         data={results}
+        {...closeProps}
         keyExtractor={(item) => String(item.id)}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"

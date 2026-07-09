@@ -15,9 +15,20 @@ interface Props extends ScrollViewProps {
 // 実際の指の移動量はこの約2倍(≒120px)の「長い」スワイプになる。
 const CLOSE_OFFSET = -60;
 
+// FlatListなどScrollView以外のスクロールコンポーネントにも同じ「引っ張って閉じる」を
+// 付けるためのprops。スプレッドで渡す: {...swipeDownCloseProps(onClose)}
+export function swipeDownCloseProps(onClose: () => void): Pick<ScrollViewProps, 'onScrollEndDrag'> {
+  return {
+    onScrollEndDrag: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (e.nativeEvent.contentOffset.y < CLOSE_OFFSET) onClose();
+    },
+  };
+}
+
 export default function SwipeDownScrollView({ onClose, onScrollEndDrag, ...rest }: Props) {
+  const closeProps = swipeDownCloseProps(onClose);
   const handleScrollEndDrag = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (e.nativeEvent.contentOffset.y < CLOSE_OFFSET) onClose();
+    closeProps.onScrollEndDrag?.(e);
     onScrollEndDrag?.(e);
   };
   return <ScrollView onScrollEndDrag={handleScrollEndDrag} {...rest} />;
