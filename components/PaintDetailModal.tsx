@@ -3,7 +3,7 @@
 // モーダル方式にしているのは、呼び出し元(一覧やAddPaintモーダル)を閉じずに
 // 「詳細を見る→戻る→別の色を見る」を繰り返せるようにするため。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconCamera, IconHeart, IconPencil, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { brandLabel } from '../lib/brands';
@@ -30,6 +30,7 @@ import ColorCameraPicker from './ColorCameraPicker';
 import { GLOSS_OPTIONS, isValidHex, optionChip, TYPE_OPTIONS } from './PaintFormFields';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
+import SwipeDownScrollView from './SwipeDownScrollView';
 import Toast from './Toast';
 
 interface Box { id: number; name: string; }
@@ -256,7 +257,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
           {!detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : !isEditing ? (
-            <ScrollView contentContainerStyle={styles.content}>
+            <SwipeDownScrollView onClose={requestClose} contentContainerStyle={styles.content}>
               <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: colors.border }]}>
                 {detail.hex ? <Text style={styles.hexBadge}>{detail.hex.toUpperCase()}</Text> : null}
               </View>
@@ -318,10 +319,10 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                   </Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </SwipeDownScrollView>
           ) : (
             <>
-            <ScrollView contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+            <SwipeDownScrollView onClose={requestClose} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <EditField label={t('name')} value={nameJa} onChangeText={setNameJa} styles={styles} />
               {masterLine(nameJa, master?.name_ja)}
 
@@ -386,7 +387,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                   </TouchableOpacity>
                 ) : null}
               </View>
-            </ScrollView>
+            </SwipeDownScrollView>
             <TouchableOpacity
               style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
               onPress={save}

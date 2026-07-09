@@ -1,7 +1,7 @@
 // components/PaintFormModal.tsx
 // 手動塗料(source='manual')の新規追加・編集フォーム。カラーコードは任意。
 import { useEffect, useState, useMemo } from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { IconX } from '@tabler/icons-react-native';
 import { catalogCode, getDB, updateManualPaint } from '../lib/db';
@@ -11,6 +11,7 @@ import { useTheme, lightColors, spacing } from '../lib/theme';
 import ColorCameraPicker from './ColorCameraPicker';
 import PaintFormFields, { isValidHex } from './PaintFormFields';
 import SwipeDownHeader from './SwipeDownHeader';
+import SwipeDownScrollView from './SwipeDownScrollView';
 
 export interface EditablePaint {
   id: number;
@@ -92,7 +93,7 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
               </TouchableOpacity>
             </View>
           </SwipeDownHeader>
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+          <SwipeDownScrollView onClose={onClose} style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
             <PaintFormFields
               fields={[
                 { label: t('name') + '*', value: nameJa, set: setNameJa },
@@ -112,7 +113,7 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
             {isValidHex(hex) && (
               <View style={[styles.preview, { backgroundColor: `#${hex.replace('#', '')}` }]} />
             )}
-          </ScrollView>
+          </SwipeDownScrollView>
           <TouchableOpacity
             style={[styles.btn, !canSave && styles.btnDisabled]}
             onPress={save}

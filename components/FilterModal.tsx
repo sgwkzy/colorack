@@ -1,7 +1,7 @@
 // components/FilterModal.tsx
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet,
+  Modal, View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { IconChevronDown, IconChevronUp, IconSquare, IconSquareCheck } from '@tabler/icons-react-native';
 import ClearableInput from './ClearableInput';
@@ -14,6 +14,7 @@ import { paintTypeLabel } from '../lib/paintType';
 import { useTheme, lightColors, radius, spacing, touch } from '../lib/theme';
 import { useUiPrefs, type ListFontSize } from '../lib/uiPrefs';
 import SwipeDownHeader from './SwipeDownHeader';
+import SwipeDownScrollView from './SwipeDownScrollView';
 
 export interface PaintFilter {
   brands: string[];
@@ -109,7 +110,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
           </View>
         </SwipeDownHeader>
 
-        <ScrollView style={{ flex: 1 }}>
+        <SwipeDownScrollView onClose={onClose} style={{ flex: 1 }}>
           {/* 色名検索 */}
           <Text style={styles.sectionTitle}>{t('colorName')}</Text>
           <ClearableInput
@@ -186,7 +187,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
                 : typeOptions.map((p) => checkRow(p, paintTypeLabel(p), types.includes(p), () => toggle(types, p, setTypes)))}
             </View>
           )}
-        </ScrollView>
+        </SwipeDownScrollView>
 
         <TouchableOpacity
           style={styles.applyBtn}

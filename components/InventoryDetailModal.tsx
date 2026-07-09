@@ -26,6 +26,7 @@ import ClearableInput from './ClearableInput';
 import PaintDetailModal from './PaintDetailModal';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
+import SwipeDownScrollView from './SwipeDownScrollView';
 import Toast from './Toast';
 
 interface Box { id: number; name: string; }
@@ -154,7 +155,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
           {!detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
-            <ScrollView contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+            <SwipeDownScrollView onClose={closeAfterSavingNote} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: colors.border }]}>
                 {detail.hex ? <Text style={styles.hexBadge}>{detail.hex.toUpperCase()}</Text> : null}
               </View>
@@ -245,7 +246,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
                 onChanged={load}
                 initialEditing
               />
-            </ScrollView>
+            </SwipeDownScrollView>
           )}
           <Toast message={toast} />
         </SafeAreaView>
