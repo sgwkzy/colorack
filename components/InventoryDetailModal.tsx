@@ -255,7 +255,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
             buttons={actionSheet?.buttons ?? []}
             onClose={() => setActionSheet(null)}
           />
-          <Toast message={toast} />
+          <Toast message={actionSheet ? '' : toast} />
         </SafeAreaView>
         </SwipeBack>
       </SafeAreaProvider>

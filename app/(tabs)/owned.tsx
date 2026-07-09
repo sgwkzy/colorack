@@ -445,7 +445,7 @@ export default function OwnedScreen() {
         buttons={actionSheet?.buttons ?? []}
         onClose={() => setActionSheet(null)}
       />
-      <Toast message={toast} actionLabel={toastAction?.label} onAction={toastAction?.onPress} />
+      <Toast message={actionSheet ? '' : toast} actionLabel={toastAction?.label} onAction={toastAction?.onPress} />
     </View>
   );
 }
