@@ -1,50 +1,24 @@
 // components/SwipeDownScrollView.tsx
-// モーダル本文用のScrollView。スクロールが最上部にある時だけ、下方向スワイプで
-// モーダルを閉じられる(SwipeDownHeaderと同じ閾値)。それ以外は通常のスクロールとして動作する。
-import { forwardRef, useRef } from 'react';
+// モーダル本文用のScrollView。通常のスクロールはそのまま、最上部からさらに下へ
+// 引っ張って(バウンスのオーバースクロール)指を離すとモーダルを閉じる。
+// PanGestureHandlerでラップする方式はScrollView自身のジェスチャーと競合して
+// スクロールと閉じる操作の両方が壊れるため、バウンス量(負のcontentOffset)で判定する。
+// ponytail: バウンスの無いAndroidでは本文からは閉じられない(ヘッダーの
+// SwipeDownHeaderは全OSで有効)。必要になればonScrollでオーバースクロール量を自前計算する。
 import { NativeScrollEvent, NativeSyntheticEvent, ScrollView, ScrollViewProps } from 'react-native';
-import { PanGestureHandler, State, PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 
 interface Props extends ScrollViewProps {
   onClose: () => void;
 }
 
-const SwipeDownScrollView = forwardRef<ScrollView, Props>(function SwipeDownScrollView(
-  { onClose, onScroll, ...rest },
-  forwardedRef
-) {
-  const scrollY = useRef(0);
-  const scrollViewRef = useRef<ScrollView>(null);
+// 指を離した時点でこれより深く引っ張っていたら閉じる。ラバーバンドにより
+// 実際の指の移動量はこの約2倍(≒120px)の「長い」スワイプになる。
+const CLOSE_OFFSET = -60;
 
-  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    scrollY.current = e.nativeEvent.contentOffset.y;
-    onScroll?.(e);
+export default function SwipeDownScrollView({ onClose, onScrollEndDrag, ...rest }: Props) {
+  const handleScrollEndDrag = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (e.nativeEvent.contentOffset.y < CLOSE_OFFSET) onClose();
+    onScrollEndDrag?.(e);
   };
-
-  const onHandlerStateChange = (e: PanGestureHandlerStateChangeEvent) => {
-    const { state, translationY, velocityY } = e.nativeEvent;
-    if (state === State.END && scrollY.current <= 0 && translationY > 40 && velocityY > 0) onClose();
-  };
-
-  return (
-    <PanGestureHandler
-      simultaneousHandlers={scrollViewRef}
-      activeOffsetY={20}
-      failOffsetX={[-15, 15]}
-      onHandlerStateChange={onHandlerStateChange}
-    >
-      <ScrollView
-        ref={(node) => {
-          scrollViewRef.current = node;
-          if (typeof forwardedRef === 'function') forwardedRef(node);
-          else if (forwardedRef) forwardedRef.current = node;
-        }}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        {...rest}
-      />
-    </PanGestureHandler>
-  );
-});
-
-export default SwipeDownScrollView;
+  return <ScrollView onScrollEndDrag={handleScrollEndDrag} {...rest} />;
+}

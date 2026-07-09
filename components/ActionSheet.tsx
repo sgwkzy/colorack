@@ -70,11 +70,13 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   header: { alignItems: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.xl },
   title: { fontSize: 13, color: colors.textFaint, fontWeight: 'bold' },
   message: { fontSize: 13, color: colors.textFaint, marginTop: spacing.xs },
-  card: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, overflow: 'hidden' },
-  cancelCard: { marginTop: spacing.sm },
+  card: { backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, overflow: 'hidden' },
+  // 縦センタリングはTouchableOpacity側で行う(TextのtextAlignVerticalはAndroid専用で
+  // iOSでは効かず、文字が枠の上端に張り付いて見える)。
+  cancelCard: { marginTop: spacing.sm, minHeight: touch.min, alignItems: 'center', justifyContent: 'center' },
   row: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
-  rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+  rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   rowText: { fontSize: 17, color: colors.primary },
   destructiveText: { color: colors.danger },
-  cancelText: { fontSize: 17, fontWeight: 'bold', color: colors.primary, textAlign: 'center', minHeight: touch.min, textAlignVertical: 'center' },
+  cancelText: { fontSize: 17, fontWeight: 'bold', color: colors.primary },
 });
