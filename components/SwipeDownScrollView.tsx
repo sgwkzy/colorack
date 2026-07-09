@@ -12,8 +12,8 @@ interface Props extends ScrollViewProps {
 }
 
 // 指を離した時点でこれより深く引っ張っていたら閉じる。ラバーバンドにより
-// 実際の指の移動量はこの約2倍(≒120px)の「長い」スワイプになる。
-const CLOSE_OFFSET = -60;
+// 実際の指の移動量はこの約2倍(≒200px)の「長い」スワイプになる。
+const CLOSE_OFFSET = -100;
 
 // FlatListなどScrollView以外のスクロールコンポーネントにも同じ「引っ張って閉じる」を
 // 付けるためのprops。スプレッドで渡す: {...swipeDownCloseProps(onClose)}
