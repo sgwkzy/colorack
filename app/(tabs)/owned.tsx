@@ -353,6 +353,8 @@ export default function OwnedScreen() {
         })}
       </View>
 
+      <View style={styles.adBar}><AdBanner /></View>
+
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.id)}
@@ -396,7 +398,6 @@ export default function OwnedScreen() {
             onAction={trulyEmpty ? () => setShowAdd(true) : undefined}
           />
         )}
-        ListFooterComponent={<AdBanner />}
       />
 
       {/* 右下: フィルター / 並び替え / 追加 を縦に */}
@@ -454,6 +455,7 @@ export default function OwnedScreen() {
 
 const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
   tabBarWrap: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   tabBar: { alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   tab: { paddingHorizontal: 14, paddingVertical: spacing.md, marginRight: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.chip },

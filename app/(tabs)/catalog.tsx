@@ -129,6 +129,7 @@ export default function CatalogScreen() {
   if (!selectedBrand) {
     return (
       <View style={styles.container}>
+        <View style={styles.adBar}><AdBanner /></View>
         <FlatList
           data={[ALL, ...brands]}
           keyExtractor={(b) => b || '(none)'}
@@ -139,7 +140,6 @@ export default function CatalogScreen() {
             </TouchableOpacity>
           )}
           ListEmptyComponent={<EmptyState icon={IconPalette} title={t('noResults')} />}
-          ListFooterComponent={<AdBanner />}
         />
         {fab}
       </View>
@@ -155,6 +155,7 @@ export default function CatalogScreen() {
             <IconChevronLeft color={colors.primary} size={18} />
             <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
           </TouchableOpacity>
+          <View style={styles.adBar}><AdBanner /></View>
           <FlatList
             data={[{ series: ALL, series_en: null }, ...seriesList]}
             keyExtractor={(s) => s.series || '(none)'}
@@ -164,7 +165,6 @@ export default function CatalogScreen() {
                 <IconChevronRight color={colors.textPlaceholder} size={18} />
               </TouchableOpacity>
             )}
-            ListFooterComponent={<AdBanner />}
           />
           {fab}
         </View>
@@ -184,6 +184,7 @@ export default function CatalogScreen() {
         <Text style={styles.backText}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries || '—', currentSeries?.series_en)}</Text>
       </TouchableOpacity>
       <ClearableInput style={styles.filterInput} placeholder={t('colorName')} value={nameFilter} onChangeText={setNameFilter} />
+      <View style={styles.adBar}><AdBanner /></View>
       <FlatList
         data={shown}
         keyExtractor={(p) => String(p.id)}
@@ -206,7 +207,6 @@ export default function CatalogScreen() {
           );
         }}
         ListEmptyComponent={<EmptyState icon={IconPalette} title={t('noResults')} />}
-        ListFooterComponent={<AdBanner />}
       />
       {fab}
     </View>
@@ -218,6 +218,7 @@ const makeStyles = (colors: typeof lightColors, fabSide: FabSide, listFontSize: 
   const NAV_TEXT_SIZE: Record<ListFontSize, number> = { small: 14, medium: 16, large: 18 };
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },
   navText: { flex: 1, fontSize: NAV_TEXT_SIZE[listFontSize], color: colors.text },

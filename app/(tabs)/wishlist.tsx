@@ -11,6 +11,7 @@ import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import { useUiPrefs, type FabSide } from '../../lib/uiPrefs';
 import AddPaintModal from '../../components/AddPaint';
 import ActionSheet, { ActionSheetButton } from '../../components/ActionSheet';
+import AdBanner from '../../components/AdBanner';
 import EmptyState from '../../components/EmptyState';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import PaintDetailModal from '../../components/PaintDetailModal';
@@ -171,6 +172,7 @@ export default function WishlistScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.adBar}><AdBanner /></View>
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.id)}
@@ -252,6 +254,7 @@ export default function WishlistScreen() {
 
 const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
   purchasedAction: { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', width: 96 },
   purchasedActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
