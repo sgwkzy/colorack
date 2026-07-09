@@ -4,7 +4,7 @@ import {
   View, Text, FlatList, TouchableOpacity, ScrollView, StyleSheet, Alert,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-import { IconSearch, IconArrowsSort, IconPlus } from '@tabler/icons-react-native';
+import { IconSearch, IconArrowsSort, IconPlus, IconBox } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId, getListMembership, PaintStatus, setInventoryStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
@@ -13,6 +13,7 @@ import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import { useUiPrefs, type FabSide } from '../../lib/uiPrefs';
 import AddPaintModal from '../../components/AddPaint';
 import AdBanner from '../../components/AdBanner';
+import EmptyState from '../../components/EmptyState';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import InventoryDetailModal from '../../components/InventoryDetailModal';
 import PaintRow from '../../components/PaintRow';
@@ -172,7 +173,8 @@ export default function OwnedScreen() {
   };
   const filterActive = filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';
   const statusDefault = statuses.length === 2 && statuses.includes('owned') && statuses.includes('in_use');
-  const emptyMessage = !filterActive && statusDefault && inventoryTotal === 0 ? t('emptyOwned') : t('noResults');
+  const trulyEmpty = !filterActive && statusDefault && inventoryTotal === 0;
+  const emptyMessage = trulyEmpty ? t('emptyOwned') : t('noResults');
 
   const showToast = (message: string, actionLabel?: string, onAction?: () => void) => {
     setToast(message);
@@ -327,13 +329,16 @@ export default function OwnedScreen() {
       <View style={styles.statusBarWrap}>
         {STATUS_TOGGLES.map((f) => {
           const on = statuses.includes(f.key);
+          const statusColor = f.key === 'owned' ? colors.primary : (f.key === 'in_use' ? colors.inUse : colors.usedUp);
+          const statusSoft = f.key === 'owned' ? colors.primarySoft : (f.key === 'in_use' ? colors.inUseSoft : colors.usedUpSoft);
           return (
             <TouchableOpacity
               key={f.key}
-              style={[styles.statusTab, on && styles.statusTabActive]}
+              style={[styles.statusTab, on && { backgroundColor: statusSoft }]}
               onPress={() => toggleStatus(f.key)}
             >
-              <Text style={[styles.statusTabText, on && styles.statusTabTextActive]}>
+              <View style={[styles.statusDot, { backgroundColor: on ? statusColor : colors.chipAlt }]} />
+              <Text style={[styles.statusTabText, on && { color: statusColor, fontWeight: 'bold' }]}>
                 {countLabel(t(f.label), statusCounts.get(f.key) ?? 0)}
               </Text>
             </TouchableOpacity>
@@ -376,7 +381,14 @@ export default function OwnedScreen() {
             </TouchableOpacity>
           </Swipeable>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+        ListEmptyComponent={(
+          <EmptyState
+            icon={IconBox}
+            title={emptyMessage}
+            actionLabel={trulyEmpty ? t('addPaint') : undefined}
+            onAction={trulyEmpty ? () => setShowAdd(true) : undefined}
+          />
+        )}
         ListFooterComponent={<AdBanner />}
       />
 
@@ -435,14 +447,12 @@ const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.
   tabText: { fontSize: 14, color: colors.textSecondary },
   tabTextActive: { color: colors.onPrimary, fontWeight: 'bold' },
   addTab: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chipAlt, alignItems: 'center', justifyContent: 'center' },
-  statusBarWrap: { flexDirection: 'row', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  statusTab: { flex: 1, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md },
-  statusTabActive: { backgroundColor: colors.primarySoft },
+  statusBarWrap: { flexDirection: 'row', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
+  statusTab: { flex: 1, minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: radius.md },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: spacing.xs },
   statusTabText: { fontSize: 12, color: colors.textFaint },
-  statusTabTextActive: { color: colors.primary, fontWeight: 'bold' },
   iconBtn: { width: 64, borderRadius: 12, marginLeft: spacing.sm, minHeight: touch.min, alignItems: 'center', justifyContent: 'center' },
   iconBtnText: { color: colors.onPrimary, fontSize: 12, fontWeight: 'bold' },
-  empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   usedAction: { backgroundColor: colors.darkAction, justifyContent: 'center', alignItems: 'center', width: 88 },

@@ -2,7 +2,7 @@
 import { useCallback, useRef, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-import { IconArrowsSort, IconPlus, IconSearch } from '@tabler/icons-react-native';
+import { IconArrowsSort, IconPlus, IconSearch, IconShoppingCartPlus } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId } from '../../lib/db';
 import { t } from '../../lib/i18n';
@@ -10,6 +10,7 @@ import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import { useUiPrefs, type FabSide } from '../../lib/uiPrefs';
 import AddPaintModal from '../../components/AddPaint';
+import EmptyState from '../../components/EmptyState';
 import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintRow from '../../components/PaintRow';
@@ -105,7 +106,8 @@ export default function WishlistScreen() {
 
   const reload = () => load(filter, sort);
   const filterActive = filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';
-  const emptyMessage = !filterActive && totalCount === 0 ? t('emptyList') : t('noResults');
+  const trulyEmpty = !filterActive && totalCount === 0;
+  const emptyMessage = trulyEmpty ? t('emptyList') : t('noResults');
 
   const showToast = (message: string, actionLabel?: string, onAction?: () => void) => {
     setToast(message);
@@ -193,7 +195,14 @@ export default function WishlistScreen() {
             </TouchableOpacity>
           </Swipeable>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+        ListEmptyComponent={(
+          <EmptyState
+            icon={IconShoppingCartPlus}
+            title={emptyMessage}
+            actionLabel={trulyEmpty ? t('addPaint') : undefined}
+            onAction={trulyEmpty ? () => setShowAdd(true) : undefined}
+          />
+        )}
         contentContainerStyle={{ paddingBottom: 232 }}
       />
       <View style={styles.fabContainer} pointerEvents="box-none">
@@ -232,7 +241,6 @@ export default function WishlistScreen() {
 
 const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   purchasedAction: { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', width: 96 },
   purchasedActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
