@@ -7,6 +7,7 @@ import ColorCameraPicker from '../ColorCameraPicker';
 import { getDB, getOwnedCountMap } from '../../lib/db';
 import { rgb_to_lab, delta_e, hex_to_rgb } from '../../lib/color';
 import { glossLabel } from '../../lib/gloss';
+import { paintTypeLabel } from '../../lib/paintType';
 import { t } from '../../lib/i18n';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import PaintRow from '../PaintRow';
@@ -43,16 +44,26 @@ export default function ColorMatcher({ onSelect, onSelectView }: Props) {
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
   const [glossOptions, setGlossOptions] = useState<string[]>([]);
   const [selectedGloss, setSelectedGloss] = useState<string[]>([]);
+  const [typeOptions, setTypeOptions] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const canMatchHex = isValidHex(hex);
 
   useEffect(() => {
     getDB().getAllAsync<{ gloss: string }>('SELECT DISTINCT gloss FROM catalog_paints WHERE gloss IS NOT NULL ORDER BY gloss')
       .then((rows) => setGlossOptions(rows.map((r) => r.gloss)));
+    getDB().getAllAsync<{ paint_type: string }>('SELECT DISTINCT paint_type FROM catalog_paints WHERE paint_type IS NOT NULL ORDER BY paint_type')
+      .then((rows) => setTypeOptions(rows.map((r) => r.paint_type)));
   }, []);
 
   const toggleGloss = (value: string) => {
     setSelectedGloss((current) => (
       current.includes(value) ? current.filter((g) => g !== value) : [...current, value]
+    ));
+  };
+
+  const toggleType = (value: string) => {
+    setSelectedTypes((current) => (
+      current.includes(value) ? current.filter((p) => p !== value) : [...current, value]
     ));
   };
 
@@ -64,6 +75,10 @@ export default function ColorMatcher({ onSelect, onSelectView }: Props) {
     if (selectedGloss.length > 0) {
       where.push(`gloss IN (${selectedGloss.map(() => '?').join(',')})`);
       args.push(...selectedGloss);
+    }
+    if (selectedTypes.length > 0) {
+      where.push(`paint_type IN (${selectedTypes.map(() => '?').join(',')})`);
+      args.push(...selectedTypes);
     }
     const [all, ownedMap] = await Promise.all([
       db.getAllAsync<Paint>(
@@ -126,6 +141,21 @@ export default function ColorMatcher({ onSelect, onSelectView }: Props) {
               onPress={() => toggleGloss(g)}
             >
               <Text style={[styles.chipText, { color: selected ? colors.onPrimary : colors.text }]}>{glossLabel(g)}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <Text style={styles.glossSectionLabel}>{t('paintType')}</Text>
+      <View style={styles.chipRow}>
+        {typeOptions.map((p) => {
+          const selected = selectedTypes.includes(p);
+          return (
+            <TouchableOpacity
+              key={p}
+              style={[styles.chip, { backgroundColor: selected ? colors.primary : colors.chip }]}
+              onPress={() => toggleType(p)}
+            >
+              <Text style={[styles.chipText, { color: selected ? colors.onPrimary : colors.text }]}>{paintTypeLabel(p)}</Text>
             </TouchableOpacity>
           );
         })}
