@@ -234,8 +234,10 @@ export default function OwnedScreen() {
     await setInventoryStatus(item.id, next);
     reload();
   };
+  // 削除確認と同じネイティブAlertを使う。ActionSheetだとスワイプ残像やトーストが
+  // 半透明背景越しに透けて見える問題があった(ネイティブAlertはOSが別レイヤーで描画する)。
   const promptAddToWishlist = (item: InventoryItem) => {
-    setActionSheet({ title: t('addToWishlistPrompt'), message: '', buttons: [
+    Alert.alert(t('addToWishlistPrompt'), '', [
       { text: t('dontAddToList'), style: 'cancel' },
       {
         text: t('add'),
@@ -247,7 +249,7 @@ export default function OwnedScreen() {
           showToast(paintName(item.name_ja, item.name_en) + t('addedToast'));
         },
       },
-    ] });
+    ]);
   };
   const toggleStockUse = (item: InventoryItem) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -445,7 +447,7 @@ export default function OwnedScreen() {
         buttons={actionSheet?.buttons ?? []}
         onClose={() => setActionSheet(null)}
       />
-      <Toast message={actionSheet ? '' : toast} actionLabel={toastAction?.label} onAction={toastAction?.onPress} />
+      <Toast message={toast} actionLabel={toastAction?.label} onAction={toastAction?.onPress} />
     </View>
   );
 }

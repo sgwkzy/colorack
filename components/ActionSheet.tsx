@@ -64,8 +64,7 @@ export default function ActionSheet({ visible, title, message, buttons, onClose 
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  // 半透明だと背後のスワイプ残像やトーストが透けて見えるため、十分に不透明にする
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.78)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   sheetWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   header: { alignItems: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.xl, backgroundColor: colors.surfaceAlt, borderTopLeftRadius: radius.md, borderTopRightRadius: radius.md },
   title: { fontSize: 13, color: colors.textFaint, fontWeight: 'bold' },
