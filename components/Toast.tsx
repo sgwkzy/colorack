@@ -23,7 +23,7 @@ export default function Toast({ message, actionLabel, onAction }: Props) {
 
   return (
     <Animated.View style={[styles.toast, { opacity }]} pointerEvents={onAction ? 'box-none' : 'none'}>
-      <Text style={styles.toastText}>{message}</Text>
+      <Text style={styles.toastText} numberOfLines={1} ellipsizeMode="tail">{message}</Text>
       {onAction && actionLabel ? (
         <TouchableOpacity onPress={onAction} hitSlop={8} style={styles.actionBtn}>
           <Text style={styles.actionText}>{actionLabel}</Text>
@@ -49,7 +49,7 @@ const makeStyles = (colors: typeof lightColors, isDark: boolean) => StyleSheet.c
     alignItems: 'center',
     justifyContent: 'center',
   },
-  toastText: { color: isDark ? colors.text : colors.onPrimary, fontSize: 14 },
-  actionBtn: { marginLeft: spacing.md },
+  toastText: { flexShrink: 1, color: isDark ? colors.text : colors.onPrimary, fontSize: 14 },
+  actionBtn: { flexShrink: 0, marginLeft: spacing.md },
   actionText: { color: isDark ? colors.primary : '#8ecbff', fontSize: 14, fontWeight: 'bold' },
 });
