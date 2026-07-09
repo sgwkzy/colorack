@@ -255,7 +255,8 @@ export default function OwnedScreen() {
     setStatus(item, item.status === 'in_use' ? 'owned' : 'in_use');
   };
   const markUsedUp = async (item: InventoryItem) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    // ここではLayoutAnimationを使わない: 直後にpromptAddToWishlistでActionSheetを開くため、
+    // アニメーション中のリスト再レイアウトが半透明の背景越しに透けて見える不具合があった。
     swipeRefs.current.get(item.id)?.close();
     await setStatus(item, 'used_up');
     showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast'));
