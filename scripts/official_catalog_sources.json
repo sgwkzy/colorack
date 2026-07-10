@@ -83,6 +83,20 @@
       "allowed_hosts": ["www.tamiya.com", "tamiya.com"],
       "include_url_patterns": ["genre_item=504005", "genre_item=504010", "genre_item=504020", "genre_item=504030", "genre_item=504050"],
       "max_depth": 0
+    },
+    {
+      "brand": "modelkasten",
+      "brand_prefix": "MK",
+      "start_urls": [
+        "https://store.modelkasten.com/shopbrand/color-c/",
+        "https://store.modelkasten.com/shopbrand/color-c/page2/recommend/",
+        "https://store.modelkasten.com/shopbrand/color/",
+        "https://store.modelkasten.com/shopbrand/color/page2/recommend/",
+        "https://store.modelkasten.com/shopbrand/color/page3/recommend/"
+      ],
+      "allowed_hosts": ["store.modelkasten.com"],
+      "include_url_patterns": ["/shopbrand/color-c/", "/shopbrand/color/", "/shopdetail/"],
+      "max_depth": 1
     }
   ]
 }

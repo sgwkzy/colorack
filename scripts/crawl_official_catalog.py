@@ -614,6 +614,73 @@ def split_finishers_products(source: Source, url: str, body: str, text: str) -> 
     ]
 
 
+def split_modelkasten_products(source: Source, url: str, body: str, text: str) -> list[dict[str, object]]:
+    if source.brand != "modelkasten":
+        return []
+    parsed = urlparse(url)
+    match = re.match(r"^/shopdetail/(\d+)/", parsed.path)
+    if not match:
+        return []
+    item_id = match.group(1)
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    title = lines[0] if lines else None
+    if title and " - MODELKASTEN" in title:
+        title = title.split(" - MODELKASTEN", 1)[0].strip()
+    if not title:
+        return []
+    if "セット" in title:
+        return []
+
+    product_no = find_first([r"品番\s*[:：]\s*([A-Za-z0-9][A-Za-z0-9_\- ]{0,24})"], text) or item_id
+
+    capacity = find_first(
+        [
+            r"正味量\s*[:：]\s*([0-9.]+\s*(?:ml|mL|ML|g|G))",
+            r"([0-9.]+\s*(?:ml|mL|ML|g|G))\s*入",
+            r"([0-9.]+)\s*(?:ミリリットル|mリットル)",
+        ],
+        text,
+    )
+    if capacity and "ミリリットル" not in capacity and re.fullmatch(r"[0-9.]+", capacity):
+        capacity = f"{capacity}ml"
+    paint_type = find_first(
+        [
+            r"^([^\n]*系塗料)$",
+            r"((?:ラッカー|エナメル|水性アクリル|溶剤系アクリル|アクリル)(?:（ラッカー）)?系塗料)",
+        ],
+        text,
+    )
+    price_text = find_first([r"([0-9０-９,，]+\s*円\s*\(税抜[0-9０-９,，]+円\))"], text)
+    price_jpy, tax_included = parse_price(price_text)
+    tax_included = 1
+    product_kind = "solvent" if re.search(r"うすめ液|溶剤|シンナー|クリーナー", title) else "paint"
+    series = "エナメルカラー" if re.match(r"^ME-", normalize_product_no(product_no)) else "大瓶タイプ"
+
+    return [
+        {
+            "brand": source.brand,
+            "brand_prefix": source.brand_prefix,
+            "source_url": url,
+            "catalog_code": catalog_code(source.brand_prefix, product_no),
+            "item_code": normalize_product_no(product_no),
+            "product_no": normalize_product_no(product_no),
+            "name_ja": title,
+            "name_en": None,
+            "series": series,
+            "product_kind": product_kind,
+            "paint_type": paint_type,
+            "capacity": capacity,
+            "price_text": price_text,
+            "price_jpy": price_jpy,
+            "tax_included": tax_included,
+            "hex": None,
+            "gloss": None,
+            "raw_text": text,
+        }
+    ]
+
+
 def vallejo_article_blocks(body: str) -> list[str]:
     return re.findall(r"<article\b[^>]*class=[\"'][^\"']*\bitemDtl\b[^\"']*[\"'][^>]*>.*?</article>", body, flags=re.IGNORECASE | re.DOTALL)
 
@@ -1706,7 +1773,10 @@ def products_from_page(source: Source, url: str, body: str, text: str) -> list[d
     brand_products = split_tamiya_products(source, url, body, text)
     if brand_products:
         return brand_products
-    if source.brand in {"bornpaint", "finishers", "vallejo", "tamiya"}:
+    brand_products = split_modelkasten_products(source, url, body, text)
+    if brand_products:
+        return brand_products
+    if source.brand in {"bornpaint", "finishers", "vallejo", "tamiya", "modelkasten"}:
         return []
     split_products = split_gaianotes_products(source, url, body, text)
     if split_products:
@@ -1813,7 +1883,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
-    parser.add_argument("--brand", choices=["gsi_creos", "gaianotes", "finishers", "bornpaint", "vallejo", "tamiya"])
+    parser.add_argument("--brand", choices=["gsi_creos", "gaianotes", "finishers", "bornpaint", "vallejo", "tamiya", "modelkasten"])
     parser.add_argument("--sleep", type=float, default=1.0)
     parser.add_argument("--extract-only", action="store_true", help="rebuild official_products from saved crawl_pages without fetching")
     args = parser.parse_args()
