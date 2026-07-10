@@ -16,6 +16,8 @@ export type SeedRow = {
 
 // シード内容を更新したら上げる。catalog_paints を作り直して再シードする。
 // (INSERT OR IGNORE のため既存行は更新されない。過去の壊れた名前を一掃する用途も兼ねる)
+// リモートカタログ更新(lib/catalogUpdate.ts)が適用された端末では、実際に反映されている
+// バージョンは app_settings.catalog_applied_version の方が新しい場合がある(getCatalogAppliedVersion参照)。
 const SEED_VERSION = 15;
 
 // 品番(code)はブランドをまたいで重複しうる上、同一ブランド内でもシリーズをまたいで
@@ -66,6 +68,16 @@ export async function initDB(): Promise<void> {
     ');' +
     'CREATE TABLE IF NOT EXISTS app_settings (' +
     '  key TEXT PRIMARY KEY, value TEXT' +
+    ');' +
+    // 「マスターに戻す」機能の参照元。バンドルシードではなく、直近で適用された
+    // カタログ内容(リモート更新後はそちらが最新)を常に映す読み取り専用ミラー。
+    'CREATE TABLE IF NOT EXISTS catalog_master_snapshot (' +
+    '  catalog_code TEXT PRIMARY KEY,' +
+    '  brand TEXT, series TEXT, series_en TEXT, code TEXT,' +
+    '  name_ja TEXT, name_en TEXT, hex TEXT,' +
+    '  rgb_r INTEGER, rgb_g INTEGER, rgb_b INTEGER,' +
+    '  lab_l REAL, lab_a REAL, lab_b REAL,' +
+    '  barcode TEXT, gloss TEXT, paint_type TEXT' +
     ');'
   );
 
@@ -119,53 +131,120 @@ export async function initDB(): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   const current = row?.user_version ?? 0;
   if (current < SEED_VERSION) {
-    await upsertCatalogFromSeed(db);
+    await db.withTransactionAsync(async () => {
+      await upsertCatalogRows(db, seedData as SeedRow[]);
+    });
     await db.execAsync(`PRAGMA user_version = ${SEED_VERSION}`);
+  }
+
+  // catalog_master_snapshot が空(初回起動、または旧バージョンからの初回移行)なら
+  // バンドルシードで初期化する。リモート更新が一度でも適用されていれば、
+  // このテーブルは applyCatalogUpdate() によって既にリモート内容へ置き換わっている。
+  const snapshotCount = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM catalog_master_snapshot');
+  if ((snapshotCount?.n ?? 0) === 0) {
+    await replaceMasterSnapshot(db, seedData as SeedRow[]);
+  }
+  await loadMasterCatalogMap(db);
+}
+
+// catalog_master_snapshot を渡された内容で完全に置き換える(全入替)。
+async function replaceMasterSnapshot(db: SQLite.SQLiteDatabase, rows: SeedRow[]): Promise<void> {
+  await db.runAsync('DELETE FROM catalog_master_snapshot');
+  for (const p of rows) {
+    await db.runAsync(
+      'INSERT INTO catalog_master_snapshot' +
+      ' (catalog_code,brand,series,series_en,code,name_ja,name_en,hex,rgb_r,rgb_g,rgb_b,lab_l,lab_a,lab_b,barcode,gloss,paint_type)' +
+      ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      [catalogCode(p.brand, p.series, p.code), p.brand, p.series, p.series_en, p.code, p.name_ja, p.name_en, p.hex,
+       p.rgb_r, p.rgb_g, p.rgb_b, p.lab_l, p.lab_a, p.lab_b, p.barcode ?? null, p.gloss ?? null, p.paint_type ?? null]
+    );
   }
 }
 
-// brand+series+code(catalog_code) をキーに、公式カタログ(source='catalog')をシードの内容でUPSERT。
-// 既存行は id を保ったまま更新するので inventory/lists の paint_id 参照を壊さない。
-// initDB()のシード更新と、設定画面からの「塗料一覧を初期化」の両方から呼ばれる。
-async function upsertCatalogFromSeed(db: SQLite.SQLiteDatabase): Promise<void> {
-  const seed = seedData as SeedRow[];
-  await db.withTransactionAsync(async () => {
-    for (const p of seed) {
-      await db.runAsync(
-        'INSERT INTO catalog_paints' +
-        ' (catalog_code,brand,series,series_en,code,name_ja,name_en,hex,r,g,b,l,a_star,b_star,barcode,gloss,paint_type,source)' +
-        ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)' +
-        ' ON CONFLICT(catalog_code) DO UPDATE SET' +
-        '  brand=excluded.brand, series=excluded.series, series_en=excluded.series_en,' +
-        '  name_ja=excluded.name_ja, name_en=excluded.name_en, hex=excluded.hex,' +
-        '  r=excluded.r, g=excluded.g, b=excluded.b,' +
-        '  l=excluded.l, a_star=excluded.a_star, b_star=excluded.b_star,' +
-        '  gloss=excluded.gloss, paint_type=excluded.paint_type, source=excluded.source',
-        [catalogCode(p.brand, p.series, p.code), p.brand, p.series, p.series_en, p.code, p.name_ja, p.name_en, p.hex,
-         p.rgb_r, p.rgb_g, p.rgb_b, p.lab_l, p.lab_a, p.lab_b, p.barcode ?? null, p.gloss ?? null, p.paint_type ?? null, 'catalog']
-      );
-    }
-    // 洗い替え: 新シードに無い旧カタログ行のうち、在庫/リストから参照されていない
-    // ものを掃除する(参照中の行は id を壊さないため残す)。
-    const catalogCodes = seed.map((p) => catalogCode(p.brand, p.series, p.code));
-    const placeholders = catalogCodes.map(() => '?').join(',');
+// masterCatalogMap(getMasterCatalogPaint が参照するインメモリキャッシュ)を
+// catalog_master_snapshot から読み込み直す。起動時と、リモート更新の適用直後に呼ぶ。
+async function loadMasterCatalogMap(db: SQLite.SQLiteDatabase): Promise<void> {
+  const rows = await db.getAllAsync<{ catalog_code: string } & SeedRow>(
+    'SELECT catalog_code, brand, series, series_en, code, name_ja, name_en, hex,' +
+    ' rgb_r, rgb_g, rgb_b, lab_l, lab_a, lab_b, barcode, gloss, paint_type' +
+    ' FROM catalog_master_snapshot'
+  );
+  masterCatalogMap = new Map(rows.map((r) => [r.catalog_code, r]));
+}
+
+// brand+series+code(catalog_code) をキーに、公式カタログ(source='catalog')を渡された
+// 内容でUPSERT。既存行は id を保ったまま更新するので inventory/lists の paint_id 参照を壊さない。
+// initDB()のシード更新、設定画面からの「塗料一覧を初期化」、リモートカタログ更新
+// (lib/catalogUpdate.ts の applyCatalogUpdate)の三箇所から呼ばれる。
+// トランザクション境界は持たない(expo-sqliteの withTransactionAsync はネスト不可のため、
+// 呼び出し元が必要に応じて db.withTransactionAsync() で全体をくくる)。
+async function upsertCatalogRows(db: SQLite.SQLiteDatabase, rows: SeedRow[]): Promise<void> {
+  for (const p of rows) {
     await db.runAsync(
-      `DELETE FROM catalog_paints WHERE catalog_code NOT IN (${placeholders})` +
-      ' AND id NOT IN (SELECT paint_id FROM inventory)' +
-      ' AND id NOT IN (SELECT paint_id FROM lists)',
-      catalogCodes
+      'INSERT INTO catalog_paints' +
+      ' (catalog_code,brand,series,series_en,code,name_ja,name_en,hex,r,g,b,l,a_star,b_star,barcode,gloss,paint_type,source)' +
+      ' VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)' +
+      ' ON CONFLICT(catalog_code) DO UPDATE SET' +
+      '  brand=excluded.brand, series=excluded.series, series_en=excluded.series_en,' +
+      '  name_ja=excluded.name_ja, name_en=excluded.name_en, hex=excluded.hex,' +
+      '  r=excluded.r, g=excluded.g, b=excluded.b,' +
+      '  l=excluded.l, a_star=excluded.a_star, b_star=excluded.b_star,' +
+      '  gloss=excluded.gloss, paint_type=excluded.paint_type, source=excluded.source',
+      [catalogCode(p.brand, p.series, p.code), p.brand, p.series, p.series_en, p.code, p.name_ja, p.name_en, p.hex,
+       p.rgb_r, p.rgb_g, p.rgb_b, p.lab_l, p.lab_a, p.lab_b, p.barcode ?? null, p.gloss ?? null, p.paint_type ?? null, 'catalog']
     );
-  });
+  }
+  // 洗い替え: 渡された内容に無い旧カタログ行のうち、在庫/リストから参照されていない
+  // ものを掃除する(参照中の行は id を壊さないため残す)。
+  const catalogCodes = rows.map((p) => catalogCode(p.brand, p.series, p.code));
+  const placeholders = catalogCodes.map(() => '?').join(',');
+  await db.runAsync(
+    `DELETE FROM catalog_paints WHERE catalog_code NOT IN (${placeholders})` +
+    ' AND id NOT IN (SELECT paint_id FROM inventory)' +
+    ' AND id NOT IN (SELECT paint_id FROM lists)',
+    catalogCodes
+  );
 }
 
 // 設定画面の「塗料一覧を初期化」: 手動塗料を在庫/リストごと削除し、
-// 公式カタログはシードの内容(未編集の状態)へ戻す。
+// 公式カタログは catalog_master_snapshot の内容(直近で適用されたマスター、未編集の状態)へ戻す。
 export async function resetCatalogToMaster(): Promise<void> {
   const db = getDB();
-  await db.runAsync("DELETE FROM inventory WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
-  await db.runAsync("DELETE FROM lists WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
-  await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
-  await upsertCatalogFromSeed(db);
+  await db.withTransactionAsync(async () => {
+    await db.runAsync("DELETE FROM inventory WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await db.runAsync("DELETE FROM lists WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
+    const rows = await db.getAllAsync<SeedRow>(
+      'SELECT brand, series, series_en, code, name_ja, name_en, hex,' +
+      ' rgb_r, rgb_g, rgb_b, lab_l, lab_a, lab_b, barcode, gloss, paint_type' +
+      ' FROM catalog_master_snapshot'
+    );
+    await upsertCatalogRows(db, rows);
+  });
+}
+
+// リモートカタログ更新の適用済みバージョン。未設定(リモート更新を一度も
+// 適用していない端末)は、バンドルシードの SEED_VERSION を初期値として扱う。
+export async function getCatalogAppliedVersion(): Promise<number> {
+  const v = await getSetting('catalog_applied_version');
+  return v ? Number(v) : SEED_VERSION;
+}
+
+// リモートから取得したカタログ内容を適用する(lib/catalogUpdate.ts から呼ばれる)。
+// catalog_paints のUPSERT・catalog_master_snapshot の全入替・適用済みバージョンの
+// 更新を1トランザクションにまとめ、途中で失敗すれば自動ロールバックされ既存DBは無変更のまま。
+export async function applyCatalogUpdate(rows: SeedRow[], version: number): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    await upsertCatalogRows(db, rows);
+    await replaceMasterSnapshot(db, rows);
+    await db.runAsync(
+      'INSERT INTO app_settings (key, value) VALUES (?, ?)'
+      + ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      ['catalog_applied_version', String(version)]
+    );
+  });
+  await loadMasterCatalogMap(db);
 }
 
 // --- 設定(キー値) ---
@@ -360,13 +439,10 @@ export async function updateManualPaint(paintId: number, edit: ManualPaintEdit):
   );
 }
 
+// initDB() が完了していれば masterCatalogMap は必ず読み込み済み(catalog_master_snapshot
+// のミラー)。initDB() 前に呼ばれることは想定していない(他の catalog_paints 系関数と同様)。
 export function getMasterCatalogPaint(catalogCodeValue: string): SeedRow | null {
-  if (!masterCatalogMap) {
-    masterCatalogMap = new Map(
-      (seedData as SeedRow[]).map((p) => [catalogCode(p.brand, p.series, p.code), p])
-    );
-  }
-  return masterCatalogMap.get(catalogCodeValue) ?? null;
+  return masterCatalogMap?.get(catalogCodeValue) ?? null;
 }
 
 export async function resetCatalogPaintToMaster(paintId: number, catalogCodeValue: string): Promise<void> {

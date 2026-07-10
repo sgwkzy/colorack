@@ -1,9 +1,10 @@
 // app/(tabs)/settings.tsx
 import { useCallback, useMemo, useState } from 'react';
-import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
-import { getDB, getDefaultBoxId, resetCatalogToMaster, setSetting } from '../../lib/db';
+import { getDB, getDefaultBoxId, getCatalogAppliedVersion, resetCatalogToMaster, setSetting } from '../../lib/db';
+import { checkForCatalogUpdate, downloadAndApplyCatalogUpdate, CatalogManifest, CatalogUpdateStage } from '../../lib/catalogUpdate';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
 import { useUiPrefs, setFabSide, setListFontSize } from '../../lib/uiPrefs';
@@ -25,13 +26,66 @@ export default function SettingsScreen() {
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [boxPickerOpen, setBoxPickerOpen] = useState(false);
 
+  const [catalogVersion, setCatalogVersion] = useState<number | null>(null);
+  const [catalogManifest, setCatalogManifest] = useState<CatalogManifest | null>(null);
+  const [catalogChecking, setCatalogChecking] = useState(false);
+  const [catalogCheckMessage, setCatalogCheckMessage] = useState<string | null>(null);
+  const [catalogUpdateStage, setCatalogUpdateStage] = useState<CatalogUpdateStage | null>(null);
+
   const loadBoxes = useCallback(async () => {
     const db = getDB();
     setBoxes(await db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'));
     setDefaultBoxId(await getDefaultBoxId());
   }, []);
 
-  useFocusEffect(useCallback(() => { loadBoxes(); }, [loadBoxes]));
+  const loadCatalogVersion = useCallback(async () => {
+    setCatalogVersion(await getCatalogAppliedVersion());
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadBoxes(); loadCatalogVersion(); }, [loadBoxes, loadCatalogVersion]));
+
+  const handleCheckForUpdate = async () => {
+    setCatalogChecking(true);
+    setCatalogCheckMessage(null);
+    try {
+      const { available, manifest } = await checkForCatalogUpdate(true);
+      if (available && manifest) {
+        setCatalogManifest(manifest);
+        setCatalogCheckMessage(`${t('catalogUpdateAvailable')} (v${manifest.version})`);
+      } else {
+        setCatalogManifest(null);
+        setCatalogCheckMessage(t('catalogUpToDate'));
+      }
+    } catch {
+      setCatalogManifest(null);
+      setCatalogCheckMessage(t('catalogCheckFailed'));
+    } finally {
+      setCatalogChecking(false);
+    }
+  };
+
+  const handleUpdateNow = async () => {
+    if (!catalogManifest) return;
+    const manifest = catalogManifest;
+    setCatalogUpdateStage('downloading');
+    try {
+      await downloadAndApplyCatalogUpdate(manifest, setCatalogUpdateStage);
+      setCatalogManifest(null);
+      setCatalogCheckMessage(null);
+      await loadCatalogVersion();
+      Alert.alert(t('catalogUpdateSuccess'), `v${manifest.version}`);
+    } catch {
+      Alert.alert(t('catalogUpdateFailed'));
+    } finally {
+      setCatalogUpdateStage(null);
+    }
+  };
+
+  const catalogUpdateStageLabel = (stage: CatalogUpdateStage): string => {
+    if (stage === 'downloading') return t('catalogDownloading');
+    if (stage === 'verifying') return t('catalogVerifying');
+    return t('catalogApplying');
+  };
 
   const chooseDefaultBox = async (boxId: number) => {
     setDefaultBoxId(boxId);
@@ -143,6 +197,38 @@ export default function SettingsScreen() {
         )}
       </View>
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('catalogSection')}</Text>
+        <Text style={styles.catalogVersionText}>
+          {t('catalogCurrentVersion')}: {catalogVersion !== null ? `v${catalogVersion}` : '-'}
+        </Text>
+        {catalogCheckMessage && (
+          <Text style={styles.catalogCheckMessage}>{catalogCheckMessage}</Text>
+        )}
+        <TouchableOpacity
+          style={[styles.themeBtn, { marginRight: 0, marginBottom: spacing.md }]}
+          onPress={handleCheckForUpdate}
+          disabled={catalogChecking || catalogUpdateStage !== null}
+        >
+          {catalogChecking
+            ? <ActivityIndicator color={colors.textSecondary} />
+            : <Text style={styles.themeBtnText}>{t('checkForUpdate')}</Text>}
+        </TouchableOpacity>
+        {catalogManifest && (
+          <TouchableOpacity
+            style={[styles.themeBtn, styles.themeBtnOn, { marginRight: 0 }]}
+            onPress={handleUpdateNow}
+            disabled={catalogUpdateStage !== null}
+          >
+            {catalogUpdateStage
+              ? <ActivityIndicator color={colors.onPrimary} />
+              : <Text style={[styles.themeBtnText, styles.themeBtnTextOn]}>{t('updateNow')}</Text>}
+          </TouchableOpacity>
+        )}
+        {catalogUpdateStage && (
+          <Text style={styles.catalogCheckMessage}>{catalogUpdateStageLabel(catalogUpdateStage)}</Text>
+        )}
+      </View>
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('reset')}</Text>
         <TouchableOpacity style={styles.resetBtn} onPress={resetOwned}>
           <Text style={styles.resetBtnText}>{t('resetOwned')}</Text>
@@ -172,6 +258,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   themeBtnOn: { backgroundColor: colors.primary },
   themeBtnText: { color: colors.textSecondary },
   themeBtnTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
+  catalogVersionText: { color: colors.textSecondary, marginBottom: spacing.sm },
+  catalogCheckMessage: { color: colors.textSecondary, marginBottom: spacing.md },
   resetBtn: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
   resetBtnText: { color: colors.danger, fontWeight: 'bold', textAlign: 'center' },
   dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg },
