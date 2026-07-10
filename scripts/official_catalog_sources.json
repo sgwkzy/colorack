@@ -70,11 +70,51 @@
         "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=2",
         "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=3",
         "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=4",
-        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=5"
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=5",
+        "https://www.tamiya.com/japan/products/list.html?genre_item=504030",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504030&absolutepage=2",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504030&absolutepage=3",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504030&absolutepage=4",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504030&absolutepage=5",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504030&absolutepage=6",
+        "https://www.tamiya.com/japan/products/list.html?genre_item=504050",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504050&absolutepage=2"
       ],
       "allowed_hosts": ["www.tamiya.com", "tamiya.com"],
-      "include_url_patterns": ["genre_item=504005", "genre_item=504010", "genre_item=504020"],
+      "include_url_patterns": ["genre_item=504005", "genre_item=504010", "genre_item=504020", "genre_item=504030", "genre_item=504050"],
       "max_depth": 0
+    },
+    {
+      "brand": "modelkasten",
+      "brand_prefix": "MK",
+      "start_urls": [
+        "https://store.modelkasten.com/shopbrand/color-c/",
+        "https://store.modelkasten.com/shopbrand/color-c/page2/recommend/",
+        "https://store.modelkasten.com/shopbrand/color/",
+        "https://store.modelkasten.com/shopbrand/color/page2/recommend/",
+        "https://store.modelkasten.com/shopbrand/color/page3/recommend/"
+      ],
+      "allowed_hosts": ["store.modelkasten.com"],
+      "include_url_patterns": ["/shopbrand/color-c/", "/shopbrand/color/", "/shopdetail/"],
+      "max_depth": 1
+    },
+    {
+      "brand": "gamesworkshop",
+      "brand_prefix": "GW",
+      "start_urls": [
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/265",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/268",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/268?page=2",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/267",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/266",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/273",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/273?page=2",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/269",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/270"
+      ],
+      "allowed_hosts": ["www.hobbystudio-onlineshop-aishindo.com"],
+      "include_url_patterns": ["/product-list/265", "/product-list/268", "/product-list/267", "/product-list/266", "/product-list/273", "/product-list/269", "/product-list/270", "/product/"],
+      "max_depth": 1
     }
   ]
 }

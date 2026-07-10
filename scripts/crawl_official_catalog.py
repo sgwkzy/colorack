@@ -614,6 +614,127 @@ def split_finishers_products(source: Source, url: str, body: str, text: str) -> 
     ]
 
 
+def split_modelkasten_products(source: Source, url: str, body: str, text: str) -> list[dict[str, object]]:
+    if source.brand != "modelkasten":
+        return []
+    parsed = urlparse(url)
+    match = re.match(r"^/shopdetail/(\d+)/", parsed.path)
+    if not match:
+        return []
+    item_id = match.group(1)
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    title = lines[0] if lines else None
+    if title and " - MODELKASTEN" in title:
+        title = title.split(" - MODELKASTEN", 1)[0].strip()
+    if not title:
+        return []
+    if "セット" in title:
+        return []
+
+    product_no = find_first([r"品番\s*[:：]\s*([A-Za-z0-9][A-Za-z0-9_\- ]{0,24})"], text) or item_id
+
+    capacity = find_first(
+        [
+            r"正味量\s*[:：]\s*([0-9.]+\s*(?:ml|mL|ML|g|G))",
+            r"([0-9.]+\s*(?:ml|mL|ML|g|G))\s*入",
+            r"([0-9.]+)\s*(?:ミリリットル|mリットル)",
+        ],
+        text,
+    )
+    if capacity and "ミリリットル" not in capacity and re.fullmatch(r"[0-9.]+", capacity):
+        capacity = f"{capacity}ml"
+    paint_type = find_first(
+        [
+            r"^([^\n]*系塗料)$",
+            r"((?:ラッカー|エナメル|水性アクリル|溶剤系アクリル|アクリル)(?:（ラッカー）)?系塗料)",
+        ],
+        text,
+    )
+    price_text = find_first([r"([0-9０-９,，]+\s*円\s*\(税抜[0-9０-９,，]+円\))"], text)
+    price_jpy, tax_included = parse_price(price_text)
+    tax_included = 1
+    product_kind = "solvent" if re.search(r"うすめ液|溶剤|シンナー|クリーナー", title) else "paint"
+    series = "エナメルカラー" if re.match(r"^ME-", normalize_product_no(product_no)) else "大瓶タイプ"
+
+    return [
+        {
+            "brand": source.brand,
+            "brand_prefix": source.brand_prefix,
+            "source_url": url,
+            "catalog_code": catalog_code(source.brand_prefix, product_no),
+            "item_code": normalize_product_no(product_no),
+            "product_no": normalize_product_no(product_no),
+            "name_ja": title,
+            "name_en": None,
+            "series": series,
+            "product_kind": product_kind,
+            "paint_type": paint_type,
+            "capacity": capacity,
+            "price_text": price_text,
+            "price_jpy": price_jpy,
+            "tax_included": tax_included,
+            "hex": None,
+            "gloss": None,
+            "raw_text": text,
+        }
+    ]
+
+
+def split_gamesworkshop_products(source: Source, url: str, body: str, text: str) -> list[dict[str, object]]:
+    if source.brand != "gamesworkshop":
+        return []
+    parsed = urlparse(url)
+    if not re.match(r"^/product/\d+$", parsed.path):
+        return []
+
+    category_match = re.search(r"\[(?:ウォーハンマーカラー|シタデルカラー)：([A-Z]+)\]\s*(.+)", text)
+    if not category_match:
+        return []
+    series = category_match.group(1)
+    name_ja = category_match.group(2)
+    name_ja = re.split(r"\s*-\s*ウォーハンマー通販", name_ja)[0].strip()
+
+    name_en = label_value(text, ["英名"])
+    split_match = re.match(r"^([A-Z][A-Za-z0-9\s\-'!.]+?)\s+([぀-ヿ・一-鿿].*)$", name_ja)
+    if split_match:
+        if not name_en:
+            name_en = split_match.group(1).strip()
+        name_ja = split_match.group(2).strip()
+    product_no = find_first([r"ショートセールコード\s*[:：]?\s*(\d+-\d+)", r"\b(\d+-\d+)\b"], text)
+    if not product_no:
+        return []
+    capacity = label_value(text, ["容量"])
+    price_text = find_first([r"([0-9０-９,，]+\s*円\s*\(税込\))"], text)
+    if price_text:
+        price_text = re.sub(r"\s+", "", price_text)
+    price_jpy, tax_included = parse_price(price_text)
+    tax_included = 1
+
+    return [
+        {
+            "brand": source.brand,
+            "brand_prefix": source.brand_prefix,
+            "source_url": url,
+            "catalog_code": catalog_code(source.brand_prefix, product_no),
+            "item_code": normalize_product_no(product_no),
+            "product_no": normalize_product_no(product_no),
+            "name_ja": name_ja,
+            "name_en": name_en,
+            "series": series,
+            "product_kind": "paint",
+            "paint_type": "アクリル塗料",
+            "capacity": capacity,
+            "price_text": price_text,
+            "price_jpy": price_jpy,
+            "tax_included": tax_included,
+            "hex": None,
+            "gloss": None,
+            "raw_text": text,
+        }
+    ]
+
+
 def vallejo_article_blocks(body: str) -> list[str]:
     return re.findall(r"<article\b[^>]*class=[\"'][^\"']*\bitemDtl\b[^\"']*[\"'][^>]*>.*?</article>", body, flags=re.IGNORECASE | re.DOTALL)
 
@@ -727,6 +848,18 @@ def split_tamiya_products(source: Source, url: str, body: str, text: str) -> lis
         paint_type = "エナメル塗料"
         solvent_type = "エナメル溶剤"
         title_prefix_pattern = r"^エナメル\s+"
+    elif "genre_item=504030" in url:
+        series = "タミヤスプレー"
+        product_code_pattern = r"TS-\d+"
+        paint_type = "ラッカー系スプレー塗料"
+        solvent_type = "ラッカー溶剤"
+        title_prefix_pattern = r"(?!)"
+    elif "genre_item=504050" in url:
+        series = "エアーモデルスプレー"
+        product_code_pattern = r"AS-\d+"
+        paint_type = "ラッカー系スプレー塗料"
+        solvent_type = "ラッカー溶剤"
+        title_prefix_pattern = r"(?!)"
     else:
         return []
 
@@ -1094,6 +1227,314 @@ GSI_DETAIL_21_LINEUP = [
 ]
 
 
+GSI_DETAIL_102_LINEUP = [
+    ("WC09", "シェードブルー", None, "40ml", "528円（税込）"),
+    ("WC10", "スポットイエロー", None, "40ml", "528円（税込）"),
+    ("WC11", "レイヤーバイオレット", None, "40ml", "528円（税込）"),
+    ("WC12", "フェイスグリーン", None, "40ml", "528円（税込）"),
+    ("WC13", "グレーズレッド", None, "40ml", "418円（税込）"),
+]
+
+
+GSI_DETAIL_101_LINEUP = [
+    ("WC01", "マルチブラック", None, "40ml", "528円（税込）"),
+    ("WC02", "グランドブラウン", None, "40ml", "528円（税込）"),
+    ("WC03", "ステインブラウン", None, "40ml", "528円（税込）"),
+    ("WC04", "サンディウォッシュ", None, "40ml", "528円（税込）"),
+    ("WC05", "マルチホワイト", None, "40ml", "528円（税込）"),
+    ("WC06", "マルチグレー", None, "40ml", "528円（税込）"),
+    ("WC07", "グレイッシュブラウン", None, "40ml", "528円（税込）"),
+    ("WC08", "ラストオレンジ", None, "40ml", "528円（税込）"),
+    ("WC14", "ホワイトダスト", None, "40ml", "528円（税込）"),
+    ("WC15", "ライトグレイッシュ", None, "40ml", "528円（税込）"),
+    ("WC16", "オーカーソイル", None, "40ml", "528円（税込）"),
+    ("WC17", "マットアンバー", None, "40ml", "528円（税込）"),
+    ("WC18", "シェイドブラウン", None, "40ml", "528円（税込）"),
+]
+
+
+GSI_DETAIL_7_LINEUP = [
+    ("CR1", "シアン", "#009fe9", "18ml", "264円（税込）", "光沢"),
+    ("CR2", "マゼンタ", "#e5007f", "18ml", "264円（税込）", "光沢"),
+    ("CR3", "イエロー", "#fff100", "18ml", "264円（税込）", "光沢"),
+]
+
+
+GSI_DETAIL_2877_LINEUP = [
+    ("XUC01", "シルバーガルシルバー", "#a1aa9e", "18ml", "418円（税込）", "メタリック"),
+    ("XUC02", "シルバーガルレッド", "#a73633", "18ml", "418円（税込）", "半光沢"),
+    ("XUC03", "シルバーガルブルー", "#314a63", "18ml", "418円（税込）", "半光沢"),
+]
+
+
+GSI_DETAIL_2504_LINEUP = [
+    ("CV01", "ベルベットレッド", "#b44836", "18ml", "660円（税込）", "メタリック"),
+    ("CV02", "ベルベットブルー", "#12578c", "18ml", "660円（税込）", "メタリック"),
+    ("CV03", "ベルベットグリーン", "#1f826b", "18ml", "660円（税込）", "メタリック"),
+]
+
+
+GSI_DETAIL_111_LINEUP = [
+    ("NF01", "ストロベリーピンク", "#e8b0b7", "10ml", "308円（税込）", "つや消し"),
+    ("NF02", "ミルキーコーラル", "#eccdc5", "10ml", "308円（税込）", "つや消し"),
+    ("NF03", "クリーミーベージュ", "#eadcbf", "10ml", "308円（税込）", "つや消し"),
+    ("NF04", "グラスグリーン", "#a8d29f", "10ml", "308円（税込）", "つや消し"),
+    ("NF05", "ミントブルー", "#bedecf", "10ml", "308円（税込）", "つや消し"),
+    ("NF06", "カシスピンク", "#8f556d", "10ml", "308円（税込）", "つや消し"),
+    ("NF07", "ワインレッド", "#a5375c", "10ml", "308円（税込）", "つや消し"),
+    ("NF08", "グレイッシュパープル", "#87678d", "10ml", "308円（税込）", "つや消し"),
+    ("NF09", "アンティークゴールド", "#7d7341", "10ml", "308円（税込）", "つや消し"),
+]
+
+
+GSI_DETAIL_109_LINEUP = [
+    ("BN01", "ベースホワイト", "#ffffff", "18ml", "330円（税込）", "つや消し"),
+    ("BN02", "ベースグレー", "#56656c", "18ml", "330円（税込）", "つや消し"),
+    ("BN03", "ベースレッド", "#b4293c", "18ml", "330円（税込）", "つや消し"),
+    ("BN04", "ベースイエロー", "#f6c03a", "18ml", "330円（税込）", "つや消し"),
+    ("BN05", "ベースブルー", "#0076c0", "18ml", "330円（税込）", "つや消し"),
+    ("BN06", "ベースグリーン", "#006962", "18ml", "330円（税込）", "つや消し"),
+]
+
+
+GSI_DETAIL_2597_LINEUP = [
+    ("NGA01", "ホワイト", "#f0f5f9", "10ml", "385円（税込）", "つや消し"),
+    ("NGA02", "ブルー", "#00489c", "10ml", "385円（税込）", "つや消し"),
+    ("NGA03", "イエロー", "#fcd35c", "10ml", "385円（税込）", "つや消し"),
+    ("NGA04", "レッド", "#ca2222", "10ml", "385円（税込）", "つや消し"),
+    ("NGA05", "ブラック", "#585a69", "10ml", "385円（税込）", "つや消し"),
+    ("NGA06", "シャアピンク", "#dd6b69", "10ml", "385円（税込）", "つや消し"),
+    ("NGA07", "シャアレッド", "#872446", "10ml", "385円（税込）", "つや消し"),
+    ("NGA08", "ライトグリーン", "#bfbe8c", "10ml", "385円（税込）", "つや消し"),
+    ("NGA09", "グリーン", "#436b4f", "10ml", "385円（税込）", "つや消し"),
+    ("NGA10", "ライトグレー", "#d3d3d3", "10ml", "385円（税込）", "つや消し"),
+    ("NGA11", "パープル", "#363290", "10ml", "385円（税込）", "つや消し"),
+    ("NGA12", "シルバー", "#d9d9d7", "10ml", "385円（税込）", "メタリック"),
+    ("NGA13", "ゴールド", "#e4d0a2", "10ml", "385円（税込）", "メタリック"),
+    ("NGA14", "グレー", "#74716a", "10ml", "385円（税込）", "つや消し"),
+    ("NGA15", "サンドイエロー", "#f2da9b", "10ml", "385円（税込）", "つや消し"),
+    ("NGA16", "グランドブラウン", "#85572c", "10ml", "385円（税込）", "つや消し"),
+    ("NGA17", "グレイッシュブルー", "#3c769f", "10ml", "385円（税込）", "つや消し"),
+    ("NGA18", "コーラルピンク", "#da587a", "10ml", "385円（税込）", "つや消し"),
+    ("NGA19", "オレンジ", "#e85b20", "10ml", "385円（税込）", "つや消し"),
+    ("NGA20", "エメラルドグリーン", "#17a49c", "10ml", "385円（税込）", "つや消し"),
+    ("NGA201", "シェイドブラック", "#231917", "10ml", "385円（税込）", "光沢"),
+    ("NGA202", "シェイドブラウン", "#452109", "10ml", "385円（税込）", "光沢"),
+    ("NGA203", "シェイドブルー", "#0e6db7", "10ml", "385円（税込）", "光沢"),
+    ("NGA204", "シェイドパープル", "#611985", "10ml", "385円（税込）", "光沢"),
+]
+
+
+GSI_DETAIL_2740_LINEUP = [
+    ("HM01", "ライトニンググレー1", "#7f8285", "10ml", "308円（税込）", "半光沢"),
+    ("HM02", "ライトニンググレー2", "#818489", "10ml", "385円（税込）", "メタリック"),
+]
+
+
+GSI_DETAIL_2596_LINEUP = [
+    ("HV01", "ATグリーン", "#79774d", "10ml", "330円（税込）", "半光沢"),
+    ("HV02", "ATライトグリーン", "#bebe8b", "10ml", "330円（税込）", "半光沢"),
+    ("HV03", "ATブルーグレー", "#68715d", "10ml", "330円（税込）", "半光沢"),
+    ("HV04", "ATライトグレー", "#7a7e8b", "10ml", "330円（税込）", "半光沢"),
+    ("HV05", "ATダークブルー", "#2a3c51", "10ml", "330円（税込）", "半光沢"),
+]
+
+
+GSI_DETAIL_41_LINEUP = [
+    ("HSM01", "スーパーファインシルバー", "#e2e2e4", "10ml", "440円（税込）", "メタリック"),
+    ("HSM02", "スーパーファインゴールド", "#d3b875", "10ml", "440円（税込）", "メタリック"),
+]
+
+
+GSI_DETAIL_38_LINEUP = [
+    ("HCR1", "シアン", "#00a1e9", "18ml", "330円（税込）", "光沢"),
+    ("HCR2", "マゼンタ", "#e5007f", "18ml", "330円（税込）", "光沢"),
+    ("HCR3", "イエロー", "#fff100", "18ml", "330円（税込）", "光沢"),
+]
+
+
+GSI_DETAIL_94_LINEUP = [
+    ("XHUG01", "ガンダムエアリアル ブルー", "#4f78ba", "10ml", "253円（税込）"),
+    ("XHUG02", "ガンダムエアリアル ホワイト", "#fbfcfe", "10ml", "253円（税込）"),
+    ("XHUG03", "ガンダムエアリアル グレー", "#898989", "10ml", "253円（税込）"),
+    ("XHUG04", "ガンダムルブリス ピンク", "#b21b78", "10ml", "253円（税込）"),
+    ("XHUG05", "ガンダムルブリス グレー", "#887f84", "10ml", "253円（税込）"),
+    ("XHUG06", "デミトレーナー(チュチュ専用機) イエロー", "#d2d39a", "10ml", "253円（税込）"),
+    ("XHUG07", "ダリルバルデ レッド", "#a2362c", "10ml", "253円（税込）"),
+    ("XHUG08", "ガンダムファラクト グレー", "#5c6272", "10ml", "253円（税込）"),
+    ("XHUG09", "ミカエリス パープル", "#aaa5c3", "10ml", "253円（税込）"),
+    ("XHUG10", "ベギルペンデ バイオレット", "#4d4670", "10ml", "253円（税込）"),
+    ("XHUG11", "ガンダムルブリスウル グリーン", "#207b77", "10ml", "253円（税込）"),
+    ("XHUG12", "ガンダムルブリスソーン ブラウン", "#948475", "10ml", "253円（税込）"),
+    ("XHUG13", "ガンダムエアリアル(改修型) ブルー", "#2d486d", "10ml", "253円（税込）"),
+]
+
+
+GSI_DETAIL_2713_LINEUP = [
+    ("HLP101", "ステライエロー", "#fcdcaa", "18ml", "440円（税込）", "パール"),
+    ("HLP102", "ステラグリーン", "#add6a1", "18ml", "440円（税込）", "パール"),
+    ("HLP103", "ステラターコイズ", "#b9e0de", "18ml", "440円（税込）", "パール"),
+    ("HLP104", "ステラオレンジ", "#f3caa1", "18ml", "440円（税込）", "パール"),
+    ("HLP105", "ステラワインレッド", "#d197a7", "18ml", "440円（税込）", "パール"),
+    ("HLP106", "ステラレモンイエロー", "#fef7d6", "18ml", "440円（税込）", "パール"),
+    ("HLP107", "ステラローズピンク", "#f0c4cd", "18ml", "440円（税込）", "パール"),
+    ("HLP108", "ステラスカイブルー", "#b5dfe6", "18ml", "440円（税込）", "パール"),
+    ("HLP109", "ステラジャジーブルー", "#8481b0", "18ml", "440円（税込）", "パール"),
+    ("HLP110", "ステラトリリアントパール", "#f6f5ec", "18ml", "440円（税込）", "パール"),
+    ("HLP111", "ステラベビーブルー", "#d9e8f1", "18ml", "440円（税込）", "パール"),
+    ("HLP112", "ステラパープル", "#c1a6c8", "18ml", "440円（税込）", "パール"),
+    ("HLP113", "ステラワカクサグリーン", "#d1e7c4", "18ml", "440円（税込）", "パール"),
+    ("HLP114", "ステラアマゾナイト", "#8ecbc8", "18ml", "440円（税込）", "パール"),
+    ("HLP115", "ステラカームブルー", "#8d9bc7", "18ml", "440円（税込）", "パール"),
+    ("HLP116", "ステラビザンティウム", "#b296af", "18ml", "440円（税込）", "パール"),
+    ("HLP117", "ステラピンク", "#e9c6d8", "18ml", "440円（税込）", "パール"),
+    ("HLP118", "ステラレッド", "#e79a97", "18ml", "440円（税込）", "パール"),
+]
+
+
+GSI_DETAIL_2595_LINEUP = [
+    ("HGQ01", "GQuuuuuuXホワイト", "#e8eef2", "10ml", "308円（税込）", "半光沢"),
+    ("HGQ02", "GQuuuuuuXブルー", "#5087a5", "10ml", "308円（税込）", "半光沢"),
+    ("HGQ03", "GQuuuuuuXイエロー", "#f39839", "10ml", "308円（税込）", "半光沢"),
+    ("HGQ04", "GQuuuuuuXレッド", "#bb0712", "10ml", "308円（税込）", "半光沢"),
+    ("HGQ05", "GQuuuuuuXダークグレー", "#49413e", "10ml", "308円（税込）", "半光沢"),
+    ("HGQ06", "赤いガンダムピンク", "#dd6b6a", "10ml", "308円（税込）", "半光沢"),
+    ("HGQ07", "赤いガンダムレッド", "#9d1e23", "10ml", "308円（税込）", "半光沢"),
+]
+
+
+GSI_DETAIL_88_LINEUP = [
+    ("HUG301", "ライジングフリーダムブルー", "#225991", "10ml", "308円（税込）"),
+    ("HUG302", "イモータルジャスティスレッド", "#a43440", "10ml", "308円（税込）"),
+    ("HUG303", "ブラックナイトスコードブラック", "#161616", "10ml", "308円（税込）"),
+    ("HUG304", "ギャンシュトローム(アグネス機)ブルー", "#5069a2", "10ml", "308円（税込）"),
+    ("HUG305", "マイティーストライクフリーダムダークブルー", "#1b2046", "10ml", "308円（税込）"),
+    ("HUG306", "インフィニットジャスティス弐式ピンク", "#c85171", "10ml", "308円（税込）"),
+    ("HUG307", "デュエルブリッツブルーグレー", "#7884ac", "10ml", "308円（税込）"),
+    ("HUG308", "ライトニングバスターホワイト", "#f5e8df", "10ml", "308円（税込）"),
+    ("HUG309", "デスティニーSpecIIライトグレー", "#aaa8a9", "10ml", "308円（税込）"),
+    ("HUG310", "ブラックナイトスコードカルラライトブルー", "#d6e2f0", "10ml", "308円（税込）"),
+    ("HUG311", "ゼウスシルエットゴールド", "#c4ba42", "10ml", "440円（税込）", "メタリック"),
+]
+
+
+GSI_DETAIL_87_LINEUP = [
+    ("HUG201", "ソードインパルスレッド", "#d61518", "10ml", "253円（税込）"),
+    ("HUG202", "ブラストインパルスグリーン", "#2f582c", "10ml", "253円（税込）"),
+    ("HUG203", "イザーク専用機スカイブルー", "#70b4b3", "10ml", "253円（税込）"),
+    ("HUG204", "ルナマリア専用機ピンク", "#cd1547", "10ml", "253円（税込）"),
+    ("HUG205", "レイ専用機パープル", "#ca9fc7", "10ml", "253円（税込）"),
+    ("HUG206", "デスティニーレッド", "#c5123a", "10ml", "253円（税込）"),
+    ("HUG207", "ライブコンサートピンク", "#ee87b1", "10ml", "253円（税込）"),
+    ("HUG208", "ハイネ専用機オレンジ", "#ef7e20", "10ml", "253円（税込）"),
+]
+
+
+GSI_DETAIL_86_LINEUP = [
+    ("HUG101", "ソードストライクブルー", "#9aa5d2", "10ml", "253円（税込）"),
+    ("HUG102", "ランチャーストライクグリーン", "#12562d", "10ml", "253円（税込）"),
+    ("HUG103", "ストライクルージュピンク", "#e1bbd5", "10ml", "253円（税込）"),
+    ("HUG104", "ディアクティブホワイト", "#d9d9d9", "10ml", "253円（税込）"),
+    ("HUG105", "ディアクティブグレー", "#babbb6", "10ml", "253円（税込）"),
+    ("HUG106", "ディアクティブブラック", "#201f1f", "10ml", "253円（税込）"),
+    ("HUG107", "フリーダムブルー", "#4574b5", "10ml", "253円（税込）"),
+    ("HUG108", "ジャスティスピンク", "#c16b7e", "10ml", "253円（税込）"),
+]
+
+
+GSI_DETAIL_118_LINEUP = [
+    ("HMS01", "ボディカラーA", "#f3d6b6", "10ml", "253円（税込）"),
+    ("HMS02", "ボディカラーB", "#f9e7cf", "10ml", "253円（税込）"),
+    ("HMS03", "ボディカラーC", "#e4ae8a", "10ml", "253円（税込）"),
+    ("HMS04", "ペールクリアーレッド", "#fadad3", "10ml", "253円（税込）"),
+    ("HMS05", "ペールクリアーオレンジ", "#fbdab2", "10ml", "253円（税込）"),
+    ("HMS06", "ペールクリアーブラウン", "#f6b47f", "10ml", "253円（税込）"),
+    ("HMS07", "クリアーホワイト", None, "10ml", "253円（税込）"),
+    ("HMS08", "スムースパールコート", None, "10ml", "253円（税込）"),
+]
+
+
+GSI_DETAIL_85_LINEUP = [
+    ("HUG01", "RX-78-2ガンダムホワイト", "#eef2f7", "10ml", "253円（税込）"),
+    ("HUG02", "RX-78-2ガンダムブルー", "#104591", "10ml", "253円（税込）"),
+    ("HUG03", "RX-78-2ガンダムイエロー", "#f0ba1a", "10ml", "253円（税込）"),
+    ("HUG04", "RX-78-2ガンダムレッド", "#bd2124", "10ml", "253円（税込）"),
+    ("HUG05", "シャア専用機ピンク", "#d36868", "10ml", "253円（税込）"),
+    ("HUG06", "シャア専用機レッド", "#802345", "10ml", "253円（税込）"),
+    ("HUG07", "ファントムグレー", "#06050e", "10ml", "253円（税込）"),
+    ("HUG08", "ティターンズブルー1", "#0c0a14", "10ml", "253円（税込）"),
+    ("HUG09", "ティターンズブルー2", "#182548", "10ml", "253円（税込）"),
+]
+
+
+GSI_DETAIL_2817_LINEUP = [
+    ("HDQ01", "スライムブルー", "#3f98cd", "10ml", "385円（税込）", "光沢"),
+    ("HDQ02", "スライムベスオレンジ", "#f39800", "10ml", "385円（税込）", "光沢"),
+    ("HDQ03", "ライムスライムグリーン", "#8dc556", "10ml", "385円（税込）", "光沢"),
+    ("HDQ04", "ドラキーダークブルー", "#02428e", "10ml", "385円（税込）", "光沢"),
+    ("HDQ101", "メタルスライムシルバー", "#e5e6e6", "10ml", "495円（税込）", "メタリック"),
+    ("HDQ102", "キラーマシンメタリックライトブルー", "#5bc5e7", "10ml", "440円（税込）", "メタリック"),
+    ("HDQ103", "キラーマシンメタリックダークブルー", "#8b80ba", "10ml", "440円（税込）", "メタリック"),
+]
+
+
+GSI_DETAIL_33_LINEUP = [
+    ("XC01", "ダイヤモンドシルバー", "#98acbf", "18ml", "330円（税込）", "パール"),
+    ("XC02", "トパーズゴールド", "#b0b690", "18ml", "330円（税込）", "パール"),
+    ("XC03", "ルビーレッド", "#a26b6e", "18ml", "330円（税込）", "パール"),
+    ("XC04", "アメジストパープル", "#7d529d", "18ml", "330円（税込）", "パール"),
+    ("XC05", "サファイアブルー", "#3e77ba", "18ml", "330円（税込）", "パール"),
+    ("XC06", "トルマリングリーン", "#4fa4a3", "18ml", "330円（税込）", "パール"),
+    ("XC07", "ターコイズグリーン", "#1393bb", "18ml", "330円（税込）", "パール"),
+    ("XC08", "ムーンストーンパール", "#afbdd0", "18ml", "330円（税込）", "パール"),
+]
+
+
+GSI_DETAIL_2828_LINEUP = [
+    ("XAC01", "スティールヘイズ ダークブルー", "#1c357e", "18ml", "495円（税込）", "半光沢"),
+    ("XAC02", "スティールヘイズ ダークブラウン", "#231100", "18ml", "495円（税込）", "半光沢"),
+]
+
+
+GSI_DETAIL_16_LINEUP = [
+    ("GX201", "GXメタルブラック", "#62646b", "18ml", "308円（税込）", "メタリック"),
+    ("GX202", "GXメタルレッド", "#cc6367", "18ml", "308円（税込）", "メタリック"),
+    ("GX203", "GXメタルイエロー", "#a49a5e", "18ml", "308円（税込）", "メタリック"),
+    ("GX204", "GXメタルブルー", "#3b7db5", "18ml", "308円（税込）", "メタリック"),
+    ("GX205", "GXメタルグリーン", "#40a79f", "18ml", "308円（税込）", "メタリック"),
+    ("GX206", "GXメタルパープル", "#94749e", "18ml", "308円（税込）", "メタリック"),
+    ("GX207", "GXメタルバイオレット", "#7362a5", "18ml", "308円（税込）", "メタリック"),
+    ("GX208", "GXラフシルバー", "#a5a6ab", "18ml", "308円（税込）", "メタリック"),
+    ("GX209", "GXレッドゴールド", "#af886f", "18ml", "308円（税込）", "メタリック"),
+    ("GX210", "GXブルーゴールド", "#a68c69", "18ml", "308円（税込）", "メタリック"),
+    ("GX211", "GXメタルイエローグリーン", "#849075", "18ml", "308円（税込）", "メタリック"),
+    ("GX212", "GXメタルピーチ", "#975e67", "18ml", "308円（税込）", "メタリック"),
+    ("GX213", "GXホワイトシルバー", "#9290a0", "18ml", "308円（税込）", "メタリック"),
+    ("GX214", "GXアイスシルバー", "#727990", "18ml", "308円（税込）", "メタリック"),
+    ("GX215", "GXメタルブラッディレッド", "#5f2a37", "18ml", "308円（税込）", "メタリック"),
+    ("GX216", "GXメタルダークブルー", "#3e4a76", "18ml", "308円（税込）", "メタリック"),
+    ("GX217", "GXラフゴールド", "#a5885d", "18ml", "308円（税込）", "メタリック"),
+]
+
+
+GSI_DETAIL_18_LINEUP = [
+    ("LG1", "GGXホワイト", "#ffffff", "60ml", "770円（税込）", "光沢"),
+    ("LG2", "GGXブラック", "#231916", "60ml", "770円（税込）", "光沢"),
+    ("LG112", "GGXクリアーUVカット光沢", "#ffffff", "60ml", "935円（税込）", "光沢"),
+    ("LG113", "GGXクリアーUVカットつや消し", "#ffffff", "60ml", "935円（税込）", "つや消し"),
+]
+
+
+GSI_DETAIL_17_LINEUP = [
+    ("LAC101", "アルマイトブラック", None, "18ml", "352円（税込）", "半光沢"),
+    ("LAC102", "パーカーガンメタリック", None, "18ml", "352円（税込）", "メタリック"),
+    ("LAC103", "ステンレスシルバー", None, "18ml", "352円（税込）", "メタリック"),
+    ("LAC104", "ガンブルーメタリック", None, "18ml", "440円（税込）", "メタリック"),
+    ("LAC105", "フラットダークアース1", None, "18ml", "352円（税込）", "つや消し"),
+    ("LAC106", "フラットダークアース2", None, "18ml", "352円（税込）", "つや消し"),
+]
+
+
 GSI_DETAIL_5_LINEUP = [
     ("CL-01", "ホワイトピーチ", "#fbd7bd", "18ml", "264円", "光沢"),
     ("CL-02", "ココアミルク", "#a97f71", "18ml", "264円", "光沢"),
@@ -1123,10 +1564,10 @@ GSI_DETAIL_6_LINEUP = [
 
 
 GSI_DETAIL_2925_LINEUP = [
-    ("CL-200", "ゴールドパールベース", "#f6f5ae", "10ml", "286円", "パール添加剤"),
-    ("CL-201", "ストッキングブラック", "#4c4c4c", "10ml", "286円", "光沢"),
-    ("CL-202", "ストッキングブラウン", "#745751", "10ml", "286円", "光沢"),
-    ("CL-203", "ストッキングホワイト", "#f6f6f6", "10ml", "286円", "光沢"),
+    ("CL-200", "ゴールドパールベース", "#f6f5ae", "10ml", "260円（税込）", "パール添加剤"),
+    ("CL-201", "ストッキングブラック", "#4c4c4c", "10ml", "260円（税込）", "光沢"),
+    ("CL-202", "ストッキングブラウン", "#745751", "10ml", "260円（税込）", "光沢"),
+    ("CL-203", "ストッキングホワイト", "#f6f6f6", "10ml", "260円（税込）", "光沢"),
 ]
 
 
@@ -1152,6 +1593,32 @@ GSI_DETAIL_LINEUPS = {
     "/ja/products/detail/13": GSI_DETAIL_13_LINEUP,
     "/ja/products/detail/14": GSI_DETAIL_14_LINEUP,
     "/ja/products/detail/15": GSI_DETAIL_15_LINEUP,
+    "/ja/products/detail/16": GSI_DETAIL_16_LINEUP,
+    "/ja/products/detail/85": GSI_DETAIL_85_LINEUP,
+    "/ja/products/detail/118": GSI_DETAIL_118_LINEUP,
+    "/ja/products/detail/86": GSI_DETAIL_86_LINEUP,
+    "/ja/products/detail/87": GSI_DETAIL_87_LINEUP,
+    "/ja/products/detail/88": GSI_DETAIL_88_LINEUP,
+    "/ja/products/detail/2595": GSI_DETAIL_2595_LINEUP,
+    "/ja/products/detail/2713": GSI_DETAIL_2713_LINEUP,
+    "/ja/products/detail/94": GSI_DETAIL_94_LINEUP,
+    "/ja/products/detail/38": GSI_DETAIL_38_LINEUP,
+    "/ja/products/detail/41": GSI_DETAIL_41_LINEUP,
+    "/ja/products/detail/2596": GSI_DETAIL_2596_LINEUP,
+    "/ja/products/detail/2740": GSI_DETAIL_2740_LINEUP,
+    "/ja/products/detail/2597": GSI_DETAIL_2597_LINEUP,
+    "/ja/products/detail/109": GSI_DETAIL_109_LINEUP,
+    "/ja/products/detail/111": GSI_DETAIL_111_LINEUP,
+    "/ja/products/detail/2504": GSI_DETAIL_2504_LINEUP,
+    "/ja/products/detail/2877": GSI_DETAIL_2877_LINEUP,
+    "/ja/products/detail/7": GSI_DETAIL_7_LINEUP,
+    "/ja/products/detail/101": GSI_DETAIL_101_LINEUP,
+    "/ja/products/detail/102": GSI_DETAIL_102_LINEUP,
+    "/ja/products/detail/2817": GSI_DETAIL_2817_LINEUP,
+    "/ja/products/detail/33": GSI_DETAIL_33_LINEUP,
+    "/ja/products/detail/2828": GSI_DETAIL_2828_LINEUP,
+    "/ja/products/detail/17": GSI_DETAIL_17_LINEUP,
+    "/ja/products/detail/18": GSI_DETAIL_18_LINEUP,
     "/ja/products/detail/12": GSI_DETAIL_12_LINEUP,
     "/ja/products/detail/21": GSI_DETAIL_21_LINEUP,
     "/ja/products/detail/2925": GSI_DETAIL_2925_LINEUP,
@@ -1237,6 +1704,10 @@ def split_gsi_creos_products(source: Source, url: str, body: str, text: str) -> 
     paint_type = find_first([r"^((?:溶剤系|水溶性)アクリル樹脂塗料|エマルジョン系水性塗料)$"], text)
     if not paint_type and "Mr.カラー" in series:
         paint_type = "溶剤系アクリル樹脂塗料"
+    if not paint_type and parsed_path in {"/ja/products/detail/2817", "/ja/products/detail/85", "/ja/products/detail/118", "/ja/products/detail/86", "/ja/products/detail/87", "/ja/products/detail/88", "/ja/products/detail/2595", "/ja/products/detail/94", "/ja/products/detail/38", "/ja/products/detail/2596"}:
+        paint_type = "水性アクリル塗料"
+    if not paint_type and parsed_path == "/ja/products/detail/2597":
+        paint_type = "エマルジョン系水性塗料"
     price_text = find_first([r"価格(?:（税込み）)?\s*[:：]\s*([0-9０-９,，]+\s*円)"], text)
     price_jpy, tax_included = parse_price(price_text)
     tax_included = 1 if price_text and "円" in price_text else tax_included
@@ -1356,7 +1827,13 @@ def products_from_page(source: Source, url: str, body: str, text: str) -> list[d
     brand_products = split_tamiya_products(source, url, body, text)
     if brand_products:
         return brand_products
-    if source.brand in {"bornpaint", "finishers", "vallejo", "tamiya"}:
+    brand_products = split_modelkasten_products(source, url, body, text)
+    if brand_products:
+        return brand_products
+    brand_products = split_gamesworkshop_products(source, url, body, text)
+    if brand_products:
+        return brand_products
+    if source.brand in {"bornpaint", "finishers", "vallejo", "tamiya", "modelkasten", "gamesworkshop"}:
         return []
     split_products = split_gaianotes_products(source, url, body, text)
     if split_products:
@@ -1463,7 +1940,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
-    parser.add_argument("--brand", choices=["gsi_creos", "gaianotes", "finishers", "bornpaint", "vallejo", "tamiya"])
+    parser.add_argument("--brand", choices=["gsi_creos", "gaianotes", "finishers", "bornpaint", "vallejo", "tamiya", "modelkasten", "gamesworkshop"])
     parser.add_argument("--sleep", type=float, default=1.0)
     parser.add_argument("--extract-only", action="store_true", help="rebuild official_products from saved crawl_pages without fetching")
     args = parser.parse_args()
