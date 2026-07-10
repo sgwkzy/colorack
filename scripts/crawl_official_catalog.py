@@ -681,6 +681,60 @@ def split_modelkasten_products(source: Source, url: str, body: str, text: str) -
     ]
 
 
+def split_gamesworkshop_products(source: Source, url: str, body: str, text: str) -> list[dict[str, object]]:
+    if source.brand != "gamesworkshop":
+        return []
+    parsed = urlparse(url)
+    if not re.match(r"^/product/\d+$", parsed.path):
+        return []
+
+    category_match = re.search(r"\[(?:ウォーハンマーカラー|シタデルカラー)：([A-Z]+)\]\s*(.+)", text)
+    if not category_match:
+        return []
+    series = category_match.group(1)
+    name_ja = category_match.group(2)
+    name_ja = re.split(r"\s*-\s*ウォーハンマー通販", name_ja)[0].strip()
+
+    name_en = label_value(text, ["英名"])
+    split_match = re.match(r"^([A-Z][A-Za-z0-9\s\-'!.]+?)\s+([぀-ヿ・一-鿿].*)$", name_ja)
+    if split_match:
+        if not name_en:
+            name_en = split_match.group(1).strip()
+        name_ja = split_match.group(2).strip()
+    product_no = find_first([r"ショートセールコード\s*[:：]?\s*(\d+-\d+)", r"\b(\d+-\d+)\b"], text)
+    if not product_no:
+        return []
+    capacity = label_value(text, ["容量"])
+    price_text = find_first([r"([0-9０-９,，]+\s*円\s*\(税込\))"], text)
+    if price_text:
+        price_text = re.sub(r"\s+", "", price_text)
+    price_jpy, tax_included = parse_price(price_text)
+    tax_included = 1
+
+    return [
+        {
+            "brand": source.brand,
+            "brand_prefix": source.brand_prefix,
+            "source_url": url,
+            "catalog_code": catalog_code(source.brand_prefix, product_no),
+            "item_code": normalize_product_no(product_no),
+            "product_no": normalize_product_no(product_no),
+            "name_ja": name_ja,
+            "name_en": name_en,
+            "series": series,
+            "product_kind": "paint",
+            "paint_type": "アクリル塗料",
+            "capacity": capacity,
+            "price_text": price_text,
+            "price_jpy": price_jpy,
+            "tax_included": tax_included,
+            "hex": None,
+            "gloss": None,
+            "raw_text": text,
+        }
+    ]
+
+
 def vallejo_article_blocks(body: str) -> list[str]:
     return re.findall(r"<article\b[^>]*class=[\"'][^\"']*\bitemDtl\b[^\"']*[\"'][^>]*>.*?</article>", body, flags=re.IGNORECASE | re.DOTALL)
 
@@ -1776,7 +1830,10 @@ def products_from_page(source: Source, url: str, body: str, text: str) -> list[d
     brand_products = split_modelkasten_products(source, url, body, text)
     if brand_products:
         return brand_products
-    if source.brand in {"bornpaint", "finishers", "vallejo", "tamiya", "modelkasten"}:
+    brand_products = split_gamesworkshop_products(source, url, body, text)
+    if brand_products:
+        return brand_products
+    if source.brand in {"bornpaint", "finishers", "vallejo", "tamiya", "modelkasten", "gamesworkshop"}:
         return []
     split_products = split_gaianotes_products(source, url, body, text)
     if split_products:
@@ -1883,7 +1940,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
-    parser.add_argument("--brand", choices=["gsi_creos", "gaianotes", "finishers", "bornpaint", "vallejo", "tamiya", "modelkasten"])
+    parser.add_argument("--brand", choices=["gsi_creos", "gaianotes", "finishers", "bornpaint", "vallejo", "tamiya", "modelkasten", "gamesworkshop"])
     parser.add_argument("--sleep", type=float, default=1.0)
     parser.add_argument("--extract-only", action="store_true", help="rebuild official_products from saved crawl_pages without fetching")
     args = parser.parse_args()

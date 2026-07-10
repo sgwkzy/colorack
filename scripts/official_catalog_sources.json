@@ -97,6 +97,24 @@
       "allowed_hosts": ["store.modelkasten.com"],
       "include_url_patterns": ["/shopbrand/color-c/", "/shopbrand/color/", "/shopdetail/"],
       "max_depth": 1
+    },
+    {
+      "brand": "gamesworkshop",
+      "brand_prefix": "GW",
+      "start_urls": [
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/265",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/268",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/268?page=2",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/267",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/266",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/273",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/273?page=2",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/269",
+        "https://www.hobbystudio-onlineshop-aishindo.com/product-list/270"
+      ],
+      "allowed_hosts": ["www.hobbystudio-onlineshop-aishindo.com"],
+      "include_url_patterns": ["/product-list/265", "/product-list/268", "/product-list/267", "/product-list/266", "/product-list/273", "/product-list/269", "/product-list/270", "/product/"],
+      "max_depth": 1
     }
   ]
 }
