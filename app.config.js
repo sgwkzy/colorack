@@ -13,7 +13,7 @@ module.exports = ({ config }) => ({
   userInterfaceStyle: 'automatic',
   ios: {
     ...config.ios,
-    supportsTablet: true,
+    supportsTablet: false,
     bundleIdentifier: process.env.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER || 'com.example.colorack',
     infoPlist: {
       NSCameraUsageDescription: '塗料の色の読み取りやバーコードスキャンのためにカメラを使用します',
