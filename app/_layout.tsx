@@ -4,6 +4,7 @@ import { View, ActivityIndicator, LayoutAnimation, Platform, UIManager } from 'r
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import { initDB } from '../lib/db';
 import { initTheme, useTheme } from '../lib/theme';
 import { initLocale } from '../lib/i18n';
@@ -20,6 +21,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     initDB().then(() => Promise.all([initTheme(), initLocale(), initUiPrefs()])).then(() => setReady(true)).catch(console.error);
+    // パーソナライズ広告(AdMob)のためのIDFAアクセス許可。iOSのみダイアログが出る(Androidは常にgranted)。
+    if (Platform.OS === 'ios') {
+      requestTrackingPermissionsAsync().catch(console.error);
+    }
   }, []);
 
   return (

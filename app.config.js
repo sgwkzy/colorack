@@ -41,6 +41,12 @@ module.exports = ({ config }) => ({
     'expo-localization',
     'expo-camera',
     [
+      'expo-tracking-transparency',
+      {
+        userTrackingPermission: 'パーソナライズ広告の表示のために使用されます',
+      },
+    ],
+    [
       'react-native-google-mobile-ads',
       {
         iosAppId: ADMOB_APP_ID_IOS,
