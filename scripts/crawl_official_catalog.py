@@ -727,6 +727,18 @@ def split_tamiya_products(source: Source, url: str, body: str, text: str) -> lis
         paint_type = "エナメル塗料"
         solvent_type = "エナメル溶剤"
         title_prefix_pattern = r"^エナメル\s+"
+    elif "genre_item=504030" in url:
+        series = "タミヤスプレー"
+        product_code_pattern = r"TS-\d+"
+        paint_type = "ラッカー系スプレー塗料"
+        solvent_type = "ラッカー溶剤"
+        title_prefix_pattern = r"(?!)"
+    elif "genre_item=504050" in url:
+        series = "エアーモデルスプレー"
+        product_code_pattern = r"AS-\d+"
+        paint_type = "ラッカー系スプレー塗料"
+        solvent_type = "ラッカー溶剤"
+        title_prefix_pattern = r"(?!)"
     else:
         return []
 
@@ -1094,6 +1106,63 @@ GSI_DETAIL_21_LINEUP = [
 ]
 
 
+GSI_DETAIL_33_LINEUP = [
+    ("XC01", "ダイヤモンドシルバー", "#98acbf", "18ml", "330円（税込）", "パール"),
+    ("XC02", "トパーズゴールド", "#b0b690", "18ml", "330円（税込）", "パール"),
+    ("XC03", "ルビーレッド", "#a26b6e", "18ml", "330円（税込）", "パール"),
+    ("XC04", "アメジストパープル", "#7d529d", "18ml", "330円（税込）", "パール"),
+    ("XC05", "サファイアブルー", "#3e77ba", "18ml", "330円（税込）", "パール"),
+    ("XC06", "トルマリングリーン", "#4fa4a3", "18ml", "330円（税込）", "パール"),
+    ("XC07", "ターコイズグリーン", "#1393bb", "18ml", "330円（税込）", "パール"),
+    ("XC08", "ムーンストーンパール", "#afbdd0", "18ml", "330円（税込）", "パール"),
+]
+
+
+GSI_DETAIL_2828_LINEUP = [
+    ("XAC01", "スティールヘイズ ダークブルー", "#1c357e", "18ml", "495円（税込）", "半光沢"),
+    ("XAC02", "スティールヘイズ ダークブラウン", "#231100", "18ml", "495円（税込）", "半光沢"),
+]
+
+
+GSI_DETAIL_16_LINEUP = [
+    ("GX201", "GXメタルブラック", "#62646b", "18ml", "308円（税込）", "メタリック"),
+    ("GX202", "GXメタルレッド", "#cc6367", "18ml", "308円（税込）", "メタリック"),
+    ("GX203", "GXメタルイエロー", "#a49a5e", "18ml", "308円（税込）", "メタリック"),
+    ("GX204", "GXメタルブルー", "#3b7db5", "18ml", "308円（税込）", "メタリック"),
+    ("GX205", "GXメタルグリーン", "#40a79f", "18ml", "308円（税込）", "メタリック"),
+    ("GX206", "GXメタルパープル", "#94749e", "18ml", "308円（税込）", "メタリック"),
+    ("GX207", "GXメタルバイオレット", "#7362a5", "18ml", "308円（税込）", "メタリック"),
+    ("GX208", "GXラフシルバー", "#a5a6ab", "18ml", "308円（税込）", "メタリック"),
+    ("GX209", "GXレッドゴールド", "#af886f", "18ml", "308円（税込）", "メタリック"),
+    ("GX210", "GXブルーゴールド", "#a68c69", "18ml", "308円（税込）", "メタリック"),
+    ("GX211", "GXメタルイエローグリーン", "#849075", "18ml", "308円（税込）", "メタリック"),
+    ("GX212", "GXメタルピーチ", "#975e67", "18ml", "308円（税込）", "メタリック"),
+    ("GX213", "GXホワイトシルバー", "#9290a0", "18ml", "308円（税込）", "メタリック"),
+    ("GX214", "GXアイスシルバー", "#727990", "18ml", "308円（税込）", "メタリック"),
+    ("GX215", "GXメタルブラッディレッド", "#5f2a37", "18ml", "308円（税込）", "メタリック"),
+    ("GX216", "GXメタルダークブルー", "#3e4a76", "18ml", "308円（税込）", "メタリック"),
+    ("GX217", "GXラフゴールド", "#a5885d", "18ml", "308円（税込）", "メタリック"),
+]
+
+
+GSI_DETAIL_18_LINEUP = [
+    ("LG1", "GGXホワイト", "#ffffff", "60ml", "770円（税込）", "光沢"),
+    ("LG2", "GGXブラック", "#231916", "60ml", "770円（税込）", "光沢"),
+    ("LG112", "GGXクリアーUVカット光沢", "#ffffff", "60ml", "935円（税込）", "光沢"),
+    ("LG113", "GGXクリアーUVカットつや消し", "#ffffff", "60ml", "935円（税込）", "つや消し"),
+]
+
+
+GSI_DETAIL_17_LINEUP = [
+    ("LAC101", "アルマイトブラック", None, "18ml", "352円（税込）", "半光沢"),
+    ("LAC102", "パーカーガンメタリック", None, "18ml", "352円（税込）", "メタリック"),
+    ("LAC103", "ステンレスシルバー", None, "18ml", "352円（税込）", "メタリック"),
+    ("LAC104", "ガンブルーメタリック", None, "18ml", "440円（税込）", "メタリック"),
+    ("LAC105", "フラットダークアース1", None, "18ml", "352円（税込）", "つや消し"),
+    ("LAC106", "フラットダークアース2", None, "18ml", "352円（税込）", "つや消し"),
+]
+
+
 GSI_DETAIL_5_LINEUP = [
     ("CL-01", "ホワイトピーチ", "#fbd7bd", "18ml", "264円", "光沢"),
     ("CL-02", "ココアミルク", "#a97f71", "18ml", "264円", "光沢"),
@@ -1152,6 +1221,11 @@ GSI_DETAIL_LINEUPS = {
     "/ja/products/detail/13": GSI_DETAIL_13_LINEUP,
     "/ja/products/detail/14": GSI_DETAIL_14_LINEUP,
     "/ja/products/detail/15": GSI_DETAIL_15_LINEUP,
+    "/ja/products/detail/16": GSI_DETAIL_16_LINEUP,
+    "/ja/products/detail/33": GSI_DETAIL_33_LINEUP,
+    "/ja/products/detail/2828": GSI_DETAIL_2828_LINEUP,
+    "/ja/products/detail/17": GSI_DETAIL_17_LINEUP,
+    "/ja/products/detail/18": GSI_DETAIL_18_LINEUP,
     "/ja/products/detail/12": GSI_DETAIL_12_LINEUP,
     "/ja/products/detail/21": GSI_DETAIL_21_LINEUP,
     "/ja/products/detail/2925": GSI_DETAIL_2925_LINEUP,

@@ -70,10 +70,18 @@
         "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=2",
         "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=3",
         "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=4",
-        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=5"
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504020&absolutepage=5",
+        "https://www.tamiya.com/japan/products/list.html?genre_item=504030",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504030&absolutepage=2",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504030&absolutepage=3",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504030&absolutepage=4",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504030&absolutepage=5",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504030&absolutepage=6",
+        "https://www.tamiya.com/japan/products/list.html?genre_item=504050",
+        "https://www.tamiya.com/japan/products/list.html?field_sort=d&cmdarticlesearch=1&genre_item=504050&absolutepage=2"
       ],
       "allowed_hosts": ["www.tamiya.com", "tamiya.com"],
-      "include_url_patterns": ["genre_item=504005", "genre_item=504010", "genre_item=504020"],
+      "include_url_patterns": ["genre_item=504005", "genre_item=504010", "genre_item=504020", "genre_item=504030", "genre_item=504050"],
       "max_depth": 0
     }
   ]
