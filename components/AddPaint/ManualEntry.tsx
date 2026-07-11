@@ -49,7 +49,7 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
 
   useEffect(() => {
     if (!showInventory) return;
-    getDB().getAllAsync<{ id: number; name: string }>('SELECT id, name FROM boxes ORDER BY id')
+    getDB().getAllAsync<{ id: number; name: string }>('SELECT id, name FROM boxes ORDER BY sort_order, id')
       .then(setBoxes);
   }, [showInventory]);
 

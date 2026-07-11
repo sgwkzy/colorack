@@ -49,7 +49,7 @@ export async function initDB(): Promise<void> {
     ');' +
     'CREATE TABLE IF NOT EXISTS boxes (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    "  name TEXT NOT NULL, location TEXT, note TEXT, icon TEXT NOT NULL DEFAULT 'box', icon_color TEXT NOT NULL DEFAULT '#4a90d9'" +
+    "  name TEXT NOT NULL, location TEXT, note TEXT, icon TEXT NOT NULL DEFAULT 'box', icon_color TEXT NOT NULL DEFAULT '#4a90d9', sort_order INTEGER NOT NULL DEFAULT 0" +
     ');' +
     'CREATE TABLE IF NOT EXISTS inventory (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
@@ -81,6 +81,10 @@ export async function initDB(): Promise<void> {
   );
   try { await db.execAsync("ALTER TABLE boxes ADD COLUMN icon TEXT NOT NULL DEFAULT 'box'"); } catch { /* 既にある */ }
   try { await db.execAsync("ALTER TABLE boxes ADD COLUMN icon_color TEXT NOT NULL DEFAULT '#4a90d9'"); } catch { /* 既にある */ }
+  try {
+    await db.execAsync('ALTER TABLE boxes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0');
+    await db.runAsync('UPDATE boxes SET sort_order = id');
+  } catch { /* 既にある */ }
   // 使用済は共通履歴。ボックスから外しておけば、ボックス削除/変更に影響されない。
   await db.runAsync("UPDATE inventory SET box_id = NULL WHERE status = 'used_up'");
 
@@ -309,14 +313,16 @@ export async function updateInventoryBox(inventoryId: number, boxId: number): Pr
 }
 
 export async function setInventoryStatus(inventoryId: number, status: PaintStatus): Promise<void> {
+  const defaultBoxId = status === 'used_up' ? null : await getDefaultBoxId();
   await getDB().runAsync(
-    "UPDATE inventory SET status = ?, box_id = CASE WHEN ? = 'used_up' THEN NULL ELSE box_id END, status_changed_at = datetime('now') WHERE id = ?",
-    [status, status, inventoryId]
+    "UPDATE inventory SET status = ?, box_id = CASE WHEN ? = 'used_up' THEN NULL WHEN box_id IS NULL THEN ? ELSE box_id END, status_changed_at = datetime('now') WHERE id = ?",
+    [status, status, defaultBoxId, inventoryId]
   );
 }
 
 export interface CatalogPaintContentEdit {
   nameJa: string;
+  nameEn?: string;
   hex: string;
   gloss: string | null;
   paintType: string | null;
@@ -336,8 +342,8 @@ export async function updateCatalogPaintContent(paintId: number, edit: CatalogPa
   });
   if (!normalized) return;
   await getDB().runAsync(
-    'UPDATE catalog_paints SET name_ja=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
-    [normalized.nameJa, normalized.normalizedHex,
+    'UPDATE catalog_paints SET name_ja=?, name_en=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
+    [normalized.nameJa, edit.nameEn ?? current.name_en, normalized.normalizedHex,
      normalized.rgb?.r ?? null, normalized.rgb?.g ?? null, normalized.rgb?.b ?? null,
      normalized.lab?.L ?? null, normalized.lab?.a ?? null, normalized.lab?.b ?? null,
      normalized.gloss, normalized.paintType, paintId]
@@ -346,6 +352,7 @@ export async function updateCatalogPaintContent(paintId: number, edit: CatalogPa
 
 export interface ManualPaintEdit {
   nameJa: string;
+  nameEn?: string;
   brand: string;
   series: string;
   code: string;
@@ -359,8 +366,8 @@ export async function updateManualPaint(paintId: number, edit: ManualPaintEdit):
   if (!normalized) return;
   const catCode = catalogCode(normalized.brand, normalized.series, normalized.code);
   await getDB().runAsync(
-    'UPDATE catalog_paints SET catalog_code=?, brand=?, series=?, code=?, name_ja=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
-    [catCode, normalized.brand, normalized.series, normalized.code, normalized.nameJa, normalized.normalizedHex,
+    'UPDATE catalog_paints SET catalog_code=?, brand=?, series=?, code=?, name_ja=?, name_en=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
+    [catCode, normalized.brand, normalized.series, normalized.code, normalized.nameJa, edit.nameEn ?? null, normalized.normalizedHex,
      normalized.rgb?.r ?? null, normalized.rgb?.g ?? null, normalized.rgb?.b ?? null,
      normalized.lab?.L ?? null, normalized.lab?.a ?? null, normalized.lab?.b ?? null,
      normalized.gloss, normalized.paintType, paintId]

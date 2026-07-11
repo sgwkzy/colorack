@@ -5,10 +5,10 @@ import {
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconBox, IconChevronDown } from '@tabler/icons-react-native';
-import { router, useFocusEffect, useLocalSearchParams, useNavigation, usePathname } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { getDB, getDefaultBoxId, getListMembership, PaintStatus, setInventoryStatus } from '../../lib/db';
 import { setActiveBox } from '../../lib/activeBox';
-import { getLocale, t } from '../../lib/i18n';
+import { t, useLocale } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
@@ -56,16 +56,16 @@ const SORT_ORDER: Record<Sort, string> = {
   code: 'c.code COLLATE NOCASE ASC',
 };
 
-export default function OwnedScreen() {
+export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
+  const locale = useLocale();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const pathname = usePathname();
   const navigation = useNavigation();
-  const isUsedScreen = pathname.endsWith('/used');
+  const isUsedScreen = usedScreen;
   const { boxId } = useLocalSearchParams<{ boxId?: string }>();
   const [inventoryTotal, setInventoryTotal] = useState(0);
   const [selected, setSelected] = useState<Selected>('all');
-  const [statuses, setStatuses] = useState<PaintStatus[]>(['owned', 'in_use']);
+  const [statuses, setStatuses] = useState<PaintStatus[]>(usedScreen ? ['used_up'] : ['owned', 'in_use']);
   const [filter, setFilter] = useState<PaintFilter>(EMPTY_FILTER);
   const [sort, setSort] = useState<Sort>('added');
   const [filterOptions, setFilterOptions] = useState<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }[]>([]);
@@ -80,22 +80,21 @@ export default function OwnedScreen() {
   const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
-  const [edgeSwipeItemId, setEdgeSwipeItemId] = useState<number | null>(null);
   const initializedRef = useRef(false);
+  const loadVersionRef = useRef(0);
 
   useEffect(() => {
+    if (isUsedScreen) return;
     const requested = boxId === 'all' ? 'all' : Number(boxId);
     if (requested === 'all' || Number.isInteger(requested) && requested > 0) setSelected(requested);
-  }, [boxId]);
+  }, [isUsedScreen, boxId]);
 
   useEffect(() => { if (!isUsedScreen) setActiveBox(selected); }, [isUsedScreen, selected]);
-
-  useEffect(() => { setStatuses(isUsedScreen ? ['used_up'] : ['owned', 'in_use']); }, [isUsedScreen]);
 
   useEffect(() => {
     if (isUsedScreen) return;
     if (selected === 'all') {
-      const title = getLocale() === 'ja' ? 'すべてのボックス' : 'All Boxes';
+      const title = locale === 'ja' ? 'すべてのボックス' : 'All Boxes';
       navigation.setOptions({ title });
       router.setParams({ boxName: title });
       return;
@@ -103,24 +102,13 @@ export default function OwnedScreen() {
     getDB().getFirstAsync<{ name: string }>('SELECT name FROM boxes WHERE id = ?', [selected]).then((box) => {
       if (box) { navigation.setOptions({ title: box.name }); router.setParams({ boxName: box.name }); }
     });
-  }, [isUsedScreen, navigation, selected]);
+  }, [isUsedScreen, locale, navigation, selected]);
 
   const load = useCallback(async (sel: Selected, sf: PaintStatus[], f: PaintFilter, sortBy: Sort) => {
+    const loadVersion = ++loadVersionRef.current;
     const db = getDB();
     const totalWhere = sel === 'all' ? '' : ' AND box_id = ?';
     const totalArgs = sel === 'all' ? [] : [sel];
-    const [defaultBox, totalRow] = await Promise.all([
-      getDefaultBoxId(),
-      db.getFirstAsync<CountRow>("SELECT COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use')" + totalWhere, totalArgs),
-    ]);
-    setDefaultBoxId(defaultBox);
-    setInventoryTotal(totalRow?.n ?? 0);
-    // 絞り込み候補(所有塗料の brand/series)
-    setFilterOptions(await db.getAllAsync<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }>(
-      'SELECT DISTINCT c.brand, c.series, c.series_en, c.gloss, c.paint_type FROM inventory i'
-      + ' JOIN catalog_paints c ON i.paint_id = c.id'
-    ));
-
     const where: string[] = [];
     const args: (number | string)[] = [];
 
@@ -161,14 +149,39 @@ export default function OwnedScreen() {
       + ' FROM inventory i JOIN catalog_paints c ON i.paint_id = c.id'
       + ' WHERE ' + where.join(' AND ')
       + ' ORDER BY ' + SORT_ORDER[sortBy];
-    setItems(await db.getAllAsync<InventoryItem>(sql, args));
+    const [defaultBox, totalRow, nextFilterOptions, nextItems] = await Promise.all([
+      getDefaultBoxId(),
+      db.getFirstAsync<CountRow>("SELECT COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use')" + totalWhere, totalArgs),
+      db.getAllAsync<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }>(
+        'SELECT DISTINCT c.brand, c.series, c.series_en, c.gloss, c.paint_type FROM inventory i'
+        + ' JOIN catalog_paints c ON i.paint_id = c.id'
+      ),
+      db.getAllAsync<InventoryItem>(sql, args),
+    ]);
+    if (loadVersion !== loadVersionRef.current) return;
+    setDefaultBoxId(defaultBox);
+    setInventoryTotal(totalRow?.n ?? 0);
+    setFilterOptions(nextFilterOptions);
+    setItems(nextItems);
   }, []);
 
   useFocusEffect(useCallback(() => {
     // 初回オープン時は「一覧」ではなくデフォルトのボックスを初期表示にする。
     if (!initializedRef.current) {
       initializedRef.current = true;
+      if (isUsedScreen) {
+        load('all', statuses, filter, sort);
+        return;
+      }
+      const requested = boxId === 'all' ? 'all' : Number(boxId);
+      if (requested === 'all' || Number.isInteger(requested) && requested > 0) {
+        setSelected(requested);
+        load(requested, statuses, filter, sort);
+        return;
+      }
+      const initialLoadVersion = ++loadVersionRef.current;
       getDefaultBoxId().then((id) => {
+        if (initialLoadVersion !== loadVersionRef.current) return;
         const initial: Selected = id ?? 'all';
         setSelected(initial);
         load(initial, statuses, filter, sort);
@@ -176,7 +189,7 @@ export default function OwnedScreen() {
       return;
     }
     load(selected, statuses, filter, sort);
-  }, [load, selected, statuses, filter, sort]));
+  }, [boxId, load, selected, statuses, filter, sort]));
 
   const reload = () => load(selected, statuses, filter, sort);
   const toggleStatus = (s: PaintStatus) => {
@@ -188,7 +201,7 @@ export default function OwnedScreen() {
   const statusDefault = statuses.length === 2 && statuses.includes('owned') && statuses.includes('in_use');
   const trulyEmpty = isUsedScreen ? items.length === 0 : !filterActive && statusDefault && inventoryTotal === 0;
   const emptyMessage = trulyEmpty ? t('emptyOwned') : t('noResults');
-  const statusLabel = statusDefault ? 'すべてのステータス' : statuses.length === 1 ? t(statuses[0] === 'owned' ? 'statusOwned' : 'statusInUse') : t('statusAll');
+  const statusLabel = statusDefault ? (locale === 'ja' ? 'すべてのステータス' : 'All statuses') : statuses.length === 1 ? t(statuses[0] === 'owned' ? 'statusOwned' : 'statusInUse') : t('statusAll');
   const statusColor = statusDefault ? '#2e7d32' : statuses[0] === 'owned' ? colors.primary : colors.inUse;
 
   const showToast = (message: string, actionLabel?: string, onAction?: () => void) => {
@@ -279,10 +292,11 @@ export default function OwnedScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.edgeGestureZone} pointerEvents="box-only" />
       {/* 総数と状態フィルタ */}
       <View style={styles.statusBarWrap}>
-        <Text style={styles.statusCount}>{`塗料数 ${isUsedScreen ? items.length : inventoryTotal} ・ 表示数 ${items.length}`}</Text>
+        <Text style={styles.statusCount}>{locale === 'ja'
+          ? `塗料数 ${isUsedScreen ? items.length : inventoryTotal} ・ 表示数 ${items.length}`
+          : `Paints ${isUsedScreen ? items.length : inventoryTotal} · Showing ${items.length}`}</Text>
         {!isUsedScreen ? <TouchableOpacity style={styles.statusSelect} onPress={() => setShowStatusPicker(true)} accessibilityRole="button" accessibilityLabel={statusLabel}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={styles.statusSelectText}>{statusLabel}</Text><IconChevronDown color={colors.textMuted} size={18} />
@@ -296,9 +310,7 @@ export default function OwnedScreen() {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={{ paddingBottom: 104 }}
         renderItem={({ item }) => (
-          <View onTouchStart={(event) => { if (event.nativeEvent.locationX <= 32) setEdgeSwipeItemId(item.id); }} onTouchEnd={() => setEdgeSwipeItemId(null)} onTouchCancel={() => setEdgeSwipeItemId(null)}>
             <Swipeable
-              enabled={edgeSwipeItemId !== item.id}
               ref={(r) => { if (r) swipeRefs.current.set(item.id, r); else swipeRefs.current.delete(item.id); }}
               renderRightActions={renderRightActions}
               renderLeftActions={item.status === 'used_up' ? undefined : renderLeftActions}
@@ -327,7 +339,6 @@ export default function OwnedScreen() {
                 </PaintRow>
               </TouchableOpacity>
             </Swipeable>
-          </View>
         )}
         ListEmptyComponent={(
           <EmptyState
@@ -391,9 +402,12 @@ export default function OwnedScreen() {
   );
 }
 
+export default function OwnedScreen() {
+  return <InventoryScreen usedScreen={false} />;
+}
+
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  edgeGestureZone: { position: 'absolute', zIndex: 10, top: 0, bottom: 0, left: 0, width: 32 },
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   statusBarWrap: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
   statusCount: { color: colors.text, fontSize: 15, fontVariant: ['tabular-nums'] },

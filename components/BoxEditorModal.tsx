@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconArchive, IconBox, IconBriefcase, IconBuildingWarehouse, IconFlask, IconPackage } from '@tabler/icons-react-native';
 import { t } from '../lib/i18n';
+import { useModalLock } from '../lib/modalLock';
 import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
 import ClearableInput from './ClearableInput';
 
@@ -16,6 +17,7 @@ const ICONS: { value: BoxIcon; Icon: typeof IconBox }[] = [
 ];
 
 export default function BoxEditorModal({ visible, title, initial, onSave, onClose }: Props) {
+  useModalLock(visible);
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [name, setName] = useState('');

@@ -89,7 +89,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   useEffect(() => {
     if (visible) {
       load();
-      getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id').then(setBoxes);
+      getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY sort_order, id').then(setBoxes);
     } else {
       setDetail(null);
       setNote('');

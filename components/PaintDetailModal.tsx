@@ -22,7 +22,7 @@ import {
   updateManualPaint,
 } from '../lib/db';
 import { glossLabel } from '../lib/gloss';
-import { t } from '../lib/i18n';
+import { t, useLocale } from '../lib/i18n';
 import { paintName, seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
 import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
@@ -67,12 +67,14 @@ function toneColors(hex: string | null): string[] {
 
 export default function PaintDetailModal({ visible, paintId, onClose, onChanged, initialEditing = false }: Props) {
   useModalLock(visible);
+  const locale = useLocale();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [detail, setDetail] = useState<CatalogPaintDetail | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [nameJa, setNameJa] = useState('');
+  const [nameEn, setNameEn] = useState('');
   const [brand, setBrand] = useState('');
   const [series, setSeries] = useState('');
   const [code, setCode] = useState('');
@@ -93,9 +95,10 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   const master = detail?.source === 'catalog' ? getMasterCatalogPaint(detail.catalog_code) : null;
   const isManual = detail?.source === 'manual';
   const finish = detail?.gloss === 'メタリック' || detail?.gloss === 'パール';
-  const canSave = nameJa.trim() !== '' && (isManual ? brand.trim() !== '' && series.trim() !== '' : true);
+  const canSave = (nameJa.trim() !== '' || nameEn.trim() !== '') && (isManual ? brand.trim() !== '' && series.trim() !== '' : true);
   const hasUnsavedChanges = isEditing && detail != null && (
     nameJa !== (detail.name_ja ?? '')
+    || nameEn !== (detail.name_en ?? '')
     || brand !== (detail.brand ?? '')
     || series !== (detail.series ?? '')
     || code !== (detail.code ?? '')
@@ -107,6 +110,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
 
   const syncFields = useCallback((paint: CatalogPaintDetail) => {
     setNameJa(paint.name_ja ?? '');
+    setNameEn(paint.name_en ?? '');
     setBrand(paint.brand ?? '');
     setSeries(paint.series ?? '');
     setCode(paint.code ?? '');
@@ -140,7 +144,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     if (visible) {
       load();
       setIsEditing(initialEditing);
-      getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id').then(setBoxes);
+      getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY sort_order, id').then(setBoxes);
       getDefaultBoxId().then(setSelectedBoxId);
     } else {
       setDetail(null);
@@ -184,11 +188,13 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
 
   const save = async () => {
     if (!detail) return;
+    const pairedNameJa = nameJa.trim() || nameEn.trim();
+    const pairedNameEn = nameEn.trim() || nameJa.trim();
     try {
       if (detail.source === 'manual') {
-        await updateManualPaint(detail.id, { nameJa, brand, series, code, hex, gloss, paintType });
+        await updateManualPaint(detail.id, { nameJa: pairedNameJa, nameEn: pairedNameEn, brand, series, code, hex, gloss, paintType });
       } else {
-        await updateCatalogPaintContent(detail.id, { nameJa, hex, gloss, paintType });
+        await updateCatalogPaintContent(detail.id, { nameJa: pairedNameJa, nameEn: pairedNameEn, hex, gloss, paintType });
       }
       await updateCatalogPaintNotes(detail.id, notes);
       await load();
@@ -409,8 +415,10 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
           ) : (
             <>
             <SwipeDownScrollView style={styles.scroll} onClose={returnToDetail} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-              <EditField label={t('name')} value={nameJa} onChangeText={setNameJa} styles={styles} />
+              <EditField label={locale === 'ja' ? '名前（和名）' : 'Name (Japanese)'} value={nameJa} onChangeText={setNameJa} styles={styles} />
               {masterLine(nameJa, master?.name_ja)}
+              <EditField label={locale === 'ja' ? '名前（英名）' : 'Name (English)'} value={nameEn} onChangeText={setNameEn} styles={styles} />
+              {masterLine(nameEn, master?.name_en)}
 
               {isManual ? (
                 <>

@@ -5,9 +5,9 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { IconHeart } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB } from '../../lib/db';
-import { t } from '../../lib/i18n';
+import { t, useLocale } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
-import { useTheme, lightColors } from '../../lib/theme';
+import { useTheme, lightColors, spacing, touch } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
 import ActionSheet, { ActionSheetButton } from '../../components/ActionSheet';
 import AdBanner from '../../components/AdBanner';
@@ -42,6 +42,7 @@ const SORT_ORDER: Record<Sort, string> = {
 };
 
 export default function FavoritesScreen() {
+  const locale = useLocale();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<ListItem[]>([]);
@@ -148,6 +149,9 @@ export default function FavoritesScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.statusBarWrap}>
+        <Text style={styles.statusCount}>{locale === 'ja' ? `塗料数 ${totalCount} ・ 表示数 ${items.length}` : `Paints ${totalCount} · Showing ${items.length}`}</Text>
+      </View>
       <View style={styles.adBar}><AdBanner /></View>
       <FlatList
         data={items}
@@ -213,6 +217,8 @@ export default function FavoritesScreen() {
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
+  statusBarWrap: { minHeight: touch.min, justifyContent: 'center', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
+  statusCount: { color: colors.text, fontSize: 15, fontVariant: ['tabular-nums'] },
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },

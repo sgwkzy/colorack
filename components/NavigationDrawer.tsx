@@ -1,11 +1,11 @@
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconArchive, IconBox, IconBriefcase, IconBuildingWarehouse, IconFlask, IconHistory, IconHeart, IconPackage, IconPalette, IconPlus, IconSettings, IconShoppingCartPlus, IconStack } from '@tabler/icons-react-native';
 import { router, usePathname } from 'expo-router';
-import { setActiveBox, useActiveBox } from '../lib/activeBox';
+import { notifyBoxesChanged, setActiveBox, useActiveBox } from '../lib/activeBox';
 import { getDB } from '../lib/db';
-import { getLocale, t } from '../lib/i18n';
+import { t, useLocale } from '../lib/i18n';
 import { lightColors, spacing, touch, useTheme } from '../lib/theme';
 import BoxEditorModal, { BoxDraft, BoxIcon } from './BoxEditorModal';
 
@@ -16,28 +16,22 @@ interface Props { visible: boolean; onClose: () => void; }
 
 export default function NavigationDrawer({ visible, onClose }: Props) {
   const { colors } = useTheme();
+  const locale = useLocale();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const pathname = usePathname();
   const activeBoxId = useActiveBox();
-  const allBoxesLabel = getLocale() === 'ja' ? 'すべてのボックス' : 'All Boxes';
+  const allBoxesLabel = locale === 'ja' ? 'すべてのボックス' : 'All Boxes';
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [boxCounts, setBoxCounts] = useState<Map<number | null, number>>(new Map());
   const [favoriteCount, setFavoriteCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [usedCount, setUsedCount] = useState(0);
-  const [editingBox, setEditingBox] = useState<Box | 'new' | null>(null);
-  const [mounted, setMounted] = useState(visible);
-  const longPressRef = useRef(false);
-  const drawerX = useRef(new Animated.Value(-360)).current;
-  const drawerPan = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponderCapture: (_event, gesture) => gesture.dx < -12 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
-    onPanResponderRelease: (_event, gesture) => { if (gesture.dx < -60) onClose(); },
-  }), [onClose]);
+  const [editingBox, setEditingBox] = useState<'new' | null>(null);
 
   const loadBoxes = useCallback(async () => {
     const db = getDB();
     const [boxRows, countRows, favoriteRow, wishlistRow, usedRow] = await Promise.all([
-      db.getAllAsync<Box>('SELECT id, name, icon, icon_color FROM boxes ORDER BY id'),
+      db.getAllAsync<Box>('SELECT id, name, icon, icon_color FROM boxes ORDER BY sort_order, id'),
       db.getAllAsync<CountRow>("SELECT box_id, COUNT(*) AS n FROM inventory WHERE status IN ('owned', 'in_use') GROUP BY box_id"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM lists WHERE type = 'favorites'"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM lists WHERE type = 'wishlist'"),
@@ -50,18 +44,10 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     setUsedCount(usedRow?.n ?? 0);
   }, []);
   useEffect(() => { if (visible) loadBoxes(); }, [visible, loadBoxes]);
-  useEffect(() => {
-    if (visible) {
-      setMounted(true);
-      Animated.timing(drawerX, { toValue: 0, duration: 220, useNativeDriver: true }).start();
-    } else if (mounted) {
-      Animated.timing(drawerX, { toValue: -360, duration: 180, useNativeDriver: true }).start(() => setMounted(false));
-    }
-  }, [drawerX, mounted, visible]);
   const saveBox = async ({ name, icon, color }: BoxDraft) => {
     const db = getDB();
-    if (editingBox === 'new') await db.runAsync('INSERT INTO boxes (name, icon, icon_color) VALUES (?, ?, ?)', [name, icon, color]);
-    else if (editingBox) await db.runAsync('UPDATE boxes SET name = ?, icon = ?, icon_color = ? WHERE id = ?', [name, icon, color, editingBox.id]);
+    if (editingBox === 'new') await db.runAsync('INSERT INTO boxes (name, icon, icon_color, sort_order) VALUES (?, ?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM boxes), 0))', [name, icon, color]);
+    notifyBoxesChanged();
     await loadBoxes();
   };
   const go = (pathname: '/owned' | '/used' | '/favorites' | '/wishlist' | '/catalog' | '/settings', boxId?: number | 'all') => {
@@ -70,8 +56,8 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     if (boxId !== undefined) router.navigate({ pathname, params: { boxId: String(boxId) } });
     else router.navigate(pathname);
   };
-  const item = (label: string, onPress: () => void, icon: ReactNode, active = false, count?: number, onLongPress?: () => void, key?: string) => (
-    <TouchableOpacity key={key} style={[styles.item, active && styles.activeItem]} onPress={() => { if (longPressRef.current) { longPressRef.current = false; return; } onPress(); }} onLongPress={onLongPress ? () => { longPressRef.current = true; onLongPress(); } : undefined} accessibilityRole="button">
+  const item = (label: string, onPress: () => void, icon: ReactNode, active = false, count?: number, key?: string) => (
+    <TouchableOpacity key={key} style={[styles.item, active && styles.activeItem]} onPress={onPress} accessibilityRole="button">
       <View style={styles.icon}>{icon}</View><Text style={[styles.itemText, active && styles.activeText]}>{label}</Text>
       {count !== undefined ? <Text style={styles.count}>{count}</Text> : null}
     </TouchableOpacity>
@@ -86,18 +72,15 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     if (box.icon === 'stack') return <IconStack color={color} size={22} />;
     return <IconBox color={color} size={22} />;
   };
+  const totalCount = Array.from(boxCounts.values()).reduce((sum, count) => sum + count, 0);
   return (
-    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
-      <SafeAreaProvider>
-      <View style={styles.root}>
-        <Animated.View style={[styles.drawer, { transform: [{ translateX: drawerX }] }]} {...drawerPan.panHandlers}>
         <SafeAreaView edges={['top', 'bottom']} style={styles.drawerContent}>
           <ScrollView contentContainerStyle={styles.content}>
             <Text style={styles.title}>Colorack</Text>
-            {item(allBoxesLabel, () => go('/owned', 'all'), <IconBox color={colors.textMuted} size={22} />, pathname.endsWith('/owned') && activeBoxId === 'all', boxCounts.get(null) ?? Array.from(boxCounts.values()).reduce((sum, count) => sum + count, 0))}
+            {item(allBoxesLabel, () => go('/owned', 'all'), <IconBox color={colors.textMuted} size={22} />, pathname.endsWith('/owned') && activeBoxId === 'all', totalCount)}
             <View style={styles.divider} />
-            {boxes.map((box) => item(box.name, () => go('/owned', box.id), boxIcon(box), pathname.endsWith('/owned') && activeBoxId === box.id, boxCounts.get(box.id) ?? 0, () => setEditingBox(box), `box-${box.id}`))}
-            {item(t('addBox'), () => setEditingBox('new'), <IconPlus color={colors.primary} size={22} />)}
+            {boxes.map((box) => item(box.name, () => go('/owned', box.id), boxIcon(box), pathname.endsWith('/owned') && activeBoxId === box.id, boxCounts.get(box.id) ?? 0, `box-${box.id}`))}
+            {boxes.length < 8 ? item(t('addBox'), () => setEditingBox('new'), <IconPlus color={colors.primary} size={22} />) : null}
             <View style={styles.divider} />
             {item(t('statusUsedUp'), () => go('/used'), <IconHistory color={colors.textMuted} size={22} />, pathname.endsWith('/used'), usedCount)}
             {item(t('favorites'), () => go('/favorites'), <IconHeart color={colors.textMuted} size={22} />, pathname.endsWith('/favorites'), favoriteCount)}
@@ -106,19 +89,12 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
             {item(t('catalog'), () => go('/catalog'), <IconPalette color={colors.textMuted} size={22} />, pathname.endsWith('/catalog'))}
             {item(t('settings'), () => go('/settings'), <IconSettings color={colors.textMuted} size={22} />, pathname.endsWith('/settings'))}
           </ScrollView>
-        </SafeAreaView></Animated.View>
-        <Pressable style={styles.backdrop} onPress={onClose} />
-      </View>
-      <BoxEditorModal visible={editingBox != null} title={editingBox === 'new' ? t('addBox') : t('rename')} initial={editingBox && editingBox !== 'new' ? { name: editingBox.name, icon: editingBox.icon ?? 'box', color: editingBox.icon_color ?? colors.primary } : undefined} onSave={saveBox} onClose={() => setEditingBox(null)} />
-      </SafeAreaProvider>
-    </Modal>
+          <BoxEditorModal visible={editingBox === 'new'} title={t('addBox')} onSave={saveBox} onClose={() => setEditingBox(null)} />
+        </SafeAreaView>
   );
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  root: { flex: 1, flexDirection: 'row' },
-  backdrop: { flex: 1 },
-  drawer: { width: '82%', maxWidth: 360, backgroundColor: colors.surface },
   drawerContent: { flex: 1, backgroundColor: colors.surface },
   content: { paddingBottom: spacing.xxl },
   title: { paddingHorizontal: spacing.xxl, paddingBottom: spacing.xl, fontSize: 22, fontWeight: '700', color: colors.text },

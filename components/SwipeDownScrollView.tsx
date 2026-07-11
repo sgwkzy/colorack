@@ -27,23 +27,31 @@ export function swipeDownCloseProps(onClose: () => void): Pick<ScrollViewProps, 
 }
 
 export default function SwipeDownScrollView({ onClose, onScroll, onScrollEndDrag, onTouchEnd, onTouchStart, ...rest }: Props) {
-  const closeProps = swipeDownCloseProps(onClose);
   const startY = useRef<number | null>(null);
+  const startOffsetY = useRef(0);
   const offsetY = useRef(0);
+  const closedInGesture = useRef(false);
+  const close = () => {
+    if (closedInGesture.current) return;
+    closedInGesture.current = true;
+    onClose();
+  };
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     offsetY.current = e.nativeEvent.contentOffset.y;
     onScroll?.(e);
   };
   const handleScrollEndDrag = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    closeProps.onScrollEndDrag?.(e);
+    if (e.nativeEvent.contentOffset.y < CLOSE_OFFSET) close();
     onScrollEndDrag?.(e);
   };
   const handleTouchStart = (e: NativeSyntheticEvent<NativeTouchEvent>) => {
     startY.current = e.nativeEvent.pageY;
+    startOffsetY.current = offsetY.current;
+    closedInGesture.current = false;
     onTouchStart?.(e);
   };
   const handleTouchEnd = (e: NativeSyntheticEvent<NativeTouchEvent>) => {
-    if (startY.current !== null && e.nativeEvent.pageY - startY.current > 90 && offsetY.current <= 0) onClose();
+    if (startY.current !== null && startOffsetY.current <= 0 && e.nativeEvent.pageY - startY.current > 90 && offsetY.current <= 0) close();
     startY.current = null;
     onTouchEnd?.(e);
   };

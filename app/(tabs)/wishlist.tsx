@@ -5,9 +5,9 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { IconShoppingCartPlus } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId } from '../../lib/db';
-import { t } from '../../lib/i18n';
+import { t, useLocale } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
-import { useTheme, lightColors } from '../../lib/theme';
+import { useTheme, lightColors, spacing, touch } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
 import ActionSheet, { ActionSheetButton } from '../../components/ActionSheet';
 import AdBanner from '../../components/AdBanner';
@@ -42,6 +42,7 @@ const SORT_ORDER: Record<Sort, string> = {
 };
 
 export default function WishlistScreen() {
+  const locale = useLocale();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<ListItem[]>([]);
@@ -171,7 +172,9 @@ export default function WishlistScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.edgeGestureZone} pointerEvents="box-only" />
+      <View style={styles.statusBarWrap}>
+        <Text style={styles.statusCount}>{locale === 'ja' ? `塗料数 ${totalCount} ・ 表示数 ${items.length}` : `Paints ${totalCount} · Showing ${items.length}`}</Text>
+      </View>
       <View style={styles.adBar}><AdBanner /></View>
       <FlatList
         data={items}
@@ -244,7 +247,8 @@ export default function WishlistScreen() {
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  edgeGestureZone: { position: 'absolute', zIndex: 10, top: 0, bottom: 0, left: 0, width: 32 },
+  statusBarWrap: { minHeight: touch.min, justifyContent: 'center', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
+  statusCount: { color: colors.text, fontSize: 15, fontVariant: ['tabular-nums'] },
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   purchasedAction: { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', width: 96 },
   purchasedActionText: { color: colors.onPrimary, fontWeight: 'bold' },
