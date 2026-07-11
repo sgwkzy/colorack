@@ -32,6 +32,7 @@ import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
 import Toast from './Toast';
+import { useModalLock } from '../lib/modalLock';
 
 interface Box { id: number; name: string; }
 interface StockStatusRow { box_name: string | null; status: string; n: number; }
@@ -46,6 +47,7 @@ interface Props {
 }
 
 export default function PaintDetailModal({ visible, paintId, onClose, onChanged, initialEditing = false }: Props) {
+  useModalLock(visible);
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [detail, setDetail] = useState<CatalogPaintDetail | null>(null);

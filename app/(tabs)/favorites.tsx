@@ -2,13 +2,12 @@
 import { useCallback, useRef, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, LayoutAnimation } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-import { IconArrowsSort, IconPlus, IconSearch, IconHeart } from '@tabler/icons-react-native';
+import { IconHeart } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
-import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
-import { useUiPrefs, type FabSide } from '../../lib/uiPrefs';
+import { useTheme, lightColors } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
 import ActionSheet, { ActionSheetButton } from '../../components/ActionSheet';
 import AdBanner from '../../components/AdBanner';
@@ -17,6 +16,7 @@ import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintRow from '../../components/PaintRow';
 import Toast from '../../components/Toast';
+import ListActionBar from '../../components/ListActionBar';
 
 interface ListItem {
   id: number;
@@ -43,8 +43,7 @@ const SORT_ORDER: Record<Sort, string> = {
 
 export default function FavoritesScreen() {
   const { colors } = useTheme();
-  const { fabSide } = useUiPrefs();
-  const styles = useMemo(() => makeStyles(colors, fabSide), [colors, fabSide]);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<ListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [filter, setFilter] = useState<PaintFilter>(EMPTY_FILTER);
@@ -179,19 +178,9 @@ export default function FavoritesScreen() {
             onAction={trulyEmpty ? () => setShowAdd(true) : undefined}
           />
         )}
-        contentContainerStyle={{ paddingBottom: 232 }}
+        contentContainerStyle={{ paddingBottom: 16 }}
       />
-      <View style={styles.fabContainer} pointerEvents="box-none">
-        <TouchableOpacity style={[styles.fab, styles.filterFab, filterActive && styles.filterFabActive]} onPress={() => setShowFilter(true)} accessibilityRole="button" accessibilityLabel={t('filter')}>
-          <IconSearch color={colors.onPrimary} size={26} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.fab, styles.sortFab]} onPress={openSort} accessibilityRole="button" accessibilityLabel={t('sort')}>
-          <IconArrowsSort color={colors.onPrimary} size={24} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.fab, styles.addFab]} onPress={() => setShowAdd(true)} accessibilityRole="button" accessibilityLabel={t('addPaint')}>
-          <IconPlus color={colors.onPrimary} size={28} />
-        </TouchableOpacity>
-      </View>
+      <ListActionBar onFilter={() => setShowFilter(true)} onSort={openSort} onAdd={() => setShowAdd(true)} filterActive={filterActive} />
       <FilterModal
         visible={showFilter}
         options={filterOptions}
@@ -222,31 +211,9 @@ export default function FavoritesScreen() {
   );
 }
 
-const makeStyles = (colors: typeof lightColors, fabSide: FabSide) => StyleSheet.create({
+const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
-  fabContainer: fabSide === 'bottom' ? {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: spacing.xxl,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacing.lg,
-  } : {},
-  fab: {
-    ...(fabSide === 'bottom' ? {} : {
-      position: 'absolute',
-      ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }),
-    }),
-    width: 56, height: 56, borderRadius: radius.fab,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  addFab: fabSide === 'bottom' ? { backgroundColor: colors.favoriteAccent } : { bottom: spacing.xxl, backgroundColor: colors.favoriteAccent },
-  sortFab: fabSide === 'bottom' ? { backgroundColor: colors.neutralAction } : { bottom: 92, backgroundColor: colors.neutralAction },
-  filterFab: fabSide === 'bottom' ? { backgroundColor: colors.neutralAction } : { bottom: 160, backgroundColor: colors.neutralAction },
-  filterFabActive: { backgroundColor: colors.primary },
 });

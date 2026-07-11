@@ -15,6 +15,7 @@ import HierarchyBrowser from './HierarchyBrowser';
 import ColorMatcher from './ColorMatcher';
 import ManualEntry from './ManualEntry';
 import Toast from '../Toast';
+import { useModalLock } from '../../lib/modalLock';
 
 interface Paint {
   id: number;
@@ -34,6 +35,7 @@ interface Props {
 const TABS = ['hierarchy', 'textSearch', 'colorMatch', 'manual'] as const;
 
 export default function AddPaintModal({ visible, onClose, defaultStatus, boxId = null }: Props) {
+  useModalLock(visible);
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [tab, setTab] = useState<typeof TABS[number]>('hierarchy');
@@ -108,6 +110,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
                 onSelect={addToInventory}
                 showInventory={isInventory}
                 defaultBoxId={boxId}
+                onRequestClose={onClose}
               />
             )}
           </View>

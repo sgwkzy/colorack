@@ -49,7 +49,7 @@ export async function initDB(): Promise<void> {
     ');' +
     'CREATE TABLE IF NOT EXISTS boxes (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  name TEXT NOT NULL, location TEXT, note TEXT' +
+    "  name TEXT NOT NULL, location TEXT, note TEXT, icon TEXT NOT NULL DEFAULT 'box', icon_color TEXT NOT NULL DEFAULT '#4a90d9'" +
     ');' +
     'CREATE TABLE IF NOT EXISTS inventory (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
@@ -76,6 +76,10 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN series_en TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN notes TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE inventory ADD COLUMN status_changed_at TEXT'); } catch { /* 既にある */ }
+  try { await db.execAsync("ALTER TABLE boxes ADD COLUMN icon TEXT NOT NULL DEFAULT 'box'"); } catch { /* 既にある */ }
+  try { await db.execAsync("ALTER TABLE boxes ADD COLUMN icon_color TEXT NOT NULL DEFAULT '#4a90d9'"); } catch { /* 既にある */ }
+  // 使用済は共通履歴。ボックスから外しておけば、ボックス削除/変更に影響されない。
+  await db.runAsync("UPDATE inventory SET box_id = NULL WHERE status = 'used_up'");
 
   // 旧スキーマ(code が UNIQUE でブランドをまたいで衝突する)の端末はテーブルを作り直す。
   // code 単体の UNIQUE は SQLite の ALTER では外せないため、テーブルごと再構築する。
@@ -303,8 +307,8 @@ export async function updateInventoryBox(inventoryId: number, boxId: number): Pr
 
 export async function setInventoryStatus(inventoryId: number, status: PaintStatus): Promise<void> {
   await getDB().runAsync(
-    "UPDATE inventory SET status = ?, status_changed_at = datetime('now') WHERE id = ?",
-    [status, inventoryId]
+    "UPDATE inventory SET status = ?, box_id = CASE WHEN ? = 'used_up' THEN NULL ELSE box_id END, status_changed_at = datetime('now') WHERE id = ?",
+    [status, status, inventoryId]
   );
 }
 

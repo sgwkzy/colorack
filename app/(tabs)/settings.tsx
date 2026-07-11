@@ -6,7 +6,7 @@ import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId, resetCatalogToMaster, setSetting } from '../../lib/db';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
-import { useUiPrefs, setFabSide, setListFontSize } from '../../lib/uiPrefs';
+import { useUiPrefs, setActionOrder, setListFontSize } from '../../lib/uiPrefs';
 
 interface Box { id: number; name: string; }
 
@@ -19,7 +19,7 @@ const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
 export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
   const { colors, mode } = useTheme();
-  const { fabSide, listFontSize } = useUiPrefs();
+  const { actionOrder, listFontSize } = useUiPrefs();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
@@ -97,16 +97,13 @@ export default function SettingsScreen() {
         </View>
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('fabPosition')}</Text>
+        <Text style={styles.sectionTitle}>{isJa ? 'メニューの並び順' : 'Action Order'}</Text>
         <View style={styles.themeRow}>
-          <TouchableOpacity style={[styles.themeBtn, fabSide === 'left' && styles.themeBtnOn]} onPress={() => setFabSide('left')}>
-            <Text style={[styles.themeBtnText, fabSide === 'left' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionLeft')}</Text>
+          <TouchableOpacity style={[styles.themeBtn, actionOrder === 'normal' && styles.themeBtnOn]} onPress={() => setActionOrder('normal')}>
+            <Text style={[styles.themeBtnText, actionOrder === 'normal' && styles.themeBtnTextOn]} numberOfLines={1}>{isJa ? '正順' : 'Normal'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.themeBtn, fabSide === 'right' && styles.themeBtnOn]} onPress={() => setFabSide('right')}>
-            <Text style={[styles.themeBtnText, fabSide === 'right' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionRight')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.themeBtn, fabSide === 'bottom' && styles.themeBtnOn]} onPress={() => setFabSide('bottom')}>
-            <Text style={[styles.themeBtnText, fabSide === 'bottom' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionBottom')}</Text>
+          <TouchableOpacity style={[styles.themeBtn, actionOrder === 'reverse' && styles.themeBtnOn]} onPress={() => setActionOrder('reverse')}>
+            <Text style={[styles.themeBtnText, actionOrder === 'reverse' && styles.themeBtnTextOn]} numberOfLines={1}>{isJa ? '逆順' : 'Reverse'}</Text>
           </TouchableOpacity>
         </View>
       </View>

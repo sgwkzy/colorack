@@ -1,12 +1,13 @@
 // components/AddPaint/ManualEntry.tsx
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import ColorCameraPicker from '../ColorCameraPicker';
 import { catalogCode, getDB, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { validateManualPaint } from '../../lib/manualPaint';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import PaintFormFields, { optionChip } from '../PaintFormFields';
+import SwipeDownScrollView from '../SwipeDownScrollView';
 
 interface Paint {
   id: number;
@@ -21,6 +22,7 @@ interface Props {
   // 在庫コンテキスト(保管箱の＋)なら在庫ステータス/ボックスの選択欄を出す。
   showInventory?: boolean;
   defaultBoxId?: number | null;
+  onRequestClose?: () => void;
 }
 
 const STATUS_OPTIONS: { key: PaintStatus; label: string }[] = [
@@ -29,7 +31,7 @@ const STATUS_OPTIONS: { key: PaintStatus; label: string }[] = [
   { key: 'used_up', label: 'statusUsedUp' },
 ];
 
-export default function ManualEntry({ onSelect, showInventory = false, defaultBoxId = null }: Props) {
+export default function ManualEntry({ onSelect, showInventory = false, defaultBoxId = null, onRequestClose }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [nameJa, setNameJa] = useState('');
@@ -76,7 +78,7 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
   const chip = optionChip;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+    <SwipeDownScrollView onClose={onRequestClose ?? (() => {})} style={styles.container} contentContainerStyle={{ padding: 16, flexGrow: 1 }} alwaysBounceVertical keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
       <PaintFormFields
         fields={[
           { label: t('name') + '*', value: nameJa, set: setNameJa },
@@ -121,7 +123,7 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
         onClose={() => setColorPickerVisible(false)}
         onPick={setHex}
       />
-    </ScrollView>
+    </SwipeDownScrollView>
   );
 }
 

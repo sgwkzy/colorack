@@ -28,6 +28,7 @@ import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
 import Toast from './Toast';
+import { useModalLock } from '../lib/modalLock';
 
 interface Box { id: number; name: string; }
 
@@ -45,6 +46,7 @@ interface Props {
 }
 
 export default function InventoryDetailModal({ visible, inventoryId, onClose, onChanged }: Props) {
+  useModalLock(visible);
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [detail, setDetail] = useState<InventoryDetail | null>(null);
@@ -110,7 +112,10 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   // 半透明背景越しに透けて見える問題があった(ネイティブAlertはOSが別レイヤーで描画する)。
   const promptAddToWishlist = (item: InventoryDetail) => {
     Alert.alert(t('addToWishlistPrompt'), '', [
-      { text: t('dontAddToList'), style: 'cancel' },
+      {
+        text: t('cancel'), style: 'cancel',
+      },
+      { text: t('dontAddToList'), onPress: async () => { await setInventoryStatus(item.id, 'used_up'); await load(); onChanged?.(); showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast')); } },
       {
         text: t('add'),
         onPress: async () => {
@@ -118,8 +123,10 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
           if (!membership.wishlist) {
             await getDB().runAsync("INSERT INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
           }
+          await setInventoryStatus(item.id, 'used_up');
+          await load();
           onChanged?.();
-          showToast(paintName(item.name_ja, item.name_en) + t('addedToast'));
+          showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast'));
         },
       },
     ]);
@@ -128,10 +135,10 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   const changeStatus = async (status: PaintStatus) => {
     if (!detail || detail.status === status) return;
     const previous = detail;
+    if (status === 'used_up') { promptAddToWishlist(previous); return; }
     await setInventoryStatus(detail.id, status);
     await load();
     onChanged?.();
-    if (status === 'used_up') promptAddToWishlist(previous);
   };
 
   // datetime('now') は 'YYYY-MM-DD HH:MM:SS' 形式なので秒を切り落として表示。
@@ -184,7 +191,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
               <View style={styles.divider} />
 
               {/* この在庫固有の情報(主役) */}
-              <View style={styles.field}>
+              {detail.status !== 'used_up' && <View style={styles.field}>
                 <Text style={styles.label}>{t('box')}</Text>
                 <TouchableOpacity style={styles.dropdown} onPress={() => setBoxPickerOpen((o) => !o)}>
                   <Text style={styles.dropdownLabel}>{boxName}</Text>
@@ -201,7 +208,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
                     ))}
                   </ScrollView>
                 )}
-              </View>
+              </View>}
 
               <View style={styles.field}>
                 <Text style={styles.label}>{t('status')}</Text>
