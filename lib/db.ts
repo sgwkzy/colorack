@@ -49,13 +49,13 @@ export async function initDB(): Promise<void> {
     ');' +
     'CREATE TABLE IF NOT EXISTS boxes (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  name TEXT NOT NULL, location TEXT, note TEXT' +
+    "  name TEXT NOT NULL, location TEXT, note TEXT, icon TEXT NOT NULL DEFAULT 'box', icon_color TEXT NOT NULL DEFAULT '#4a90d9', sort_order INTEGER NOT NULL DEFAULT 0" +
     ');' +
     'CREATE TABLE IF NOT EXISTS inventory (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     "  paint_id INTEGER NOT NULL, box_id INTEGER," +
     "  status TEXT NOT NULL DEFAULT 'owned' CHECK(status IN ('owned','in_use','used_up'))," +
-    "  note TEXT, added_at TEXT DEFAULT (datetime('now'))" +
+    "  note TEXT, added_at TEXT DEFAULT (datetime('now')), status_changed_at TEXT DEFAULT (datetime('now'))" +
     ');' +
     'CREATE TABLE IF NOT EXISTS lists (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
@@ -68,6 +68,10 @@ export async function initDB(): Promise<void> {
     '  key TEXT PRIMARY KEY, value TEXT' +
     ');'
   );
+  await db.execAsync(
+    'DELETE FROM lists WHERE id NOT IN (SELECT MIN(id) FROM lists GROUP BY type, paint_id);' +
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_lists_type_paint ON lists(type, paint_id);'
+  );
 
   // 既存DBに gloss 列が無ければ追加(SQLiteは IF NOT EXISTS 非対応なので try/catch)
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN gloss TEXT'); } catch { /* 既にある */ }
@@ -76,6 +80,17 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN series_en TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN notes TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE inventory ADD COLUMN status_changed_at TEXT'); } catch { /* 既にある */ }
+  await db.runAsync(
+    'UPDATE inventory SET status_changed_at = added_at WHERE status_changed_at IS NULL OR status_changed_at < added_at'
+  );
+  try { await db.execAsync("ALTER TABLE boxes ADD COLUMN icon TEXT NOT NULL DEFAULT 'box'"); } catch { /* 既にある */ }
+  try { await db.execAsync("ALTER TABLE boxes ADD COLUMN icon_color TEXT NOT NULL DEFAULT '#4a90d9'"); } catch { /* 既にある */ }
+  try {
+    await db.execAsync('ALTER TABLE boxes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0');
+    await db.runAsync('UPDATE boxes SET sort_order = id');
+  } catch { /* 既にある */ }
+  // 使用済は共通履歴。ボックスから外しておけば、ボックス削除/変更に影響されない。
+  await db.runAsync("UPDATE inventory SET box_id = NULL WHERE status = 'used_up'");
 
   // 旧スキーマ(code が UNIQUE でブランドをまたいで衝突する)の端末はテーブルを作り直す。
   // code 単体の UNIQUE は SQLite の ALTER では外せないため、テーブルごと再構築する。
@@ -94,8 +109,8 @@ export async function initDB(): Promise<void> {
       '  l REAL, a_star REAL, b_star REAL, barcode TEXT, gloss TEXT, paint_type TEXT, source TEXT, notes TEXT' +
       ');' +
       'INSERT INTO catalog_paints' +
-      ' (id, catalog_code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source)' +
-      " SELECT id, brand || '|' || series || '|' || code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source" +
+      ' (id, catalog_code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source, notes)' +
+      " SELECT id, brand || '|' || series || '|' || code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source, notes" +
       ' FROM catalog_paints_old;' +
       'DROP TABLE catalog_paints_old;'
     );
@@ -273,7 +288,7 @@ export interface InventoryDetail {
 
 export async function getInventoryDetail(inventoryId: number): Promise<InventoryDetail | null> {
   const row = await getDB().getFirstAsync<InventoryDetail>(
-    'SELECT i.id, i.paint_id, i.box_id, b.name AS box_name, i.status, i.note, i.added_at, i.status_changed_at,'
+    'SELECT i.id, i.paint_id, i.box_id, b.name AS box_name, i.status, i.note, i.added_at, COALESCE(i.status_changed_at, i.added_at) AS status_changed_at,'
     + ' c.catalog_code, c.brand, c.series, c.series_en, c.code, c.name_ja, c.name_en, c.hex, c.gloss, c.paint_type, c.source, c.notes AS paint_notes'
     + ' FROM inventory i'
     + ' JOIN catalog_paints c ON i.paint_id = c.id'
@@ -302,14 +317,16 @@ export async function updateInventoryBox(inventoryId: number, boxId: number): Pr
 }
 
 export async function setInventoryStatus(inventoryId: number, status: PaintStatus): Promise<void> {
+  const defaultBoxId = status === 'used_up' ? null : await getDefaultBoxId();
   await getDB().runAsync(
-    "UPDATE inventory SET status = ?, status_changed_at = datetime('now') WHERE id = ?",
-    [status, inventoryId]
+    "UPDATE inventory SET status = ?, box_id = CASE WHEN ? = 'used_up' THEN NULL WHEN box_id IS NULL THEN ? ELSE box_id END, status_changed_at = datetime('now') WHERE id = ?",
+    [status, status, defaultBoxId, inventoryId]
   );
 }
 
 export interface CatalogPaintContentEdit {
   nameJa: string;
+  nameEn?: string;
   hex: string;
   gloss: string | null;
   paintType: string | null;
@@ -329,8 +346,8 @@ export async function updateCatalogPaintContent(paintId: number, edit: CatalogPa
   });
   if (!normalized) return;
   await getDB().runAsync(
-    'UPDATE catalog_paints SET name_ja=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
-    [normalized.nameJa, normalized.normalizedHex,
+    'UPDATE catalog_paints SET name_ja=?, name_en=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
+    [normalized.nameJa, edit.nameEn ?? current.name_en, normalized.normalizedHex,
      normalized.rgb?.r ?? null, normalized.rgb?.g ?? null, normalized.rgb?.b ?? null,
      normalized.lab?.L ?? null, normalized.lab?.a ?? null, normalized.lab?.b ?? null,
      normalized.gloss, normalized.paintType, paintId]
@@ -339,6 +356,7 @@ export async function updateCatalogPaintContent(paintId: number, edit: CatalogPa
 
 export interface ManualPaintEdit {
   nameJa: string;
+  nameEn?: string;
   brand: string;
   series: string;
   code: string;
@@ -352,8 +370,8 @@ export async function updateManualPaint(paintId: number, edit: ManualPaintEdit):
   if (!normalized) return;
   const catCode = catalogCode(normalized.brand, normalized.series, normalized.code);
   await getDB().runAsync(
-    'UPDATE catalog_paints SET catalog_code=?, brand=?, series=?, code=?, name_ja=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
-    [catCode, normalized.brand, normalized.series, normalized.code, normalized.nameJa, normalized.normalizedHex,
+    'UPDATE catalog_paints SET catalog_code=?, brand=?, series=?, code=?, name_ja=?, name_en=?, hex=?, r=?, g=?, b=?, l=?, a_star=?, b_star=?, gloss=?, paint_type=? WHERE id=?',
+    [catCode, normalized.brand, normalized.series, normalized.code, normalized.nameJa, edit.nameEn ?? null, normalized.normalizedHex,
      normalized.rgb?.r ?? null, normalized.rgb?.g ?? null, normalized.rgb?.b ?? null,
      normalized.lab?.L ?? null, normalized.lab?.a ?? null, normalized.lab?.b ?? null,
      normalized.gloss, normalized.paintType, paintId]

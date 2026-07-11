@@ -5,7 +5,8 @@
 // スクロールと閉じる操作の両方が壊れるため、バウンス量(負のcontentOffset)で判定する。
 // ponytail: バウンスの無いAndroidでは本文からは閉じられない(ヘッダーの
 // SwipeDownHeaderは全OSで有効)。必要になればonScrollでオーバースクロール量を自前計算する。
-import { NativeScrollEvent, NativeSyntheticEvent, ScrollView, ScrollViewProps } from 'react-native';
+import { useRef } from 'react';
+import { NativeScrollEvent, NativeSyntheticEvent, NativeTouchEvent, ScrollView, ScrollViewProps } from 'react-native';
 
 interface Props extends ScrollViewProps {
   onClose: () => void;
@@ -25,11 +26,34 @@ export function swipeDownCloseProps(onClose: () => void): Pick<ScrollViewProps, 
   };
 }
 
-export default function SwipeDownScrollView({ onClose, onScrollEndDrag, ...rest }: Props) {
-  const closeProps = swipeDownCloseProps(onClose);
+export default function SwipeDownScrollView({ onClose, onScroll, onScrollEndDrag, onTouchEnd, onTouchStart, ...rest }: Props) {
+  const startY = useRef<number | null>(null);
+  const startOffsetY = useRef(0);
+  const offsetY = useRef(0);
+  const closedInGesture = useRef(false);
+  const close = () => {
+    if (closedInGesture.current) return;
+    closedInGesture.current = true;
+    onClose();
+  };
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    offsetY.current = e.nativeEvent.contentOffset.y;
+    onScroll?.(e);
+  };
   const handleScrollEndDrag = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    closeProps.onScrollEndDrag?.(e);
+    if (e.nativeEvent.contentOffset.y < CLOSE_OFFSET) close();
     onScrollEndDrag?.(e);
   };
-  return <ScrollView onScrollEndDrag={handleScrollEndDrag} {...rest} />;
+  const handleTouchStart = (e: NativeSyntheticEvent<NativeTouchEvent>) => {
+    startY.current = e.nativeEvent.pageY;
+    startOffsetY.current = offsetY.current;
+    closedInGesture.current = false;
+    onTouchStart?.(e);
+  };
+  const handleTouchEnd = (e: NativeSyntheticEvent<NativeTouchEvent>) => {
+    if (startY.current !== null && startOffsetY.current <= 0 && e.nativeEvent.pageY - startY.current > 90 && offsetY.current <= 0) close();
+    startY.current = null;
+    onTouchEnd?.(e);
+  };
+  return <ScrollView onScroll={handleScroll} scrollEventThrottle={16} onScrollEndDrag={handleScrollEndDrag} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} {...rest} />;
 }

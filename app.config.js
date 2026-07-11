@@ -13,10 +13,11 @@ module.exports = ({ config }) => ({
   userInterfaceStyle: 'automatic',
   ios: {
     ...config.ios,
-    supportsTablet: true,
+    supportsTablet: false,
     bundleIdentifier: process.env.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER || 'com.example.colorack',
     infoPlist: {
       NSCameraUsageDescription: '塗料の色の読み取りやバーコードスキャンのためにカメラを使用します',
+      ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
@@ -39,7 +40,22 @@ module.exports = ({ config }) => ({
     'expo-sqlite',
     'expo-router',
     'expo-localization',
+    [
+      'expo-splash-screen',
+      {
+        backgroundColor: '#000000',
+        image: './assets/splash-icon.png',
+        imageWidth: 120,
+        resizeMode: 'contain',
+      },
+    ],
     'expo-camera',
+    [
+      'expo-tracking-transparency',
+      {
+        userTrackingPermission: 'パーソナライズ広告の表示のために使用されます',
+      },
+    ],
     [
       'react-native-google-mobile-ads',
       {

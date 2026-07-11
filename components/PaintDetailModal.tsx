@@ -4,8 +4,9 @@
 // 「詳細を見る→戻る→別の色を見る」を繰り返せるようにするため。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconCamera, IconHeart, IconPencil, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { IconCamera, IconChevronDown, IconChevronLeft, IconHeart, IconPencil, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { brandLabel } from '../lib/brands';
 import {
   CatalogPaintDetail,
@@ -21,17 +22,19 @@ import {
   updateManualPaint,
 } from '../lib/db';
 import { glossLabel } from '../lib/gloss';
-import { t } from '../lib/i18n';
+import { t, useLocale } from '../lib/i18n';
 import { paintName, seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
 import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
 import ClearableInput from './ClearableInput';
+import ActionSheet from './ActionSheet';
 import ColorCameraPicker from './ColorCameraPicker';
 import { GLOSS_OPTIONS, isValidHex, optionChip, TYPE_OPTIONS } from './PaintFormFields';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
 import Toast from './Toast';
+import { useModalLock } from '../lib/modalLock';
 
 interface Box { id: number; name: string; }
 interface StockStatusRow { box_name: string | null; status: string; n: number; }
@@ -45,12 +48,33 @@ interface Props {
   initialEditing?: boolean;
 }
 
+function readableTextColor(hex: string | null): string {
+  const value = hex?.replace('#', '');
+  if (!value || !/^[0-9a-f]{6}$/i.test(value)) return '#333';
+  const [r, g, b] = [0, 2, 4].map((index) => parseInt(value.slice(index, index + 2), 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#222' : '#fff';
+}
+
+function toneColors(hex: string | null): string[] {
+  const value = hex?.replace('#', '');
+  if (!value || !/^[0-9a-f]{6}$/i.test(value)) return ['#e5e5e5', '#ccc', '#aaa', '#888', '#666', '#444'];
+  const base = [0, 2, 4].map((index) => parseInt(value.slice(index, index + 2), 16));
+  return [-0.55, -0.3, -0.1, 0.1, 0.3, 0.55].map((amount) => {
+    const channel = (value: number) => Math.round(amount < 0 ? value * (1 + amount) : value + (255 - value) * amount);
+    return `rgb(${channel(base[0])}, ${channel(base[1])}, ${channel(base[2])})`;
+  });
+}
+
 export default function PaintDetailModal({ visible, paintId, onClose, onChanged, initialEditing = false }: Props) {
+  useModalLock(visible);
+  const locale = useLocale();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [detail, setDetail] = useState<CatalogPaintDetail | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [nameJa, setNameJa] = useState('');
+  const [nameEn, setNameEn] = useState('');
   const [brand, setBrand] = useState('');
   const [series, setSeries] = useState('');
   const [code, setCode] = useState('');
@@ -63,14 +87,18 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [selectedBoxId, setSelectedBoxId] = useState<number | null>(null);
+  const [boxPickerVisible, setBoxPickerVisible] = useState(false);
+  const [showFullName, setShowFullName] = useState(false);
   const [membership, setMembership] = useState({ favorites: false, wishlist: false });
   const [stockStatus, setStockStatus] = useState<StockStatusRow[]>([]);
 
   const master = detail?.source === 'catalog' ? getMasterCatalogPaint(detail.catalog_code) : null;
   const isManual = detail?.source === 'manual';
-  const canSave = nameJa.trim() !== '' && (isManual ? brand.trim() !== '' && series.trim() !== '' : true);
+  const finish = detail?.gloss === 'メタリック' || detail?.gloss === 'パール';
+  const canSave = (nameJa.trim() !== '' || nameEn.trim() !== '') && (isManual ? brand.trim() !== '' && series.trim() !== '' : true);
   const hasUnsavedChanges = isEditing && detail != null && (
     nameJa !== (detail.name_ja ?? '')
+    || nameEn !== (detail.name_en ?? '')
     || brand !== (detail.brand ?? '')
     || series !== (detail.series ?? '')
     || code !== (detail.code ?? '')
@@ -82,6 +110,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
 
   const syncFields = useCallback((paint: CatalogPaintDetail) => {
     setNameJa(paint.name_ja ?? '');
+    setNameEn(paint.name_en ?? '');
     setBrand(paint.brand ?? '');
     setSeries(paint.series ?? '');
     setCode(paint.code ?? '');
@@ -115,7 +144,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     if (visible) {
       load();
       setIsEditing(initialEditing);
-      getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id').then(setBoxes);
+      getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY sort_order, id').then(setBoxes);
       getDefaultBoxId().then(setSelectedBoxId);
     } else {
       setDetail(null);
@@ -124,6 +153,8 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       setStockStatus([]);
     }
   }, [visible, load, initialEditing]);
+
+  useEffect(() => setShowFullName(false), [paintId, visible]);
 
   const showToast = (message: string) => {
     setToast(message);
@@ -148,7 +179,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       await removeFromList(detail.id, type);
       showToast(paintName(detail.name_ja, detail.name_en) + t('removedToast'));
     } else {
-      await getDB().runAsync('INSERT INTO lists (type, paint_id) VALUES (?, ?)', [type, detail.id]);
+      await getDB().runAsync('INSERT OR IGNORE INTO lists (type, paint_id) VALUES (?, ?)', [type, detail.id]);
       showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
     }
     setMembership((m) => ({ ...m, [type]: !isMember }));
@@ -157,11 +188,13 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
 
   const save = async () => {
     if (!detail) return;
+    const pairedNameJa = nameJa.trim() || nameEn.trim();
+    const pairedNameEn = nameEn.trim() || nameJa.trim();
     try {
       if (detail.source === 'manual') {
-        await updateManualPaint(detail.id, { nameJa, brand, series, code, hex, gloss, paintType });
+        await updateManualPaint(detail.id, { nameJa: pairedNameJa, nameEn: pairedNameEn, brand, series, code, hex, gloss, paintType });
       } else {
-        await updateCatalogPaintContent(detail.id, { nameJa, hex, gloss, paintType });
+        await updateCatalogPaintContent(detail.id, { nameJa: pairedNameJa, nameEn: pairedNameEn, hex, gloss, paintType });
       }
       await updateCatalogPaintNotes(detail.id, notes);
       await load();
@@ -224,6 +257,23 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     ]);
   };
 
+  const returnToDetail = () => {
+    if (!hasUnsavedChanges) {
+      setIsEditing(false);
+      return;
+    }
+    Alert.alert(t('discardChangesConfirm'), '', [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('discard'), style: 'destructive',
+        onPress: () => {
+          if (detail) syncFields(detail);
+          setIsEditing(false);
+        },
+      },
+    ]);
+  };
+
   const masterLine = (currentValue: string | null, masterValue: string | null | undefined, formatter = (v: string) => v) => {
     if (!master || (currentValue ?? '') === (masterValue ?? '')) return null;
     return <Text style={styles.masterText}>{t('masterValue')}: {formatter(masterValue ?? '')}</Text>;
@@ -235,20 +285,26 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     if (status === 'used_up') return t('statusUsedUp');
     return status;
   };
-
-  const stockStatusText = stockStatus
-    .map((row) => `${row.status === 'owned' ? (row.box_name ?? t('unassigned')) : statusLabel(row.status)} ×${row.n}`)
-    .join(' · ');
+  const swatchColor = detail?.hex || colors.transparent;
+  const swatchTextColor = detail?.hex ? readableTextColor(detail.hex) : colors.text;
+  const tooltipBackground = detail?.hex
+    ? (swatchTextColor === '#fff' ? 'rgba(0,0,0,0.78)' : 'rgba(255,255,255,0.92)')
+    : colors.surface;
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={requestClose}>
       <SafeAreaProvider>
-        <SwipeBack enabled={visible && !isEditing} onBack={requestClose}>
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={requestClose}>
+        <SwipeBack enabled={visible} onBack={isEditing ? returnToDetail : requestClose}>
+        <SafeAreaView style={styles.container} edges={['top']}>
+          <SwipeDownHeader onClose={isEditing ? returnToDetail : requestClose}>
             <View style={styles.header}>
-              <Text style={styles.title}>{t('paintDetailTitle')}</Text>
-              <TouchableOpacity onPress={requestClose} hitSlop={8}>
+              {isEditing ? (
+                <TouchableOpacity style={[styles.headerAction, styles.headerBack]} onPress={returnToDetail} hitSlop={8} accessibilityLabel={t('paintDetailTitle')}>
+                  <IconChevronLeft color={colors.text} size={26} />
+                </TouchableOpacity>
+              ) : null}
+              <Text style={styles.title}>{isEditing ? t('editPaint') : t('paintDetailTitle')}</Text>
+              <TouchableOpacity style={[styles.headerAction, styles.headerClose]} onPress={requestClose} hitSlop={8}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
@@ -257,46 +313,45 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
           {!detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : !isEditing ? (
-            <SwipeDownScrollView onClose={requestClose} contentContainerStyle={styles.content}>
-              <View style={[styles.swatch, { backgroundColor: detail.hex ?? colors.transparent, borderColor: colors.border }]}>
-                {detail.hex ? <Text style={styles.hexBadge}>{detail.hex.toUpperCase()}</Text> : null}
-              </View>
-
-              <View style={styles.titleRow}>
-                <Text style={styles.paintTitle}>{paintName(detail.name_ja, detail.name_en)}</Text>
-                <TouchableOpacity style={styles.editBtn} onPress={() => setIsEditing(true)} hitSlop={8}>
-                  <IconPencil color={colors.primary} size={20} />
-                </TouchableOpacity>
-              </View>
-              {detail.code ? <Text style={styles.codeLine}>{detail.code}</Text> : null}
-
-              <View style={styles.compactGrid}>
-                <CompactInfo label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
-                <CompactInfo label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
-                <CompactInfo label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
-                <CompactInfo label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
-              </View>
-
-              {stockStatus.length > 0 ? (
-                <View style={styles.stockStatusRow}>
-                  <Text style={styles.stockStatusLabel}>{t('ownedStatus')}</Text>
-                  <Text style={styles.stockStatusText}>{stockStatusText}</Text>
+            <SwipeDownScrollView style={styles.scroll} onClose={requestClose} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.md }]}>
+              <View style={styles.colorSpecimen}>
+              <View style={[styles.swatch, { backgroundColor: swatchColor }]}>
+                {finish ? (
+                  <View pointerEvents="none" style={styles.finishOverlay}>
+                    <Svg width="100%" height="100%" preserveAspectRatio="none">
+                      <Defs>
+                        <LinearGradient id="metallic-sheen" x1="0" y1="1" x2="1" y2="0">
+                          <Stop offset="0" stopColor="#fff" stopOpacity={0} />
+                          <Stop offset="1" stopColor="#fff" stopOpacity={0.34} />
+                        </LinearGradient>
+                      </Defs>
+                      <Rect width="100%" height="100%" fill="url(#metallic-sheen)" />
+                    </Svg>
+                  </View>
+                ) : null}
+                <View style={styles.swatchLabel}>
+                  <View style={styles.swatchBrandRow}>
+                    <Text selectable style={[styles.swatchBrand, { color: swatchTextColor }]}>{brandLabel(detail.brand) || '—'}</Text>
+                    <TouchableOpacity style={styles.editBtn} onPress={() => setIsEditing(true)} hitSlop={8} accessibilityLabel={t('edit')}>
+                      <IconPencil color={swatchTextColor} size={20} />
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity onPress={() => setShowFullName((shown) => !shown)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={paintName(detail.name_ja, detail.name_en)}>
+                    <Text selectable numberOfLines={1} style={[styles.swatchName, { color: swatchTextColor }]}>{paintName(detail.name_ja, detail.name_en)}</Text>
+                  </TouchableOpacity>
+                  {showFullName ? (
+                    <View style={[styles.nameTooltip, { backgroundColor: tooltipBackground }]}>
+                      <Text selectable style={[styles.nameTooltipText, { color: swatchTextColor }]}>{paintName(detail.name_ja, detail.name_en)}</Text>
+                    </View>
+                  ) : null}
+                  {detail.code ? <Text selectable style={[styles.swatchCode, { color: swatchTextColor }]}>{detail.code}</Text> : null}
+                  {detail.hex ? <Text selectable style={[styles.swatchHex, { color: swatchTextColor }]}>{detail.hex.toUpperCase()}</Text> : null}
                 </View>
-              ) : null}
-
-              <View style={styles.field}>
-                <Text style={styles.label}>{t('paintNotes')}</Text>
-                <Text style={styles.quote}>{detail.notes || '—'}</Text>
               </View>
 
-              <View style={styles.addGroup}>
-                <Text style={styles.label}>{t('targetBox')}</Text>
-                <View style={styles.chipRow}>
-                  {boxes.map((b) => optionChip(String(b.id), selectedBoxId === b.id, b.name, () => setSelectedBoxId(b.id), styles))}
-                </View>
-                <TouchableOpacity style={[styles.button, styles.primaryButton, styles.fullWidth]} onPress={addToBox}>
-                  <Text style={styles.primaryButtonText}>{t('addToBox')}</Text>
-                </TouchableOpacity>
+              <View style={styles.toneRail}>
+                {toneColors(detail.hex).map((color, index) => <View key={index} style={[styles.toneStep, { backgroundColor: color }]} />)}
+              </View>
               </View>
 
               <View style={styles.toggleRow}>
@@ -319,12 +374,51 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                   </Text>
                 </TouchableOpacity>
               </View>
+
+              <View style={styles.detailCard}>
+                <CompactInfo label={t('brand')} value={brandLabel(detail.brand)} styles={styles} />
+                <CompactInfo label={t('series')} value={seriesLabel(detail.series, detail.series_en)} styles={styles} />
+                <CompactInfo label={t('paintType')} value={paintTypeLabel(detail.paint_type)} styles={styles} />
+                <CompactInfo label={t('gloss')} value={glossLabel(detail.gloss)} styles={styles} />
+              </View>
+
+              {stockStatus.length > 0 ? (
+                <View style={styles.ledgerCard}>
+                  <Text style={styles.sectionTitle}>{t('ownedStatus')}</Text>
+                  <View style={styles.stockStatusRow}>
+                    {stockStatus.map((row) => (
+                      <View key={`${row.box_name}-${row.status}`} style={styles.stockItem}>
+                        <View style={[styles.statusDot, { backgroundColor: row.status === 'owned' ? colors.primary : colors.inUse }]} />
+                        <Text style={styles.stockStatusText}>{row.status === 'owned' ? (row.box_name ?? t('unassigned')) : statusLabel(row.status)} ×{row.n}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
+
+              <View style={styles.ledgerCard}>
+                <Text style={styles.sectionTitle}>{t('paintNotes')}</Text>
+                <Text style={styles.quote}>{detail.notes || '—'}</Text>
+              </View>
+
+              <View style={styles.addGroup}>
+                <Text style={styles.label}>{t('targetBox')}</Text>
+                <TouchableOpacity style={styles.boxPicker} onPress={() => setBoxPickerVisible(true)}>
+                  <Text numberOfLines={1} style={styles.boxPickerText}>{boxes.find((box) => box.id === selectedBoxId)?.name ?? t('unassigned')}</Text>
+                  <IconChevronDown color={colors.textMuted} size={18} />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.button, styles.primaryButton, styles.fullWidth]} onPress={addToBox}>
+                  <Text style={styles.primaryButtonText}>{t('addToBox')}</Text>
+                </TouchableOpacity>
+              </View>
             </SwipeDownScrollView>
           ) : (
             <>
-            <SwipeDownScrollView onClose={requestClose} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-              <EditField label={t('name')} value={nameJa} onChangeText={setNameJa} styles={styles} />
+            <SwipeDownScrollView style={styles.scroll} onClose={returnToDetail} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+              <EditField label={locale === 'ja' ? '名前（和名）' : 'Name (Japanese)'} value={nameJa} onChangeText={setNameJa} styles={styles} />
               {masterLine(nameJa, master?.name_ja)}
+              <EditField label={locale === 'ja' ? '名前（英名）' : 'Name (English)'} value={nameEn} onChangeText={setNameEn} styles={styles} />
+              {masterLine(nameEn, master?.name_en)}
 
               {isManual ? (
                 <>
@@ -388,17 +482,28 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 ) : null}
               </View>
             </SwipeDownScrollView>
-            <TouchableOpacity
-              style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
-              onPress={save}
-              disabled={!canSave}
-            >
-              <Text style={styles.saveBtnText}>{t('save')}</Text>
-            </TouchableOpacity>
+            <SafeAreaView edges={['bottom']} style={styles.saveArea}>
+              <TouchableOpacity
+                style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
+                onPress={save}
+                disabled={!canSave}
+              >
+                <Text style={styles.saveBtnText}>{t('save')}</Text>
+              </TouchableOpacity>
+            </SafeAreaView>
             </>
           )}
 
           <Toast message={toast} />
+          <ActionSheet
+            visible={boxPickerVisible}
+            title={t('targetBox')}
+            buttons={[
+              ...boxes.map((box) => ({ text: `${box.id === selectedBoxId ? '✓ ' : ''}${box.name}`, onPress: () => setSelectedBoxId(box.id) })),
+              { text: t('cancel'), style: 'cancel' },
+            ]}
+            onClose={() => setBoxPickerVisible(false)}
+          />
           <ColorCameraPicker visible={colorPickerVisible} onClose={() => setColorPickerVisible(false)} onPick={setHex} />
         </SafeAreaView>
         </SwipeBack>
@@ -436,27 +541,42 @@ function ReadonlyField({ label, value, styles }: { label: string; value: string;
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  header: { position: 'relative', alignItems: 'center', justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
-  content: { padding: spacing.xl, paddingBottom: 96 },
-  swatch: { height: 96, borderRadius: radius.md, borderWidth: 1, marginBottom: spacing.xl },
-  hexBadge: { position: 'absolute', right: spacing.md, bottom: spacing.md, fontSize: 11, paddingHorizontal: spacing.md, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.9)', color: '#333', overflow: 'hidden' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs },
-  paintTitle: { fontSize: 22, fontWeight: 'bold', color: colors.text, flex: 1 },
-  codeLine: { fontSize: 14, color: colors.textMuted, letterSpacing: 0.5, marginBottom: spacing.lg },
-  editBtn: { padding: spacing.sm, marginLeft: spacing.md },
-  compactGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.xl },
-  compactItem: { width: '50%', marginBottom: spacing.md },
+  headerAction: { position: 'absolute', top: 0, bottom: 0, width: touch.min, alignItems: 'center', justifyContent: 'center' },
+  headerBack: { left: spacing.md },
+  headerClose: { right: spacing.md },
+  scroll: { flex: 1 },
+  content: { flexGrow: 1, padding: spacing.xl, paddingBottom: spacing.xl, gap: spacing.lg },
+  colorSpecimen: { overflow: 'hidden', borderRadius: radius.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.borderLight },
+  swatch: { height: 156, overflow: 'hidden', justifyContent: 'flex-end', paddingVertical: spacing.xxl, paddingHorizontal: spacing.xl },
+  finishOverlay: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  swatchLabel: { gap: spacing.xs, zIndex: 1, position: 'relative' },
+  swatchBrandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  swatchBrand: { fontSize: 14, fontWeight: '600', opacity: 0.82 },
+  swatchName: { fontSize: 26, lineHeight: 32, fontWeight: '700', letterSpacing: -0.3 },
+  nameTooltip: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, zIndex: 2 },
+  nameTooltipText: { fontSize: 16, lineHeight: 22, fontWeight: '600' },
+  swatchCode: { fontSize: 18, fontWeight: '600', marginTop: spacing.xs },
+  swatchHex: { fontSize: 13, fontWeight: '600', opacity: 0.84, letterSpacing: 0.6 },
+  sectionTitle: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  editBtn: { padding: spacing.sm, marginRight: -spacing.sm },
+  toneRail: { height: 34, flexDirection: 'row', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.18)' },
+  toneStep: { flex: 1 },
+  detailCard: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, paddingTop: spacing.lg },
+  compactItem: { width: '50%', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
   compactLabel: { fontSize: 11, color: colors.textMuted },
-  compactValue: { fontSize: 13, color: colors.textSecondary },
-  stockStatusRow: { marginTop: -spacing.md, marginBottom: spacing.xl },
-  stockStatusLabel: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
-  stockStatusText: { fontSize: 13, color: colors.textSecondary },
+  compactValue: { fontSize: 15, color: colors.text, fontWeight: '600', marginTop: 2 },
+  ledgerCard: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, gap: spacing.md },
+  stockStatusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
+  stockItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  statusDot: { width: 10, height: 10, borderRadius: 5 },
+  stockStatusText: { fontSize: 14, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   field: { marginBottom: spacing.lg },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
   readonly: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.sm, padding: 10, color: colors.textFaint, backgroundColor: colors.surfaceAlt },
-  quote: { borderLeftWidth: 3, borderLeftColor: colors.border, borderRadius: 0, paddingLeft: 10, paddingVertical: 2, fontSize: 12, color: colors.textFaint },
+  quote: { fontSize: 14, lineHeight: 20, color: colors.textSecondary },
   hexRow: { flexDirection: 'row', alignItems: 'center' },
   hexInput: { flex: 1 },
   notesInput: { minHeight: 80, alignItems: 'flex-start' },
@@ -469,9 +589,11 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   sectionGap: { marginTop: spacing.lg },
   masterText: { color: colors.textFaint, fontSize: 12, marginTop: -spacing.md, marginBottom: spacing.lg },
-  addGroup: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, marginBottom: spacing.lg },
+  addGroup: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, gap: spacing.sm },
+  boxPicker: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.lg },
+  boxPickerText: { flex: 1, color: colors.text, fontSize: 14 },
   fullWidth: { alignSelf: 'stretch' },
-  toggleRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.lg },
+  toggleRow: { flexDirection: 'row', gap: spacing.md },
   toggleButton: { flex: 1, flexDirection: 'row' },
   toggleIcon: { marginRight: spacing.xs },
   button: { minHeight: touch.min, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, alignItems: 'center', justifyContent: 'center' },
@@ -482,7 +604,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   deleteButtonText: { color: colors.danger, fontWeight: 'bold' },
   textAction: { alignSelf: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.xl },
   textActionLabel: { fontSize: 14, color: colors.danger, fontWeight: 'bold' },
-  saveBtn: { backgroundColor: colors.primary, padding: spacing.xl, alignItems: 'center' },
+  saveArea: { backgroundColor: colors.surface, paddingHorizontal: spacing.xl, paddingTop: spacing.md },
+  saveBtn: { minHeight: touch.min, borderRadius: radius.md, backgroundColor: colors.primary, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, alignItems: 'center', justifyContent: 'center' },
   saveBtnDisabled: { backgroundColor: colors.primaryDisabled },
   saveBtnText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },

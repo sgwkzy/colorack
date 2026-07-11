@@ -107,8 +107,11 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
   if (!selectedBrand) {
     return (
       <FlatList
+        style={{ flex: 1 }}
         data={[ALL, ...brands]}
         {...closeProps}
+        contentContainerStyle={{ flexGrow: 1 }}
+        alwaysBounceVertical
         keyExtractor={(b) => b}
         renderItem={({ item }) => (
           <TouchableOpacity style={[styles.item, item === ALL && styles.allItem]} onPress={() => selectBrand(item)}>
@@ -129,8 +132,11 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
             <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
           </TouchableOpacity>
           <FlatList
+            style={{ flex: 1 }}
             data={[{ series: ALL, series_en: null }, ...seriesList]}
             {...closeProps}
+            contentContainerStyle={{ flexGrow: 1 }}
+            alwaysBounceVertical
             keyExtractor={(s) => s.series}
             renderItem={({ item }) => (
               <TouchableOpacity style={[styles.item, item.series === ALL && styles.allItem]} onPress={() => selectSeries(item.series)}>
@@ -158,8 +164,11 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
         onChangeText={setNameFilter}
       />
       <FlatList
+        style={{ flex: 1 }}
         data={shownPaints}
         {...closeProps}
+        contentContainerStyle={{ flexGrow: 1 }}
+        alwaysBounceVertical
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         keyExtractor={(p) => String(p.id)}

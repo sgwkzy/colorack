@@ -62,8 +62,11 @@ export default function TextSearch({ onSelect, onSelectView, onRequestClose }: P
         onChangeText={search}
       />
       <FlatList
+        style={{ flex: 1 }}
         data={results}
         {...closeProps}
+        contentContainerStyle={{ flexGrow: 1 }}
+        alwaysBounceVertical
         keyExtractor={(item) => String(item.id)}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"

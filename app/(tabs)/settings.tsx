@@ -1,14 +1,12 @@
 // app/(tabs)/settings.tsx
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
-import { IconChevronDown, IconChevronUp } from '@tabler/icons-react-native';
-import { useFocusEffect } from 'expo-router';
-import { getDB, getDefaultBoxId, resetCatalogToMaster, setSetting } from '../../lib/db';
+import { getDB, resetCatalogToMaster, setSetting } from '../../lib/db';
+import { notifyBoxesChanged, setActiveBox } from '../../lib/activeBox';
+import { router } from 'expo-router';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
-import { useUiPrefs, setFabSide, setListFontSize } from '../../lib/uiPrefs';
-
-interface Box { id: number; name: string; }
+import { useUiPrefs, setActionOrder, setListFontSize } from '../../lib/uiPrefs';
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
   { value: 'light', labelKey: 'themeLight' },
@@ -19,28 +17,8 @@ const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
 export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
   const { colors, mode } = useTheme();
-  const { fabSide, listFontSize } = useUiPrefs();
+  const { actionOrder, listFontSize } = useUiPrefs();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [boxes, setBoxes] = useState<Box[]>([]);
-  const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
-  const [boxPickerOpen, setBoxPickerOpen] = useState(false);
-
-  const loadBoxes = useCallback(async () => {
-    const db = getDB();
-    setBoxes(await db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'));
-    setDefaultBoxId(await getDefaultBoxId());
-  }, []);
-
-  useFocusEffect(useCallback(() => { loadBoxes(); }, [loadBoxes]));
-
-  const chooseDefaultBox = async (boxId: number) => {
-    setDefaultBoxId(boxId);
-    setBoxPickerOpen(false);
-    await setSetting('default_box_id', String(boxId));
-  };
-
-  const defaultBoxName = boxes.find((b) => b.id === defaultBoxId)?.name ?? '';
-
   const toggleLang = (val: boolean) => {
     setIsJa(val);
     setLocale(val ? 'ja' : 'en');
@@ -58,8 +36,11 @@ export default function SettingsScreen() {
     await db.runAsync('DELETE FROM inventory');
     await db.runAsync('DELETE FROM boxes');
     const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', ['Box']);
-    await setSetting('default_box_id', String(res.lastInsertRowId));
-    await loadBoxes();
+    const boxId = Number(res.lastInsertRowId);
+    await setSetting('default_box_id', String(boxId));
+    setActiveBox(boxId);
+    notifyBoxesChanged();
+    router.navigate({ pathname: '/owned', params: { boxId: String(boxId), boxName: 'Box' } });
   });
 
   const resetFavorites = () => confirmReset(t('resetFavorites'), async () => {
@@ -97,16 +78,13 @@ export default function SettingsScreen() {
         </View>
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('fabPosition')}</Text>
+        <Text style={styles.sectionTitle}>{isJa ? 'メニューの並び順' : 'Action Order'}</Text>
         <View style={styles.themeRow}>
-          <TouchableOpacity style={[styles.themeBtn, fabSide === 'left' && styles.themeBtnOn]} onPress={() => setFabSide('left')}>
-            <Text style={[styles.themeBtnText, fabSide === 'left' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionLeft')}</Text>
+          <TouchableOpacity style={[styles.themeBtn, actionOrder === 'normal' && styles.themeBtnOn]} onPress={() => setActionOrder('normal')}>
+            <Text style={[styles.themeBtnText, actionOrder === 'normal' && styles.themeBtnTextOn]} numberOfLines={1}>{isJa ? '正順' : 'Normal'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.themeBtn, fabSide === 'right' && styles.themeBtnOn]} onPress={() => setFabSide('right')}>
-            <Text style={[styles.themeBtnText, fabSide === 'right' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionRight')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.themeBtn, fabSide === 'bottom' && styles.themeBtnOn]} onPress={() => setFabSide('bottom')}>
-            <Text style={[styles.themeBtnText, fabSide === 'bottom' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionBottom')}</Text>
+          <TouchableOpacity style={[styles.themeBtn, actionOrder === 'reverse' && styles.themeBtnOn]} onPress={() => setActionOrder('reverse')}>
+            <Text style={[styles.themeBtnText, actionOrder === 'reverse' && styles.themeBtnTextOn]} numberOfLines={1}>{isJa ? '逆順' : 'Reverse'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -123,24 +101,6 @@ export default function SettingsScreen() {
             <Text style={[styles.themeBtnText, listFontSize === 'large' && styles.themeBtnTextOn, { fontSize: 17 }]} numberOfLines={1}>{t('fontSizeLarge')}</Text>
           </TouchableOpacity>
         </View>
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('defaultBox')}</Text>
-        <TouchableOpacity style={styles.dropdown} onPress={() => setBoxPickerOpen((o) => !o)}>
-          <Text style={styles.dropdownLabel}>{defaultBoxName}</Text>
-          {boxPickerOpen
-            ? <IconChevronUp size={16} color={colors.textFaint} />
-            : <IconChevronDown size={16} color={colors.textFaint} />}
-        </TouchableOpacity>
-        {boxPickerOpen && (
-          <ScrollView style={styles.dropdownList} nestedScrollEnabled>
-            {boxes.map((b) => (
-              <TouchableOpacity key={b.id} style={styles.dropdownItem} onPress={() => chooseDefaultBox(b.id)}>
-                <Text style={[styles.dropdownItemText, defaultBoxId === b.id && styles.dropdownItemTextOn]}>{b.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('reset')}</Text>
@@ -174,10 +134,4 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   themeBtnTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   resetBtn: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
   resetBtnText: { color: colors.danger, fontWeight: 'bold', textAlign: 'center' },
-  dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg },
-  dropdownLabel: { fontSize: 16, color: colors.text },
-  dropdownList: { borderWidth: 1, borderColor: colors.border, borderTopWidth: 0, borderBottomLeftRadius: radius.sm, borderBottomRightRadius: radius.sm, maxHeight: 220 },
-  dropdownItem: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.borderLight },
-  dropdownItemText: { fontSize: 15, color: colors.text },
-  dropdownItemTextOn: { color: colors.primary, fontWeight: 'bold' },
 });

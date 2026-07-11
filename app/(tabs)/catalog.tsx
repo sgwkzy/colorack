@@ -218,7 +218,7 @@ const makeStyles = (colors: typeof lightColors, fabSide: FabSide, listFontSize: 
   const NAV_TEXT_SIZE: Record<ListFontSize, number> = { small: 14, medium: 16, large: 18 };
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },
   navText: { flex: 1, fontSize: NAV_TEXT_SIZE[listFontSize], color: colors.text },
