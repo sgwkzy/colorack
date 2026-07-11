@@ -128,7 +128,7 @@ export default function WishlistScreen() {
       paintName(item.name_ja, item.name_en) + t('removedToast'),
       t('undo'),
       async () => {
-        await getDB().runAsync("INSERT INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
+        await getDB().runAsync("INSERT OR IGNORE INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
         reload();
       }
     );
@@ -151,7 +151,7 @@ export default function WishlistScreen() {
       t('undo'),
       async () => {
         await getDB().runAsync('DELETE FROM inventory WHERE id = ?', [insertedInventoryId]);
-        await getDB().runAsync("INSERT INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
+        await getDB().runAsync("INSERT OR IGNORE INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
         reload();
       }
     );

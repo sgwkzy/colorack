@@ -40,6 +40,15 @@ module.exports = ({ config }) => ({
     'expo-sqlite',
     'expo-router',
     'expo-localization',
+    [
+      'expo-splash-screen',
+      {
+        backgroundColor: '#000000',
+        image: './assets/splash-icon.png',
+        imageWidth: 120,
+        resizeMode: 'contain',
+      },
+    ],
     'expo-camera',
     [
       'expo-tracking-transparency',

@@ -7,8 +7,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true,
-      "buildNumber": "4"
+      "supportsTablet": false,
+      "buildNumber": "5"
     },
     "android": {
       "adaptiveIcon": {
@@ -26,6 +26,15 @@
       "expo-sqlite",
       "expo-router",
       "expo-localization",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#000000",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120,
+          "resizeMode": "contain"
+        }
+      ],
       "expo-camera"
     ],
     "scheme": "colorack",

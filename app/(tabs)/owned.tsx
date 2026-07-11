@@ -229,7 +229,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
         onPress: async () => {
           const membership = await getListMembership(item.paint_id);
           if (!membership.wishlist) {
-            await getDB().runAsync("INSERT INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
+            await getDB().runAsync("INSERT OR IGNORE INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
           }
           await setStatus(item, 'used_up');
           showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast'));

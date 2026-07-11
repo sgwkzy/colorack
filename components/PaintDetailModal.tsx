@@ -179,7 +179,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       await removeFromList(detail.id, type);
       showToast(paintName(detail.name_ja, detail.name_en) + t('removedToast'));
     } else {
-      await getDB().runAsync('INSERT INTO lists (type, paint_id) VALUES (?, ?)', [type, detail.id]);
+      await getDB().runAsync('INSERT OR IGNORE INTO lists (type, paint_id) VALUES (?, ?)', [type, detail.id]);
       showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
     }
     setMembership((m) => ({ ...m, [type]: !isMember }));

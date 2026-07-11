@@ -146,7 +146,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
         onPress: async () => {
           const membership = await getListMembership(item.paint_id);
           if (!membership.wishlist) {
-            await getDB().runAsync("INSERT INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
+            await getDB().runAsync("INSERT OR IGNORE INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
           }
           await setInventoryStatus(item.id, 'used_up');
           await load();

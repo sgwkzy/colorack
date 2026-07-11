@@ -58,7 +58,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
         return;
       }
       await db.runAsync(
-        'INSERT INTO lists (type, paint_id) VALUES (?, ?)',
+        'INSERT OR IGNORE INTO lists (type, paint_id) VALUES (?, ?)',
         [defaultStatus, paint.id]
       );
     } else {

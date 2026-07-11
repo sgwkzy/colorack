@@ -68,6 +68,10 @@ export async function initDB(): Promise<void> {
     '  key TEXT PRIMARY KEY, value TEXT' +
     ');'
   );
+  await db.execAsync(
+    'DELETE FROM lists WHERE id NOT IN (SELECT MIN(id) FROM lists GROUP BY type, paint_id);' +
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_lists_type_paint ON lists(type, paint_id);'
+  );
 
   // 既存DBに gloss 列が無ければ追加(SQLiteは IF NOT EXISTS 非対応なので try/catch)
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN gloss TEXT'); } catch { /* 既にある */ }
@@ -105,8 +109,8 @@ export async function initDB(): Promise<void> {
       '  l REAL, a_star REAL, b_star REAL, barcode TEXT, gloss TEXT, paint_type TEXT, source TEXT, notes TEXT' +
       ');' +
       'INSERT INTO catalog_paints' +
-      ' (id, catalog_code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source)' +
-      " SELECT id, brand || '|' || series || '|' || code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source" +
+      ' (id, catalog_code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source, notes)' +
+      " SELECT id, brand || '|' || series || '|' || code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source, notes" +
       ' FROM catalog_paints_old;' +
       'DROP TABLE catalog_paints_old;'
     );
