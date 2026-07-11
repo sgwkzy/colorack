@@ -282,7 +282,7 @@ export default function OwnedScreen() {
       <View style={styles.edgeGestureZone} pointerEvents="box-only" />
       {/* 総数と状態フィルタ */}
       <View style={styles.statusBarWrap}>
-        <Text style={styles.statusCount}>{`塗料総数 ${isUsedScreen ? items.length : inventoryTotal} ・ 表示数 ${items.length}`}</Text>
+        <Text style={styles.statusCount}>{`塗料数 ${isUsedScreen ? items.length : inventoryTotal} ・ 表示数 ${items.length}`}</Text>
         {!isUsedScreen ? <TouchableOpacity style={styles.statusSelect} onPress={() => setShowStatusPicker(true)} accessibilityRole="button" accessibilityLabel={statusLabel}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={styles.statusSelectText}>{statusLabel}</Text><IconChevronDown color={colors.textMuted} size={18} />
@@ -294,7 +294,7 @@ export default function OwnedScreen() {
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ paddingBottom: 16 }}
+        contentContainerStyle={{ paddingBottom: 104 }}
         renderItem={({ item }) => (
           <View onTouchStart={(event) => { if (event.nativeEvent.locationX <= 32) setEdgeSwipeItemId(item.id); }} onTouchEnd={() => setEdgeSwipeItemId(null)} onTouchCancel={() => setEdgeSwipeItemId(null)}>
             <Swipeable

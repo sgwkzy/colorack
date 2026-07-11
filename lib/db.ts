@@ -55,7 +55,7 @@ export async function initDB(): Promise<void> {
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     "  paint_id INTEGER NOT NULL, box_id INTEGER," +
     "  status TEXT NOT NULL DEFAULT 'owned' CHECK(status IN ('owned','in_use','used_up'))," +
-    "  note TEXT, added_at TEXT DEFAULT (datetime('now'))" +
+    "  note TEXT, added_at TEXT DEFAULT (datetime('now')), status_changed_at TEXT DEFAULT (datetime('now'))" +
     ');' +
     'CREATE TABLE IF NOT EXISTS lists (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
@@ -76,6 +76,9 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN series_en TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN notes TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE inventory ADD COLUMN status_changed_at TEXT'); } catch { /* 既にある */ }
+  await db.runAsync(
+    'UPDATE inventory SET status_changed_at = added_at WHERE status_changed_at IS NULL OR status_changed_at < added_at'
+  );
   try { await db.execAsync("ALTER TABLE boxes ADD COLUMN icon TEXT NOT NULL DEFAULT 'box'"); } catch { /* 既にある */ }
   try { await db.execAsync("ALTER TABLE boxes ADD COLUMN icon_color TEXT NOT NULL DEFAULT '#4a90d9'"); } catch { /* 既にある */ }
   // 使用済は共通履歴。ボックスから外しておけば、ボックス削除/変更に影響されない。
@@ -277,7 +280,7 @@ export interface InventoryDetail {
 
 export async function getInventoryDetail(inventoryId: number): Promise<InventoryDetail | null> {
   const row = await getDB().getFirstAsync<InventoryDetail>(
-    'SELECT i.id, i.paint_id, i.box_id, b.name AS box_name, i.status, i.note, i.added_at, i.status_changed_at,'
+    'SELECT i.id, i.paint_id, i.box_id, b.name AS box_name, i.status, i.note, i.added_at, COALESCE(i.status_changed_at, i.added_at) AS status_changed_at,'
     + ' c.catalog_code, c.brand, c.series, c.series_en, c.code, c.name_ja, c.name_en, c.hex, c.gloss, c.paint_type, c.source, c.notes AS paint_notes'
     + ' FROM inventory i'
     + ' JOIN catalog_paints c ON i.paint_id = c.id'

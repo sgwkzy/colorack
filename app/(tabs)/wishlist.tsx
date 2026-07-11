@@ -209,7 +209,7 @@ export default function WishlistScreen() {
             onAction={trulyEmpty ? () => setShowAdd(true) : undefined}
           />
         )}
-        contentContainerStyle={{ paddingBottom: 16 }}
+        contentContainerStyle={{ paddingBottom: 104 }}
       />
       <ListActionBar onFilter={() => setShowFilter(true)} onSort={openSort} onAdd={() => setShowAdd(true)} filterActive={filterActive} />
       <FilterModal

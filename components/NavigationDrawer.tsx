@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { IconArchive, IconBox, IconBriefcase, IconBuildingWarehouse, IconFlask, IconHistory, IconHeart, IconPackage, IconPalette, IconPlus, IconSettings, IconShoppingCartPlus, IconStack } from '@tabler/icons-react-native';
 import { router, usePathname } from 'expo-router';
@@ -29,6 +29,10 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
   const [mounted, setMounted] = useState(visible);
   const longPressRef = useRef(false);
   const drawerX = useRef(new Animated.Value(-360)).current;
+  const drawerPan = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_event, gesture) => gesture.dx < -12 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+    onPanResponderRelease: (_event, gesture) => { if (gesture.dx < -60) onClose(); },
+  }), [onClose]);
 
   const loadBoxes = useCallback(async () => {
     const db = getDB();
@@ -66,8 +70,8 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     if (boxId !== undefined) router.navigate({ pathname, params: { boxId: String(boxId) } });
     else router.navigate(pathname);
   };
-  const item = (label: string, onPress: () => void, icon: ReactNode, active = false, count?: number, onLongPress?: () => void) => (
-    <TouchableOpacity style={[styles.item, active && styles.activeItem]} onPress={() => { if (longPressRef.current) { longPressRef.current = false; return; } onPress(); }} onLongPress={onLongPress ? () => { longPressRef.current = true; onLongPress(); } : undefined} accessibilityRole="button">
+  const item = (label: string, onPress: () => void, icon: ReactNode, active = false, count?: number, onLongPress?: () => void, key?: string) => (
+    <TouchableOpacity key={key} style={[styles.item, active && styles.activeItem]} onPress={() => { if (longPressRef.current) { longPressRef.current = false; return; } onPress(); }} onLongPress={onLongPress ? () => { longPressRef.current = true; onLongPress(); } : undefined} accessibilityRole="button">
       <View style={styles.icon}>{icon}</View><Text style={[styles.itemText, active && styles.activeText]}>{label}</Text>
       {count !== undefined ? <Text style={styles.count}>{count}</Text> : null}
     </TouchableOpacity>
@@ -86,13 +90,13 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
       <SafeAreaProvider>
       <View style={styles.root}>
-        <Animated.View style={[styles.drawer, { transform: [{ translateX: drawerX }] }]}>
+        <Animated.View style={[styles.drawer, { transform: [{ translateX: drawerX }] }]} {...drawerPan.panHandlers}>
         <SafeAreaView edges={['top', 'bottom']} style={styles.drawerContent}>
           <ScrollView contentContainerStyle={styles.content}>
             <Text style={styles.title}>Colorack</Text>
             {item(allBoxesLabel, () => go('/owned', 'all'), <IconBox color={colors.textMuted} size={22} />, pathname.endsWith('/owned') && activeBoxId === 'all', boxCounts.get(null) ?? Array.from(boxCounts.values()).reduce((sum, count) => sum + count, 0))}
             <View style={styles.divider} />
-            {boxes.map((box) => item(box.name, () => go('/owned', box.id), boxIcon(box), pathname.endsWith('/owned') && activeBoxId === box.id, boxCounts.get(box.id) ?? 0, () => setEditingBox(box)))}
+            {boxes.map((box) => item(box.name, () => go('/owned', box.id), boxIcon(box), pathname.endsWith('/owned') && activeBoxId === box.id, boxCounts.get(box.id) ?? 0, () => setEditingBox(box), `box-${box.id}`))}
             {item(t('addBox'), () => setEditingBox('new'), <IconPlus color={colors.primary} size={22} />)}
             <View style={styles.divider} />
             {item(t('statusUsedUp'), () => go('/used'), <IconHistory color={colors.textMuted} size={22} />, pathname.endsWith('/used'), usedCount)}
