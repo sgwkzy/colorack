@@ -15,6 +15,7 @@ import { useTheme, lightColors, radius, spacing, touch } from '../lib/theme';
 import { useUiPrefs, type ListFontSize } from '../lib/uiPrefs';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
+import { useModalLock } from '../lib/modalLock';
 
 export interface PaintFilter {
   brands: string[];
@@ -34,6 +35,7 @@ interface Props {
 }
 
 export default function FilterModal({ visible, options, initial, onApply, onClose }: Props) {
+  useModalLock(visible);
   const { colors } = useTheme();
   const { listFontSize } = useUiPrefs();
   const styles = useMemo(() => makeStyles(colors, listFontSize), [colors, listFontSize]);
@@ -110,7 +112,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
           </View>
         </SwipeDownHeader>
 
-        <SwipeDownScrollView onClose={onClose} style={{ flex: 1 }}>
+        <SwipeDownScrollView onClose={onClose} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} alwaysBounceVertical>
           {/* 色名検索 */}
           <Text style={styles.sectionTitle}>{t('colorName')}</Text>
           <ClearableInput

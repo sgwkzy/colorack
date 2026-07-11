@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
@@ -28,7 +29,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       {ready ? (
         <Stack>
@@ -39,6 +40,6 @@ export default function RootLayout() {
           <ActivityIndicator />
         </View>
       )}
-    </GestureHandlerRootView>
+    </SafeAreaProvider></GestureHandlerRootView>
   );
 }

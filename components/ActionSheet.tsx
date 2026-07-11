@@ -7,6 +7,7 @@ export interface ActionSheetButton {
   text: string;
   onPress?: () => void;
   style?: 'default' | 'cancel' | 'destructive';
+  disabled?: boolean;
 }
 
 interface Props {
@@ -44,8 +45,9 @@ export default function ActionSheet({ visible, title, message, buttons, onClose 
                 {mainButtons.map((b, i) => (
                   <TouchableOpacity
                     key={i}
-                    style={[styles.row, (i > 0 || hasHeader) && styles.rowBorder]}
+                    style={[styles.row, (i > 0 || hasHeader) && styles.rowBorder, b.disabled && styles.disabledRow]}
                     onPress={() => press(b)}
+                    disabled={b.disabled}
                   >
                     <Text style={[styles.rowText, b.style === 'destructive' && styles.destructiveText]}>{b.text}</Text>
                   </TouchableOpacity>
@@ -75,6 +77,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   // iOSでは効かず、文字が枠の上端に張り付いて見える)。
   cancelCard: { marginTop: spacing.sm, minHeight: touch.min, alignItems: 'center', justifyContent: 'center' },
   row: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
+  disabledRow: { opacity: 0.35 },
   rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   rowText: { fontSize: 17, color: colors.primary },
   destructiveText: { color: colors.danger },
