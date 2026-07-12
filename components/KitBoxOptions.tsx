@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useActiveKitBox, notifyKitBoxesChanged, setActiveKitBox, useKitBoxesVersion } from '../lib/activeKitBox';
 import { getDB } from '../lib/db';
 import { t, useLocale } from '../lib/i18n';
+import { deleteKitPhoto } from '../lib/kitPhoto';
 import { useTheme } from '../lib/theme';
 import ActionSheet, { ActionSheetButton } from './ActionSheet';
 import BoxEditorModal, { BoxDraft, BoxIcon } from './BoxEditorModal';
@@ -38,11 +39,13 @@ export default function KitBoxOptions() {
   const remove = async () => {
     const remaining = boxes.filter((item) => item.id !== box.id);
     const db = getDB();
+    const photos = await db.getAllAsync<{ photo_uri: string }>('SELECT photo_uri FROM kits WHERE box_id = ? AND photo_uri IS NOT NULL', [box.id]);
     await db.withTransactionAsync(async () => {
       await db.runAsync('DELETE FROM kit_paints WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?)', [box.id]);
       await db.runAsync('DELETE FROM kits WHERE box_id = ?', [box.id]);
       await db.runAsync('DELETE FROM kit_boxes WHERE id = ?', [box.id]);
     });
+    for (const { photo_uri } of photos) await deleteKitPhoto(photo_uri);
     notifyKitBoxesChanged();
     const next = remaining[0];
     setActiveKitBox(next ? next.id : 'all');
@@ -65,7 +68,7 @@ export default function KitBoxOptions() {
   const buttons: ActionSheetButton[] = [
     { text: locale === 'ja' ? 'ボックスを並び替え' : 'Reorder Boxes', onPress: () => setOrdering(true) },
     { text: editLabel, onPress: () => setEditing(true) },
-    ...(boxes.length > 1 ? [{ text: t('delete'), style: 'destructive' as const, onPress: confirmDelete }] : []),
+    { text: t('delete'), style: 'destructive' as const, onPress: confirmDelete },
     { text: t('cancel'), style: 'cancel' },
   ];
 

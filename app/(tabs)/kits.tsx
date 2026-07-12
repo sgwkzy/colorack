@@ -5,7 +5,7 @@ import { useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router
 import { getDB, KitStatus } from '../../lib/db';
 import { setActiveKitBox } from '../../lib/activeKitBox';
 import { t, useLocale } from '../../lib/i18n';
-import { lightColors, radius, spacing, touch, useTheme } from '../../lib/theme';
+import { lightColors, radius, spacing, useTheme } from '../../lib/theme';
 import AddKitModal from '../../components/AddKitModal';
 import EmptyState from '../../components/EmptyState';
 import KitDetailModal from '../../components/KitDetailModal';
