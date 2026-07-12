@@ -7,20 +7,21 @@ import {
   addKitPhoto,
   deleteKit,
   getDB,
+  getKitColors,
   getKitDetail,
-  getKitPaints,
   getKitPhotos,
+  KitColorSummary,
   KitDetail,
-  KitPaintRow as KitPaintRowData,
   KitPhoto,
   KitStatus,
-  removeKitPaint,
+  removeKitColor,
   removeKitPhoto,
   setKitStatus,
   updateKitBox,
   updateKitCategory,
+  updateKitColorName,
+  updateKitColorNote,
   updateKitNote,
-  updateKitPaintNote,
   updateKitSeries,
 } from '../lib/db';
 import { deleteKitPhoto } from '../lib/kitPhoto';
@@ -29,8 +30,8 @@ import { useModalLock } from '../lib/modalLock';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
 import ActionSheet from './ActionSheet';
 import ClearableInput from './ClearableInput';
-import KitPaintPickerModal from './KitPaintPickerModal';
-import KitPaintRow from './KitPaintRow';
+import KitColorComposerModal from './KitColorComposerModal';
+import KitColorRow from './KitColorRow';
 import KitPhotoGrid from './KitPhotoGrid';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
@@ -56,7 +57,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const [detail, setDetail] = useState<KitDetail | null>(null);
-  const [paints, setPaints] = useState<KitPaintRowData[]>([]);
+  const [kitColors, setKitColors] = useState<KitColorSummary[]>([]);
   const [photos, setPhotos] = useState<KitPhoto[]>([]);
   const [note, setNote] = useState('');
   const [series, setSeries] = useState('');
@@ -69,9 +70,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
 
   const load = useCallback(async () => {
     if (kitId == null) return;
-    const [row, paintRows, photoRows] = await Promise.all([getKitDetail(kitId), getKitPaints(kitId), getKitPhotos(kitId)]);
+    const [row, colorRows, photoRows] = await Promise.all([getKitDetail(kitId), getKitColors(kitId), getKitPhotos(kitId)]);
     setDetail(row);
-    setPaints(paintRows);
+    setKitColors(colorRows);
     setPhotos(photoRows);
     setNote(row?.note ?? '');
     setSeries(row?.series ?? '');
@@ -84,7 +85,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       getDB().getAllAsync<Box>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id').then(setBoxes);
     } else {
       setDetail(null);
-      setPaints([]);
+      setKitColors([]);
       setPhotos([]);
       setNote('');
       setSeries('');
@@ -159,13 +160,18 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     onChanged?.();
   };
 
-  const removePaint = async (kitPaintId: number) => {
-    await removeKitPaint(kitPaintId);
+  const removeColor = async (kitColorId: number) => {
+    await removeKitColor(kitColorId);
     await load();
   };
 
-  const changePaintNote = async (kitPaintId: number, next: string) => {
-    await updateKitPaintNote(kitPaintId, next);
+  const changeColorName = async (kitColorId: number, next: string) => {
+    await updateKitColorName(kitColorId, next);
+    await load();
+  };
+
+  const changeColorNote = async (kitColorId: number, next: string) => {
+    await updateKitColorNote(kitColorId, next);
     await load();
   };
 
@@ -274,12 +280,13 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                     <Text style={styles.addLink}>{t('addColor')}</Text>
                   </TouchableOpacity>
                 </View>
-                {paints.map((row) => (
-                  <KitPaintRow
-                    key={row.id}
-                    row={row}
-                    onNoteChange={(next) => changePaintNote(row.id, next)}
-                    onRemove={() => removePaint(row.id)}
+                {kitColors.map((color) => (
+                  <KitColorRow
+                    key={color.id}
+                    color={color}
+                    onNameChange={(next) => changeColorName(color.id, next)}
+                    onNoteChange={(next) => changeColorNote(color.id, next)}
+                    onRemove={() => removeColor(color.id)}
                   />
                 ))}
               </View>
@@ -313,7 +320,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
             onClose={() => setMenuOpen(false)}
           />
           {detail ? (
-            <KitPaintPickerModal
+            <KitColorComposerModal
               visible={pickerOpen}
               kitId={detail.id}
               onClose={() => setPickerOpen(false)}
