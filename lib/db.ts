@@ -102,6 +102,8 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN series_en TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN notes TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE inventory ADD COLUMN status_changed_at TEXT'); } catch { /* 既にある */ }
+  try { await db.execAsync('ALTER TABLE kits ADD COLUMN series TEXT'); } catch { /* 既にある */ }
+  try { await db.execAsync('ALTER TABLE kits ADD COLUMN category TEXT'); } catch { /* 既にある */ }
   await db.runAsync(
     'UPDATE inventory SET status_changed_at = added_at WHERE status_changed_at IS NULL OR status_changed_at < added_at'
   );
