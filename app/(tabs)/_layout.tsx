@@ -9,6 +9,8 @@ import { useTheme } from '../../lib/theme';
 import NavigationDrawer from '../../components/NavigationDrawer';
 import BoxTitlePicker from '../../components/BoxTitlePicker';
 import BoxOptions from '../../components/BoxOptions';
+import KitBoxTitlePicker from '../../components/KitBoxTitlePicker';
+import KitBoxOptions from '../../components/KitBoxOptions';
 import { useModalOpen } from '../../lib/modalLock';
 
 export default function TabsLayout() {
@@ -43,6 +45,7 @@ export default function TabsLayout() {
       headerLeft: () => <TouchableOpacity onPress={() => drawerRef.current?.openDrawer()} accessibilityRole="button" accessibilityLabel="Menu" hitSlop={12} style={{ marginLeft: 16 }}><IconMenu3 color={colors.text} size={26} /></TouchableOpacity>,
     }}>
       <Tabs.Screen name="owned" options={{ headerTitle: () => <BoxTitlePicker />, headerRight: () => <BoxOptions /> }} />
+      <Tabs.Screen name="kits" options={{ headerTitle: () => <KitBoxTitlePicker />, headerRight: () => <KitBoxOptions /> }} />
       <Tabs.Screen name="used" options={{ title: t('statusUsedUp') }} />
       <Tabs.Screen name="favorites" options={{ title: t('favorites') }} />
       <Tabs.Screen name="wishlist" options={{ title: t('wishlist') }} />
