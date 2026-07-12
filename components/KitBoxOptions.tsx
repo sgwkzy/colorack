@@ -41,7 +41,8 @@ export default function KitBoxOptions() {
     const db = getDB();
     const photos = await db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?)', [box.id]);
     await db.withTransactionAsync(async () => {
-      await db.runAsync('DELETE FROM kit_paints WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?)', [box.id]);
+      await db.runAsync('DELETE FROM kit_color_paints WHERE kit_color_id IN (SELECT id FROM kit_colors WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?))', [box.id]);
+      await db.runAsync('DELETE FROM kit_colors WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?)', [box.id]);
       await db.runAsync('DELETE FROM kit_photos WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?)', [box.id]);
       await db.runAsync('DELETE FROM kits WHERE box_id = ?', [box.id]);
       await db.runAsync('DELETE FROM kit_boxes WHERE id = ?', [box.id]);
