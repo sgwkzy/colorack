@@ -3,12 +3,12 @@ import { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { getDB } from '../lib/db';
+import { addKitPhoto, getDB } from '../lib/db';
 import { t } from '../lib/i18n';
 import { useModalLock } from '../lib/modalLock';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
 import ClearableInput from './ClearableInput';
-import KitPhotoPicker from './KitPhotoPicker';
+import KitPhotoGrid from './KitPhotoGrid';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
 
@@ -24,21 +24,25 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
   const styles = makeStyles(colors);
   const [name, setName] = useState('');
   const [maker, setMaker] = useState('');
+  const [series, setSeries] = useState('');
+  const [category, setCategory] = useState('');
   const [scale, setScale] = useState('');
   const [note, setNote] = useState('');
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
   const canSave = name.trim() !== '' && maker.trim() !== '';
 
   useEffect(() => {
-    if (visible) { setName(''); setMaker(''); setScale(''); setNote(''); setPhotoUri(null); }
+    if (visible) { setName(''); setMaker(''); setSeries(''); setCategory(''); setScale(''); setNote(''); setPhotos([]); }
   }, [visible]);
 
   const save = async () => {
     if (!canSave) return;
-    await getDB().runAsync(
-      'INSERT INTO kits (box_id, name, maker, scale, note, photo_uri, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [defaultBoxId, name.trim(), maker.trim(), scale.trim() || null, note.trim() || null, photoUri, 'not_started']
+    const result = await getDB().runAsync(
+      'INSERT INTO kits (box_id, name, maker, series, category, scale, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [defaultBoxId, name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, note.trim() || null, 'not_started']
     );
+    const kitId = result.lastInsertRowId;
+    for (const uri of photos) await addKitPhoto(kitId, uri);
     onClose();
   };
 
@@ -55,7 +59,11 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
             </View>
           </SwipeDownHeader>
           <SwipeDownScrollView onClose={onClose} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-            <KitPhotoPicker photoUri={photoUri} onChange={setPhotoUri} />
+            <KitPhotoGrid
+              photos={photos.map((uri) => ({ key: uri, uri }))}
+              onAdd={(uri) => setPhotos((current) => [...current, uri])}
+              onRemove={(key) => setPhotos((current) => current.filter((uri) => uri !== key))}
+            />
             <View style={styles.field}>
               <Text style={styles.label}>{t('name')}*</Text>
               <ClearableInput style={styles.input} value={name} onChangeText={setName} />
@@ -63,6 +71,14 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
             <View style={styles.field}>
               <Text style={styles.label}>{t('maker')}*</Text>
               <ClearableInput style={styles.input} value={maker} onChangeText={setMaker} />
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.label}>{t('series')}</Text>
+              <ClearableInput style={styles.input} value={series} onChangeText={setSeries} />
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.label}>{t('category')}</Text>
+              <ClearableInput style={styles.input} value={category} onChangeText={setCategory} />
             </View>
             <View style={styles.field}>
               <Text style={styles.label}>{t('scale')}</Text>
