@@ -18,7 +18,7 @@
 
 - `kit_colors`(色エントリ: 色名・メモ)+ `kit_color_paints`(構成塗料・配合割合)の新データモデル
 - 新規`KitColorComposerModal.tsx`: 色名入力 + 塗料ピッカー(一覧ドリルダウン/近似色検索のタブ)+ 画面下部の折りたたみアコーディオン(現在の混色プレビュー・登録済み構成塗料の割合編集/削除)+ 保存
-- 新規`lib/colorMix.ts`: 単一定数Kubelka-MunkによるRGB加重混色計算
+- 新規依存 `spectral.js`(npm, MIT)+ 新規`lib/colorMix.ts`: `spectral.js`を使った混色計算のラッパー
 - 新規`KitColorRow.tsx`: `KitDetailModal`の「使用する色」一覧の1行表示(混色スウォッチ・色名・構成塗料の内訳・メモ編集・削除)
 - 既存`kit_paints`データの自動移行(初回起動時、1塗料1行→`kit_colors`1件+`kit_color_paints`1件・ratio=1.0)
 
@@ -84,46 +84,47 @@ CREATE TABLE kit_color_paints (
 - 保存ボタンは構成塗料が1件以上のとき活性化。塗料が1件のまま保存すれば、従来通りの「単色登録」相当になる(ratio=1.0の`kit_colors`エントリ)。
 - 画面を閉じる際(保存せずキャンセル)は、追加していた構成塗料の選択状態を破棄するだけでよい(ファイルの生成が伴わないため、キット写真機能のような孤立ファイル対策は不要)。
 
-## 混色プレビューの計算: `lib/colorMix.ts`
+## 混色プレビューの計算: `lib/colorMix.ts` (npm `spectral.js` を利用)
 
-Kubelka-Munk理論は本来、波長ごとの吸収係数K・散乱係数Sを使う減法混色モデルで、厳密な実装には分光反射率データが必要。このアプリが持つ色情報は塗料ごとのHEX値(sRGB3チャンネル)のみのため、真の分光K-Mは実装しない。代わりに、R/G/B各チャンネルを疑似反射率とみなして単一定数K-M(不透明・自己下地=masstoneモデル)をチャンネルごとに適用する近似を採用する。
+当初、R/G/B各チャンネルを疑似反射率とみなしてチャンネルごとに単一定数Kubelka-Munkを適用する自作の近似式を検討したが、実装前に数値検算した結果、白での希釈が実質機能しない(白50%+赤50%が`#FF0101`相当になり、ほぼ薄まらない)という致命的な欠陥が判明した。原因は、あるチャンネルで一方の塗料の反射率が0に近いとK/Sが発散し、加重平均がそちらに支配されるため。
+
+代わりに、npmパッケージ **[`spectral.js`](https://github.com/rvanwijnen/spectral.js)**(MITライセンス、依存なし、DOM/Canvas等ブラウザ専用APIへの依存なし)を新規依存として採用する。このライブラリはRGB値から7つの基本反射スペクトル(白・シアン・マゼンタ・イエロー・赤・緑・青)を合成して疑似的な分光反射率カーブを復元し、そのスペクトル空間で本物のKubelka-Munk混色を行ってからRGBへ戻す。実装前に独立して検算し、白での希釈・補色同士の減法混色(青+黄→緑)の両方が正しく動作することを確認済み:
+
+```
+white50% + red50%   => #FF424A  (正しく明るいピンクへ希釈される)
+white80% + red20%   => #FF98AE  (白の比率を増やすとさらに明るく)
+blue50% + yellow50%  => #398F54  (本物の緑になる)
+```
+
+同種の有名ライブラリに`mixbox`があるが、ライセンスがCC-BY-NC-4.0(非商用限定)でありAdBannerを含む本アプリ(商用)では使用できないため採用しない。`spectral.js`はmixboxとは独立の別実装でMITライセンスのため、この制約に抵触しない。
+
+`lib/colorMix.ts`は`spectral.js`の薄いラッパーとする:
 
 ```ts
-// 反射率 r (0〜1、両端はクランプ) から K/S を求める
-function reflectanceToKS(r: number): number {
-  const clamped = Math.min(0.999, Math.max(0.001, r));
-  return (1 - clamped) ** 2 / (2 * clamped);
+// lib/colorMix.ts
+import * as spectral from 'spectral.js';
+
+export interface MixInput {
+  hex: string;
+  ratio: number;
 }
 
-// K/S から反射率 r (0〜1) を復元する
-function ksToReflectance(ks: number): number {
-  return 1 + ks - Math.sqrt(ks * ks + 2 * ks);
-}
-
-// 1チャンネル分の加重K-M混色
-function mixChannel(values: { channel: number; ratio: number }[]): number {
-  const totalRatio = values.reduce((sum, v) => sum + v.ratio, 0) || 1;
-  const ksAvg = values.reduce((sum, v) => sum + reflectanceToKS(v.channel / 255) * (v.ratio / totalRatio), 0);
-  return Math.round(ksToReflectance(ksAvg) * 255);
-}
-
-// 塗料のHEXと割合(0〜1、合計は問わない)から混色後のHEXを算出
-export function mixHexColors(paints: { hex: string; ratio: number }[]): string | null {
-  const rgbList = paints.map((p) => ({ rgb: hex_to_rgb(p.hex), ratio: p.ratio })).filter((p) => p.rgb !== null);
-  if (rgbList.length === 0) return null;
-  const r = mixChannel(rgbList.map((p) => ({ channel: p.rgb!.r, ratio: p.ratio })));
-  const g = mixChannel(rgbList.map((p) => ({ channel: p.rgb!.g, ratio: p.ratio })));
-  const b = mixChannel(rgbList.map((p) => ({ channel: p.rgb!.b, ratio: p.ratio })));
-  return '#' + [r, g, b].map((v) => Math.min(255, Math.max(0, v)).toString(16).padStart(2, '0')).join('');
+// 塗料のHEXと割合(比率。合計が1である必要はなく、spectral.js が内部で正規化する)から
+// 混色後のHEXを算出する。有効なHEXが1つもなければ null。
+export function mixHexColors(paints: MixInput[]): string | null {
+  const valid = paints.filter((p) => /^#?[0-9a-fA-F]{6}$/.test(p.hex.replace(/^#/, '')));
+  if (valid.length === 0) return null;
+  const colors = valid.map((p) => [new spectral.Color(p.hex), p.ratio] as [InstanceType<typeof spectral.Color>, number]);
+  const mixed = spectral.mix(...colors);
+  return mixed.toString();
 }
 ```
 
-`hex_to_rgb`は既存の`lib/color.ts`のものを再利用する(`lib/colorMix.ts`から`import`)。この関数は保存しない — `KitColorComposerModal`(選択中のリアルタイムプレビュー)と`KitColorRow`(一覧表示のスウォッチ)の両方が、都度この関数を呼んで描画時に計算する。
+この関数は結果を保存しない — `KitColorComposerModal`(選択中のリアルタイムプレビュー)と`KitColorRow`(一覧表示のスウォッチ)の両方が、都度この関数を呼んで描画時に計算する。塗料が1件のみの場合は`spectral.mix`に1要素だけ渡す形になり、実質そのままその塗料の色が返る。
 
 懸念点(実装前に共有済み・対応方針):
-1. 分光データではなくRGB3チャンネルでの近似であること — 単純なRGB平均より減法混色らしい結果(例: 青+黄→緑寄り)になるが、厳密な予測ではない
-2. 反射率が0または1に近い極端な色でK/Sが発散しうるため、`reflectanceToKS`で0.001〜0.999にクランプする
-3. 隠蔽力・粒子径・展色剤などはモデル化されない
+1. 疑似的に復元した分光反射率カーブであり、実測の分光データそのものではない — 実際の絵具の隠蔽力・粒子径・展色剤などはモデル化されない
+2. React Native/Expo環境での動作は、ソースコードにDOM/Canvas/WebGL等ブラウザ専用APIへの参照がないことを確認済みだが、Metroバンドラでの実バンドル確認は実装タスクの中で行う
 
 ## `KitDetailModal.tsx`の「使用する色」欄
 
