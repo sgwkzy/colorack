@@ -4,6 +4,7 @@ import seedData from '../assets/seed_catalog.json';
 import { validateManualPaint } from './manualPaint';
 
 export type PaintStatus = 'owned' | 'in_use' | 'used_up';
+export type KitStatus = 'not_started' | 'building' | 'completed';
 export type ListType = 'favorites' | 'wishlist';
 
 export type SeedRow = {
@@ -66,6 +67,22 @@ export async function initDB(): Promise<void> {
     ');' +
     'CREATE TABLE IF NOT EXISTS app_settings (' +
     '  key TEXT PRIMARY KEY, value TEXT' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_boxes (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    "  name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'box', icon_color TEXT NOT NULL DEFAULT '#4a90d9', sort_order INTEGER NOT NULL DEFAULT 0" +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kits (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  box_id INTEGER,' +
+    '  name TEXT NOT NULL, maker TEXT NOT NULL, scale TEXT, note TEXT, photo_uri TEXT,' +
+    "  status TEXT NOT NULL DEFAULT 'not_started' CHECK(status IN ('not_started','building','completed'))," +
+    "  added_at TEXT DEFAULT (datetime('now')), status_changed_at TEXT DEFAULT (datetime('now'))" +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_paints (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  kit_id INTEGER NOT NULL, paint_id INTEGER NOT NULL, note TEXT,' +
+    "  added_at TEXT DEFAULT (datetime('now'))" +
     ');'
   );
   await db.execAsync(
@@ -322,6 +339,105 @@ export async function setInventoryStatus(inventoryId: number, status: PaintStatu
     "UPDATE inventory SET status = ?, box_id = CASE WHEN ? = 'used_up' THEN NULL WHEN box_id IS NULL THEN ? ELSE box_id END, status_changed_at = datetime('now') WHERE id = ?",
     [status, status, defaultBoxId, inventoryId]
   );
+}
+
+export interface KitDetail {
+  id: number;
+  box_id: number | null;
+  box_name: string | null;
+  name: string;
+  maker: string;
+  scale: string | null;
+  note: string | null;
+  photo_uri: string | null;
+  status: KitStatus;
+  added_at: string | null;
+  status_changed_at: string | null;
+}
+
+export async function getKitDetail(kitId: number): Promise<KitDetail | null> {
+  const row = await getDB().getFirstAsync<KitDetail>(
+    'SELECT k.id, k.box_id, b.name AS box_name, k.name, k.maker, k.scale, k.note, k.photo_uri, k.status, k.added_at, k.status_changed_at'
+    + ' FROM kits k LEFT JOIN kit_boxes b ON k.box_id = b.id'
+    + ' WHERE k.id = ?',
+    [kitId]
+  );
+  return row ?? null;
+}
+
+export async function updateKitNote(kitId: number, note: string): Promise<void> {
+  const normalized = note.trim() === '' ? null : note;
+  await getDB().runAsync(
+    "UPDATE kits SET note = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [normalized, kitId]
+  );
+}
+
+export async function updateKitBox(kitId: number, boxId: number): Promise<void> {
+  await getDB().runAsync(
+    "UPDATE kits SET box_id = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [boxId, kitId]
+  );
+}
+
+export async function setKitStatus(kitId: number, status: KitStatus): Promise<void> {
+  await getDB().runAsync(
+    "UPDATE kits SET status = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [status, kitId]
+  );
+}
+
+export async function updateKitPhoto(kitId: number, photoUri: string | null): Promise<void> {
+  await getDB().runAsync(
+    "UPDATE kits SET photo_uri = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [photoUri, kitId]
+  );
+}
+
+export async function deleteKit(kitId: number): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM kit_paints WHERE kit_id = ?', [kitId]);
+    await db.runAsync('DELETE FROM kits WHERE id = ?', [kitId]);
+  });
+}
+
+export interface KitPaintRow {
+  id: number;
+  paint_id: number;
+  note: string | null;
+  name_ja: string;
+  name_en: string | null;
+  code: string;
+  brand: string;
+  hex: string | null;
+  gloss: string | null;
+  paint_type: string | null;
+}
+
+export async function getKitPaints(kitId: number): Promise<KitPaintRow[]> {
+  return getDB().getAllAsync<KitPaintRow>(
+    'SELECT kp.id, kp.paint_id, kp.note, c.name_ja, c.name_en, c.code, c.brand, c.hex, c.gloss, c.paint_type'
+    + ' FROM kit_paints kp JOIN catalog_paints c ON kp.paint_id = c.id'
+    + ' WHERE kp.kit_id = ? ORDER BY kp.added_at',
+    [kitId]
+  );
+}
+
+export async function addKitPaint(kitId: number, paintId: number): Promise<void> {
+  await getDB().runAsync(
+    'INSERT INTO kit_paints (kit_id, paint_id) VALUES (?, ?)',
+    [kitId, paintId]
+  );
+}
+
+export async function updateKitPaintNote(kitPaintId: number, note: string): Promise<void> {
+  const normalized = note.trim() === '' ? null : note;
+  await getDB().runAsync('UPDATE kit_paints SET note = ? WHERE id = ?', [normalized, kitPaintId]);
+}
+
+export async function removeKitPaint(kitPaintId: number): Promise<void> {
+  await getDB().runAsync('DELETE FROM kit_paints WHERE id = ?', [kitPaintId]);
 }
 
 export interface CatalogPaintContentEdit {
