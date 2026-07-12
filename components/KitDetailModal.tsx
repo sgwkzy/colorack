@@ -4,21 +4,26 @@ import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-na
 import { IconChevronDown, IconDotsVertical, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
+  addKitPhoto,
   deleteKit,
+  getDB,
   getKitDetail,
   getKitPaints,
+  getKitPhotos,
   KitDetail,
   KitPaintRow as KitPaintRowData,
+  KitPhoto,
   KitStatus,
   removeKitPaint,
+  removeKitPhoto,
   setKitStatus,
   updateKitBox,
+  updateKitCategory,
   updateKitNote,
   updateKitPaintNote,
-  updateKitPhoto,
+  updateKitSeries,
 } from '../lib/db';
 import { deleteKitPhoto } from '../lib/kitPhoto';
-import { getDB } from '../lib/db';
 import { t } from '../lib/i18n';
 import { useModalLock } from '../lib/modalLock';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
@@ -26,7 +31,7 @@ import ActionSheet from './ActionSheet';
 import ClearableInput from './ClearableInput';
 import KitPaintPickerModal from './KitPaintPickerModal';
 import KitPaintRow from './KitPaintRow';
-import KitPhotoPicker from './KitPhotoPicker';
+import KitPhotoGrid from './KitPhotoGrid';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
@@ -52,7 +57,10 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const styles = makeStyles(colors);
   const [detail, setDetail] = useState<KitDetail | null>(null);
   const [paints, setPaints] = useState<KitPaintRowData[]>([]);
+  const [photos, setPhotos] = useState<KitPhoto[]>([]);
   const [note, setNote] = useState('');
+  const [series, setSeries] = useState('');
+  const [category, setCategory] = useState('');
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [boxPickerOpen, setBoxPickerOpen] = useState(false);
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
@@ -61,10 +69,13 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
 
   const load = useCallback(async () => {
     if (kitId == null) return;
-    const [row, paintRows] = await Promise.all([getKitDetail(kitId), getKitPaints(kitId)]);
+    const [row, paintRows, photoRows] = await Promise.all([getKitDetail(kitId), getKitPaints(kitId), getKitPhotos(kitId)]);
     setDetail(row);
     setPaints(paintRows);
+    setPhotos(photoRows);
     setNote(row?.note ?? '');
+    setSeries(row?.series ?? '');
+    setCategory(row?.category ?? '');
   }, [kitId]);
 
   useEffect(() => {
@@ -74,7 +85,10 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     } else {
       setDetail(null);
       setPaints([]);
+      setPhotos([]);
       setNote('');
+      setSeries('');
+      setCategory('');
       setBoxPickerOpen(false);
       setStatusPickerOpen(false);
       setPickerOpen(false);
@@ -90,10 +104,27 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     onChanged?.();
   };
 
-  const closeAfterSavingNote = async () => {
-    if (detail && note !== (detail.note ?? '')) {
-      await updateKitNote(detail.id, note);
-      onChanged?.();
+  const saveSeries = async () => {
+    if (!detail) return;
+    if (series === (detail.series ?? '')) return;
+    await updateKitSeries(detail.id, series);
+    await load();
+    onChanged?.();
+  };
+
+  const saveCategory = async () => {
+    if (!detail) return;
+    if (category === (detail.category ?? '')) return;
+    await updateKitCategory(detail.id, category);
+    await load();
+    onChanged?.();
+  };
+
+  const closeAfterSavingFields = async () => {
+    if (detail) {
+      if (note !== (detail.note ?? '')) { await updateKitNote(detail.id, note); onChanged?.(); }
+      if (series !== (detail.series ?? '')) { await updateKitSeries(detail.id, series); onChanged?.(); }
+      if (category !== (detail.category ?? '')) { await updateKitCategory(detail.id, category); onChanged?.(); }
     }
     onClose();
   };
@@ -114,11 +145,16 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     onChanged?.();
   };
 
-  const changePhoto = async (uri: string | null) => {
+  const addPhoto = async (uri: string) => {
     if (!detail) return;
-    const previous = detail.photo_uri;
-    await updateKitPhoto(detail.id, uri);
-    if (previous && previous !== uri) await deleteKitPhoto(previous);
+    await addKitPhoto(detail.id, uri);
+    await load();
+    onChanged?.();
+  };
+
+  const removePhoto = async (photoId: number, uri: string) => {
+    await removeKitPhoto(photoId);
+    await deleteKitPhoto(uri);
     await load();
     onChanged?.();
   };
@@ -142,7 +178,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
         text: t('delete'), style: 'destructive',
         onPress: async () => {
           await deleteKit(detail.id);
-          if (detail.photo_uri) await deleteKitPhoto(detail.photo_uri);
+          for (const photo of photos) await deleteKitPhoto(photo.uri);
           onChanged?.();
           onClose();
         },
@@ -153,18 +189,18 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const boxName = boxes.find((b) => b.id === detail?.box_id)?.name ?? t('unassigned');
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={closeAfterSavingNote}>
+    <Modal visible={visible} animationType="slide" onRequestClose={closeAfterSavingFields}>
       <SafeAreaProvider>
-        <SwipeBack enabled={visible} onBack={closeAfterSavingNote}>
+        <SwipeBack enabled={visible} onBack={closeAfterSavingFields}>
         <SafeAreaView style={styles.container} edges={['top']}>
-          <SwipeDownHeader onClose={closeAfterSavingNote}>
+          <SwipeDownHeader onClose={closeAfterSavingFields}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('kitDetailTitle')}</Text>
               <View style={styles.headerActions}>
                 <TouchableOpacity onPress={() => setMenuOpen(true)} hitSlop={8}>
                   <IconDotsVertical color={colors.text} size={22} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={closeAfterSavingNote} hitSlop={8}>
+                <TouchableOpacity onPress={closeAfterSavingFields} hitSlop={8}>
                   <IconX color={colors.text} size={24} />
                 </TouchableOpacity>
               </View>
@@ -174,9 +210,16 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           {!detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
-            <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingNote} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+            <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingFields} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <View style={styles.topRow}>
-                <KitPhotoPicker photoUri={detail.photo_uri} onChange={changePhoto} />
+                <KitPhotoGrid
+                  photos={photos.map((p) => ({ key: p.id, uri: p.uri }))}
+                  onAdd={addPhoto}
+                  onRemove={(key) => {
+                    const photo = photos.find((p) => p.id === key);
+                    if (photo) removePhoto(photo.id, photo.uri);
+                  }}
+                />
                 <View style={styles.titleBlock}>
                   <Text style={styles.name}>{detail.name}</Text>
                   <Text style={styles.maker}>{detail.maker}{detail.scale ? ` · ${detail.scale}` : ''}</Text>
@@ -198,6 +241,17 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                     <Text numberOfLines={1} style={styles.pickerText}>{t(STATUS_OPTIONS.find((o) => o.value === detail.status)?.labelKey ?? 'status')}</Text>
                     <IconChevronDown size={16} color={colors.textMuted} />
                   </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.card}>
+                <View style={styles.field}>
+                  <Text style={styles.sectionTitle}>{t('series')}</Text>
+                  <ClearableInput style={styles.input} value={series} onChangeText={setSeries} onBlur={saveSeries} />
+                </View>
+                <View style={styles.field}>
+                  <Text style={styles.sectionTitle}>{t('category')}</Text>
+                  <ClearableInput style={styles.input} value={category} onChangeText={setCategory} onBlur={saveCategory} />
                 </View>
               </View>
 
@@ -280,7 +334,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   scroll: { flex: 1 },
   content: { padding: spacing.xl, gap: spacing.lg },
-  topRow: { flexDirection: 'row', gap: spacing.lg, alignItems: 'center' },
+  topRow: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
   titleBlock: { flex: 1, gap: spacing.xs },
   name: { fontSize: 20, fontWeight: '700', color: colors.text },
   maker: { fontSize: 14, color: colors.textMuted },
@@ -290,6 +344,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   picker: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   pickerText: { flex: 1, color: colors.text, fontSize: 14, fontWeight: '600' },
   card: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, gap: spacing.md },
+  field: { gap: spacing.xs },
   sectionTitle: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
   noteInput: { minHeight: 72, alignItems: 'flex-start' },
