@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconArchive, IconBox, IconBriefcase, IconBuildingWarehouse, IconFlask, IconHistory, IconHeart, IconPackage, IconPalette, IconPlus, IconSettings, IconShoppingCartPlus, IconStack } from '@tabler/icons-react-native';
 import { router, usePathname } from 'expo-router';
 import { notifyBoxesChanged, setActiveBox, useActiveBox } from '../lib/activeBox';
+import { notifyKitBoxesChanged, setActiveKitBox, useActiveKitBox } from '../lib/activeKitBox';
 import { getDB } from '../lib/db';
 import { t, useLocale } from '../lib/i18n';
 import { lightColors, spacing, touch, useTheme } from '../lib/theme';
@@ -27,21 +28,29 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
   const [wishlistCount, setWishlistCount] = useState(0);
   const [usedCount, setUsedCount] = useState(0);
   const [editingBox, setEditingBox] = useState<'new' | null>(null);
+  const activeKitBoxId = useActiveKitBox();
+  const [kitBoxes, setKitBoxes] = useState<Box[]>([]);
+  const [kitCounts, setKitCounts] = useState<Map<number | null, number>>(new Map());
+  const [editingKitBox, setEditingKitBox] = useState<'new' | null>(null);
 
   const loadBoxes = useCallback(async () => {
     const db = getDB();
-    const [boxRows, countRows, favoriteRow, wishlistRow, usedRow] = await Promise.all([
+    const [boxRows, countRows, favoriteRow, wishlistRow, usedRow, kitBoxRows, kitCountRows] = await Promise.all([
       db.getAllAsync<Box>('SELECT id, name, icon, icon_color FROM boxes ORDER BY sort_order, id'),
       db.getAllAsync<CountRow>("SELECT box_id, COUNT(*) AS n FROM inventory WHERE status IN ('owned', 'in_use') GROUP BY box_id"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM lists WHERE type = 'favorites'"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM lists WHERE type = 'wishlist'"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM inventory WHERE status = 'used_up'"),
+      db.getAllAsync<Box>('SELECT id, name, icon, icon_color FROM kit_boxes ORDER BY sort_order, id'),
+      db.getAllAsync<CountRow>('SELECT box_id, COUNT(*) AS n FROM kits GROUP BY box_id'),
     ]);
     setBoxes(boxRows);
     setBoxCounts(new Map(countRows.map((row) => [row.box_id, row.n])));
     setFavoriteCount(favoriteRow?.n ?? 0);
     setWishlistCount(wishlistRow?.n ?? 0);
     setUsedCount(usedRow?.n ?? 0);
+    setKitBoxes(kitBoxRows);
+    setKitCounts(new Map(kitCountRows.map((row) => [row.box_id, row.n])));
   }, []);
   useEffect(() => { if (visible) loadBoxes(); }, [visible, loadBoxes]);
   const saveBox = async ({ name, icon, color }: BoxDraft) => {
@@ -50,11 +59,22 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     notifyBoxesChanged();
     await loadBoxes();
   };
+  const saveKitBox = async ({ name, icon, color }: BoxDraft) => {
+    const db = getDB();
+    if (editingKitBox === 'new') await db.runAsync('INSERT INTO kit_boxes (name, icon, icon_color, sort_order) VALUES (?, ?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM kit_boxes), 0))', [name, icon, color]);
+    notifyKitBoxesChanged();
+    await loadBoxes();
+  };
   const go = (pathname: '/owned' | '/used' | '/favorites' | '/wishlist' | '/catalog' | '/settings', boxId?: number | 'all') => {
     if (pathname === '/owned' && boxId !== undefined) setActiveBox(boxId);
     onClose();
     if (boxId !== undefined) router.navigate({ pathname, params: { boxId: String(boxId) } });
     else router.navigate(pathname);
+  };
+  const goKits = (boxId: number | 'all') => {
+    setActiveKitBox(boxId);
+    onClose();
+    router.navigate({ pathname: '/kits', params: { boxId: String(boxId) } });
   };
   const item = (label: string, onPress: () => void, icon: ReactNode, active = false, count?: number, key?: string) => (
     <TouchableOpacity key={key} style={[styles.item, active && styles.activeItem]} onPress={onPress} accessibilityRole="button">
@@ -73,6 +93,8 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     return <IconBox color={color} size={22} />;
   };
   const totalCount = Array.from(boxCounts.values()).reduce((sum, count) => sum + count, 0);
+  const allKitBoxesLabel = locale === 'ja' ? 'すべてのキットボックス' : 'All Kit Boxes';
+  const kitTotalCount = Array.from(kitCounts.values()).reduce((sum, count) => sum + count, 0);
   return (
         <SafeAreaView edges={['top', 'bottom']} style={styles.drawerContent}>
           <ScrollView contentContainerStyle={styles.content}>
@@ -88,8 +110,14 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
             <View style={styles.divider} />
             {item(t('catalog'), () => go('/catalog'), <IconPalette color={colors.textMuted} size={22} />, pathname.endsWith('/catalog'))}
             {item(t('settings'), () => go('/settings'), <IconSettings color={colors.textMuted} size={22} />, pathname.endsWith('/settings'))}
+            <View style={styles.divider} />
+            <Text style={styles.sectionLabel}>{t('kits')}</Text>
+            {item(allKitBoxesLabel, () => goKits('all'), <IconBox color={colors.textMuted} size={22} />, pathname.endsWith('/kits') && activeKitBoxId === 'all', kitTotalCount)}
+            {kitBoxes.map((box) => item(box.name, () => goKits(box.id), boxIcon(box), pathname.endsWith('/kits') && activeKitBoxId === box.id, kitCounts.get(box.id) ?? 0, `kitbox-${box.id}`))}
+            {kitBoxes.length < 8 ? item(t('addKitBox'), () => setEditingKitBox('new'), <IconPlus color={colors.primary} size={22} />) : null}
           </ScrollView>
           <BoxEditorModal visible={editingBox === 'new'} title={t('addBox')} onSave={saveBox} onClose={() => setEditingBox(null)} />
+          <BoxEditorModal visible={editingKitBox === 'new'} title={t('addKitBox')} onSave={saveKitBox} onClose={() => setEditingKitBox(null)} />
         </SafeAreaView>
   );
 }
@@ -105,4 +133,5 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   count: { marginLeft: 'auto', color: colors.textFaint, fontSize: 14, fontVariant: ['tabular-nums'] },
   activeText: { color: colors.primary, fontWeight: '700' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderLight, marginVertical: spacing.sm, marginHorizontal: spacing.xl },
+  sectionLabel: { paddingHorizontal: spacing.xl, paddingBottom: spacing.sm, fontSize: 12, fontWeight: '700', color: colors.textFaint, textTransform: 'uppercase' },
 });
