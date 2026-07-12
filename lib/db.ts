@@ -75,13 +75,18 @@ export async function initDB(): Promise<void> {
     'CREATE TABLE IF NOT EXISTS kits (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     '  box_id INTEGER,' +
-    '  name TEXT NOT NULL, maker TEXT NOT NULL, scale TEXT, note TEXT, photo_uri TEXT,' +
+    '  name TEXT NOT NULL, maker TEXT NOT NULL, series TEXT, category TEXT, scale TEXT, note TEXT,' +
     "  status TEXT NOT NULL DEFAULT 'not_started' CHECK(status IN ('not_started','building','completed'))," +
     "  added_at TEXT DEFAULT (datetime('now')), status_changed_at TEXT DEFAULT (datetime('now'))" +
     ');' +
     'CREATE TABLE IF NOT EXISTS kit_paints (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     '  kit_id INTEGER NOT NULL, paint_id INTEGER NOT NULL, note TEXT,' +
+    "  added_at TEXT DEFAULT (datetime('now'))" +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_photos (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  kit_id INTEGER NOT NULL, uri TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0,' +
     "  added_at TEXT DEFAULT (datetime('now'))" +
     ');'
   );
@@ -347,9 +352,10 @@ export interface KitDetail {
   box_name: string | null;
   name: string;
   maker: string;
+  series: string | null;
+  category: string | null;
   scale: string | null;
   note: string | null;
-  photo_uri: string | null;
   status: KitStatus;
   added_at: string | null;
   status_changed_at: string | null;
@@ -357,7 +363,7 @@ export interface KitDetail {
 
 export async function getKitDetail(kitId: number): Promise<KitDetail | null> {
   const row = await getDB().getFirstAsync<KitDetail>(
-    'SELECT k.id, k.box_id, b.name AS box_name, k.name, k.maker, k.scale, k.note, k.photo_uri, k.status, k.added_at, k.status_changed_at'
+    'SELECT k.id, k.box_id, b.name AS box_name, k.name, k.maker, k.series, k.category, k.scale, k.note, k.status, k.added_at, k.status_changed_at'
     + ' FROM kits k LEFT JOIN kit_boxes b ON k.box_id = b.id'
     + ' WHERE k.id = ?',
     [kitId]
@@ -369,6 +375,22 @@ export async function updateKitNote(kitId: number, note: string): Promise<void> 
   const normalized = note.trim() === '' ? null : note;
   await getDB().runAsync(
     "UPDATE kits SET note = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [normalized, kitId]
+  );
+}
+
+export async function updateKitSeries(kitId: number, series: string): Promise<void> {
+  const normalized = series.trim() === '' ? null : series;
+  await getDB().runAsync(
+    "UPDATE kits SET series = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [normalized, kitId]
+  );
+}
+
+export async function updateKitCategory(kitId: number, category: string): Promise<void> {
+  const normalized = category.trim() === '' ? null : category;
+  await getDB().runAsync(
+    "UPDATE kits SET category = ?, status_changed_at = datetime('now') WHERE id = ?",
     [normalized, kitId]
   );
 }
@@ -387,17 +409,39 @@ export async function setKitStatus(kitId: number, status: KitStatus): Promise<vo
   );
 }
 
-export async function updateKitPhoto(kitId: number, photoUri: string | null): Promise<void> {
-  await getDB().runAsync(
-    "UPDATE kits SET photo_uri = ?, status_changed_at = datetime('now') WHERE id = ?",
-    [photoUri, kitId]
+export interface KitPhoto {
+  id: number;
+  uri: string;
+  sort_order: number;
+}
+
+export async function getKitPhotos(kitId: number): Promise<KitPhoto[]> {
+  return getDB().getAllAsync<KitPhoto>(
+    'SELECT id, uri, sort_order FROM kit_photos WHERE kit_id = ? ORDER BY sort_order, id',
+    [kitId]
   );
+}
+
+export async function addKitPhoto(kitId: number, uri: string): Promise<void> {
+  const row = await getDB().getFirstAsync<{ n: number }>(
+    'SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM kit_photos WHERE kit_id = ?',
+    [kitId]
+  );
+  await getDB().runAsync(
+    'INSERT INTO kit_photos (kit_id, uri, sort_order) VALUES (?, ?, ?)',
+    [kitId, uri, row?.n ?? 0]
+  );
+}
+
+export async function removeKitPhoto(photoId: number): Promise<void> {
+  await getDB().runAsync('DELETE FROM kit_photos WHERE id = ?', [photoId]);
 }
 
 export async function deleteKit(kitId: number): Promise<void> {
   const db = getDB();
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM kit_paints WHERE kit_id = ?', [kitId]);
+    await db.runAsync('DELETE FROM kit_photos WHERE kit_id = ?', [kitId]);
     await db.runAsync('DELETE FROM kits WHERE id = ?', [kitId]);
   });
 }
