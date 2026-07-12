@@ -15,7 +15,7 @@ interface KitListItem {
   name: string;
   maker: string;
   scale: string | null;
-  photo_uri: string | null;
+  thumb_uri: string | null;
   status: KitStatus;
 }
 
@@ -63,7 +63,9 @@ export default function KitsScreen() {
     const args: (string | number)[] = [...sf];
     if (sel !== 'all') { where.push('box_id = ?'); args.push(sel); }
     const rows = await getDB().getAllAsync<KitListItem>(
-      'SELECT id, name, maker, scale, photo_uri, status FROM kits WHERE ' + where.join(' AND ') + ' ORDER BY added_at DESC',
+      'SELECT id, name, maker, scale, status,'
+      + ' (SELECT uri FROM kit_photos WHERE kit_id = kits.id ORDER BY sort_order, id LIMIT 1) AS thumb_uri'
+      + ' FROM kits WHERE ' + where.join(' AND ') + ' ORDER BY added_at DESC',
       args
     );
     setItems(rows);
@@ -96,8 +98,8 @@ export default function KitsScreen() {
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.row} onPress={() => setDetailKitId(item.id)}>
-            {item.photo_uri ? (
-              <Image source={{ uri: item.photo_uri }} style={styles.thumb} resizeMode="cover" />
+            {item.thumb_uri ? (
+              <Image source={{ uri: item.thumb_uri }} style={styles.thumb} resizeMode="cover" />
             ) : (
               <View style={styles.thumbPlaceholder}><IconBox color={colors.textFaint} size={22} /></View>
             )}
