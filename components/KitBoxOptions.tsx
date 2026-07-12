@@ -39,13 +39,14 @@ export default function KitBoxOptions() {
   const remove = async () => {
     const remaining = boxes.filter((item) => item.id !== box.id);
     const db = getDB();
-    const photos = await db.getAllAsync<{ photo_uri: string }>('SELECT photo_uri FROM kits WHERE box_id = ? AND photo_uri IS NOT NULL', [box.id]);
+    const photos = await db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?)', [box.id]);
     await db.withTransactionAsync(async () => {
       await db.runAsync('DELETE FROM kit_paints WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?)', [box.id]);
+      await db.runAsync('DELETE FROM kit_photos WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?)', [box.id]);
       await db.runAsync('DELETE FROM kits WHERE box_id = ?', [box.id]);
       await db.runAsync('DELETE FROM kit_boxes WHERE id = ?', [box.id]);
     });
-    for (const { photo_uri } of photos) await deleteKitPhoto(photo_uri);
+    for (const { uri } of photos) await deleteKitPhoto(uri);
     notifyKitBoxesChanged();
     const next = remaining[0];
     setActiveKitBox(next ? next.id : 'all');
