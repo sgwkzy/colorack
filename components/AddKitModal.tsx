@@ -5,6 +5,7 @@ import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { addKitPhoto, getDB } from '../lib/db';
 import { t } from '../lib/i18n';
+import { deleteKitPhoto } from '../lib/kitPhoto';
 import { useModalLock } from '../lib/modalLock';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
 import ClearableInput from './ClearableInput';
@@ -46,23 +47,31 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
     onClose();
   };
 
+  const cancelAndClose = async () => {
+    for (const uri of photos) await deleteKitPhoto(uri);
+    onClose();
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={cancelAndClose}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={onClose}>
+          <SwipeDownHeader onClose={cancelAndClose}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('addKit')}</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <TouchableOpacity onPress={cancelAndClose} hitSlop={8}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
           </SwipeDownHeader>
-          <SwipeDownScrollView onClose={onClose} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+          <SwipeDownScrollView onClose={cancelAndClose} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
             <KitPhotoGrid
               photos={photos.map((uri) => ({ key: uri, uri }))}
               onAdd={(uri) => setPhotos((current) => [...current, uri])}
-              onRemove={(key) => setPhotos((current) => current.filter((uri) => uri !== key))}
+              onRemove={(key) => {
+                deleteKitPhoto(key as string);
+                setPhotos((current) => current.filter((uri) => uri !== key));
+              }}
             />
             <View style={styles.field}>
               <Text style={styles.label}>{t('name')}*</Text>
