@@ -16,9 +16,12 @@ interface Props {
   message?: string;
   buttons: ActionSheetButton[];
   onClose: () => void;
+  // iOSのみ: モーダルが完全に閉じ終わった後に呼ばれる。閉じきる前に別のネイティブUI
+  // (カメラ/ギャラリー等)を起動すると出てこないことがあるため、そういう用途で使う。
+  onDismiss?: () => void;
 }
 
-export default function ActionSheet({ visible, title, message, buttons, onClose }: Props) {
+export default function ActionSheet({ visible, title, message, buttons, onClose, onDismiss }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const press = (btn: ActionSheetButton) => {
@@ -30,7 +33,7 @@ export default function ActionSheet({ visible, title, message, buttons, onClose 
   const hasHeader = !!(title || message);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
       <SafeAreaProvider>
         <Pressable style={styles.backdrop} onPress={onClose}>
           <SafeAreaView edges={['bottom']} style={styles.sheetWrap}>

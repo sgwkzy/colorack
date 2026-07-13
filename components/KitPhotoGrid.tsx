@@ -2,7 +2,7 @@
 // 複数枚(最大10枚)の写真グリッド。1枚目はサムネイル扱いのため枠線で強調する。
 // 並び替えUIは持たない(削除して撮り直す運用を想定)。
 import { useMemo, useState } from 'react';
-import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Image, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { IconPlus, IconX } from '@tabler/icons-react-native';
 import { pickKitPhotoFromCamera, pickKitPhotoFromLibrary } from '../lib/kitPhoto';
 import { t } from '../lib/i18n';
@@ -26,29 +26,33 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'camera' | 'library' | null>(null);
   const canAddMore = photos.length < MAX_PHOTOS;
 
-  // ActionSheetのModalが閉じるアニメーション中にネイティブのカメラ/ギャラリーpickerを
-  // 起動すると、iOSでは初回(権限ダイアログが表示され自然に間が空く)は動くが、
-  // 2回目以降(権限確認が即返るため間が空かない)はpickerが開かないことがある。
-  // ponytail: 300msの固定待ちで確実にModalの閉じアニメーションをやり過ごす。
-  // 根本的にはActionSheetにonDismiss相当のコールバックを持たせて置き換える。
-  const waitForSheetClose = () => new Promise((resolve) => setTimeout(resolve, 300));
-
-  const takePhoto = async () => {
-    await waitForSheetClose();
-    const uri = await pickKitPhotoFromCamera();
+  const runAction = async (action: 'camera' | 'library') => {
+    const uri = action === 'camera' ? await pickKitPhotoFromCamera() : await pickKitPhotoFromLibrary();
     if (uri) onAdd(uri);
   };
-  const chooseFromLibrary = async () => {
-    await waitForSheetClose();
-    const uri = await pickKitPhotoFromLibrary();
-    if (uri) onAdd(uri);
+
+  // iOSでは、ActionSheetのModalが完全に閉じ切る前にカメラ/ギャラリーを起動すると
+  // 出てこないことがある(権限確認が即返る2回目以降で顕在化しやすい)。
+  // そのためiOSではModalのonDismiss(閉じ終わった通知)まで起動を遅らせる。
+  // Androidはこの制約がないため即時実行でよい。
+  const requestAction = (action: 'camera' | 'library') => {
+    if (Platform.OS === 'ios') setPendingAction(action);
+    else runAction(action);
+  };
+
+  const handleSheetDismiss = () => {
+    if (!pendingAction) return;
+    const action = pendingAction;
+    setPendingAction(null);
+    runAction(action);
   };
 
   const buttons: ActionSheetButton[] = [
-    { text: t('takePhoto'), onPress: takePhoto },
-    { text: t('chooseFromLibrary'), onPress: chooseFromLibrary },
+    { text: t('takePhoto'), onPress: () => requestAction('camera') },
+    { text: t('chooseFromLibrary'), onPress: () => requestAction('library') },
     { text: t('cancel'), style: 'cancel' },
   ];
 
@@ -80,7 +84,13 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove }: Props) {
           </TouchableOpacity>
         ) : null}
       </ScrollView>
-      <ActionSheet visible={pickerOpen} title={t('kitPhoto')} buttons={buttons} onClose={() => setPickerOpen(false)} />
+      <ActionSheet
+        visible={pickerOpen}
+        title={t('kitPhoto')}
+        buttons={buttons}
+        onClose={() => setPickerOpen(false)}
+        onDismiss={handleSheetDismiss}
+      />
     </View>
   );
 }

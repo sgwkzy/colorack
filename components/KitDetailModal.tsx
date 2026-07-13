@@ -66,6 +66,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState<'details' | 'colors'>('details');
+
+  const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
 
   const load = useCallback(async () => {
     if (kitId == null) return;
@@ -93,6 +96,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setStatusPickerOpen(false);
       setPickerOpen(false);
       setMenuOpen(false);
+      setDetailTab('details');
     }
   }, [visible, load]);
 
@@ -224,35 +228,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 }}
               />
 
-              <View style={styles.controlCard}>
-                <View style={styles.control}>
-                  <Text style={styles.sectionTitle}>{t('box')}</Text>
-                  <TouchableOpacity style={styles.picker} onPress={() => setBoxPickerOpen(true)}>
-                    <Text numberOfLines={1} style={styles.pickerText}>{boxName}</Text>
-                    <IconChevronDown size={16} color={colors.textMuted} />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.control}>
-                  <Text style={styles.sectionTitle}>{t('status')}</Text>
-                  <TouchableOpacity style={styles.picker} onPress={() => setStatusPickerOpen(true)}>
-                    <Text numberOfLines={1} style={styles.pickerText}>{t(STATUS_OPTIONS.find((o) => o.value === detail.status)?.labelKey ?? 'status')}</Text>
-                    <IconChevronDown size={16} color={colors.textMuted} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.card}>
-                <View style={styles.field}>
-                  <Text style={styles.sectionTitle}>{t('series')}</Text>
-                  <ClearableInput style={styles.input} value={series} onChangeText={setSeries} onBlur={saveSeries} />
-                </View>
-                <View style={styles.field}>
-                  <Text style={styles.sectionTitle}>{t('category')}</Text>
-                  <ClearableInput style={styles.input} value={category} onChangeText={setCategory} onBlur={saveCategory} />
-                </View>
-              </View>
-
               <View style={styles.card}>
                 <Text style={styles.sectionTitle}>{t('note')}</Text>
                 <ClearableInput
@@ -265,22 +240,82 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 />
               </View>
 
-              <View style={styles.paintsSection}>
-                <View style={styles.paintsHeader}>
-                  <Text style={styles.sectionTitle}>{t('usedPaints')}</Text>
-                  <TouchableOpacity onPress={() => setPickerOpen(true)}>
-                    <Text style={styles.addLink}>{t('addColor')}</Text>
-                  </TouchableOpacity>
-                </View>
-                {kitColors.map((color) => (
-                  <KitColorRow
-                    key={color.id}
-                    color={color}
-                    onNameChange={(next) => changeColorName(color.id, next)}
-                    onRemove={() => removeColor(color.id)}
-                  />
-                ))}
+              <View style={styles.tabBar}>
+                <TouchableOpacity
+                  style={[styles.tabBtn, detailTab === 'details' && styles.tabBtnActive]}
+                  onPress={() => setDetailTab('details')}
+                >
+                  <Text style={[styles.tabText, detailTab === 'details' && styles.tabTextActive]}>{t('detailInfo')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.tabBtn, detailTab === 'colors' && styles.tabBtnActive]}
+                  onPress={() => setDetailTab('colors')}
+                >
+                  <Text style={[styles.tabText, detailTab === 'colors' && styles.tabTextActive]}>{t('colorInfo')}</Text>
+                </TouchableOpacity>
               </View>
+
+              {detailTab === 'details' ? (
+                <>
+                  <View style={styles.card}>
+                    <View style={styles.field}>
+                      <Text style={styles.sectionTitle}>{t('series')}</Text>
+                      <ClearableInput style={styles.input} value={series} onChangeText={setSeries} onBlur={saveSeries} />
+                    </View>
+                    <View style={styles.field}>
+                      <Text style={styles.sectionTitle}>{t('category')}</Text>
+                      <ClearableInput style={styles.input} value={category} onChangeText={setCategory} onBlur={saveCategory} />
+                    </View>
+                  </View>
+
+                  <View style={styles.controlCard}>
+                    <View style={styles.control}>
+                      <Text style={styles.sectionTitle}>{t('box')}</Text>
+                      <TouchableOpacity style={styles.picker} onPress={() => setBoxPickerOpen(true)}>
+                        <Text numberOfLines={1} style={styles.pickerText}>{boxName}</Text>
+                        <IconChevronDown size={16} color={colors.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.divider} />
+                    <View style={styles.control}>
+                      <Text style={styles.sectionTitle}>{t('status')}</Text>
+                      <TouchableOpacity style={styles.picker} onPress={() => setStatusPickerOpen(true)}>
+                        <Text numberOfLines={1} style={styles.pickerText}>{t(STATUS_OPTIONS.find((o) => o.value === detail.status)?.labelKey ?? 'status')}</Text>
+                        <IconChevronDown size={16} color={colors.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.controlCard}>
+                    <View style={styles.control}>
+                      <Text style={styles.sectionTitle}>{t('addedAt')}</Text>
+                      <Text style={styles.pickerText}>{dateLabel(detail.added_at)}</Text>
+                    </View>
+                    <View style={styles.divider} />
+                    <View style={styles.control}>
+                      <Text style={styles.sectionTitle}>{t('lastUpdatedAt')}</Text>
+                      <Text style={styles.pickerText}>{dateLabel(detail.status_changed_at)}</Text>
+                    </View>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.paintsSection}>
+                  <View style={styles.paintsHeader}>
+                    <Text style={styles.sectionTitle}>{t('usedPaints')}</Text>
+                    <TouchableOpacity onPress={() => setPickerOpen(true)}>
+                      <Text style={styles.addLink}>{t('addColor')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {kitColors.map((color) => (
+                    <KitColorRow
+                      key={color.id}
+                      color={color}
+                      onNameChange={(next) => changeColorName(color.id, next)}
+                      onRemove={() => removeColor(color.id)}
+                    />
+                  ))}
+                </View>
+              )}
             </SwipeDownScrollView>
           )}
 
@@ -342,6 +377,11 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   pickerText: { flex: 1, color: colors.text, fontSize: 14, fontWeight: '600' },
   card: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, gap: spacing.md },
   field: { gap: spacing.xs },
+  tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  tabBtn: { flex: 1, padding: spacing.md, alignItems: 'center' },
+  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
+  tabText: { fontSize: 13, color: colors.textPlaceholder },
+  tabTextActive: { color: colors.primary, fontWeight: 'bold' },
   sectionTitle: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
   noteInput: { minHeight: 72, alignItems: 'flex-start' },
