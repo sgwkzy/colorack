@@ -1,8 +1,9 @@
+// app/(tabs)/kits.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconBox, IconPlus } from '@tabler/icons-react-native';
 import { useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
-import { getDB, KitStatus } from '../../lib/db';
+import { getDB, getDefaultKitBoxId, KitStatus } from '../../lib/db';
 import { setActiveKitBox } from '../../lib/activeKitBox';
 import { t, useLocale } from '../../lib/i18n';
 import { lightColors, radius, spacing, useTheme } from '../../lib/theme';
@@ -21,32 +22,45 @@ interface KitListItem {
 
 type Selected = 'all' | number;
 
+// completed は専用画面(完成品)でのみ扱う。塗料の保管箱一覧が used_up を
+// STATUS_TOGGLES に含めないのと同じ考え方。
 const STATUS_CHIPS: { key: KitStatus; labelKey: string }[] = [
   { key: 'not_started', labelKey: 'statusNotStarted' },
   { key: 'building', labelKey: 'statusBuilding' },
-  { key: 'completed', labelKey: 'statusCompleted' },
 ];
 
-export default function KitsScreen() {
+const STATUS_LABEL_KEYS: Record<KitStatus, string> = {
+  not_started: 'statusNotStarted',
+  building: 'statusBuilding',
+  completed: 'statusCompleted',
+};
+
+export function KitsScreen({ completedScreen = false }: { completedScreen?: boolean }) {
   const locale = useLocale();
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const navigation = useNavigation();
   const { boxId } = useLocalSearchParams<{ boxId?: string }>();
   const [selected, setSelected] = useState<Selected>('all');
-  const [statuses, setStatuses] = useState<KitStatus[]>(['not_started', 'building', 'completed']);
+  const [statuses, setStatuses] = useState<KitStatus[]>(completedScreen ? ['completed'] : ['not_started', 'building']);
   const [items, setItems] = useState<KitListItem[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [detailKitId, setDetailKitId] = useState<number | null>(null);
+  const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
 
   useEffect(() => {
+    if (completedScreen) return;
     const requested = boxId === 'all' ? 'all' : Number(boxId);
     if (requested === 'all' || (Number.isInteger(requested) && requested > 0)) setSelected(requested);
-  }, [boxId]);
+  }, [boxId, completedScreen]);
 
-  useEffect(() => { setActiveKitBox(selected); }, [selected]);
+  useEffect(() => { if (!completedScreen) setActiveKitBox(selected); }, [completedScreen, selected]);
 
   useEffect(() => {
+    if (completedScreen) {
+      navigation.setOptions({ title: t('completedKits') });
+      return;
+    }
     if (selected === 'all') {
       const title = locale === 'ja' ? 'すべてのキットボックス' : 'All Kit Boxes';
       navigation.setOptions({ title });
@@ -55,13 +69,15 @@ export default function KitsScreen() {
     getDB().getFirstAsync<{ name: string }>('SELECT name FROM kit_boxes WHERE id = ?', [selected]).then((box) => {
       if (box) navigation.setOptions({ title: box.name });
     });
-  }, [locale, navigation, selected]);
+  }, [completedScreen, locale, navigation, selected]);
+
+  useEffect(() => { getDefaultKitBoxId().then(setDefaultBoxId); }, []);
 
   const load = useCallback(async (sel: Selected, sf: KitStatus[]) => {
     if (sf.length === 0) { setItems([]); return; }
     const where: string[] = [`status IN (${sf.map(() => '?').join(',')})`];
     const args: (string | number)[] = [...sf];
-    if (sel !== 'all') { where.push('box_id = ?'); args.push(sel); }
+    if (!completedScreen && sel !== 'all') { where.push('box_id = ?'); args.push(sel); }
     const rows = await getDB().getAllAsync<KitListItem>(
       'SELECT id, name, maker, scale, status,'
       + ' (SELECT uri FROM kit_photos WHERE kit_id = kits.id ORDER BY sort_order, id LIMIT 1) AS thumb_uri'
@@ -69,7 +85,7 @@ export default function KitsScreen() {
       args
     );
     setItems(rows);
-  }, []);
+  }, [completedScreen]);
 
   useFocusEffect(useCallback(() => { load(selected, statuses); }, [load, selected, statuses]));
 
@@ -81,16 +97,18 @@ export default function KitsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.chipRow}>
-        {STATUS_CHIPS.map((chip) => {
-          const active = statuses.includes(chip.key);
-          return (
-            <TouchableOpacity key={chip.key} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleStatus(chip.key)}>
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>{t(chip.labelKey)}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {!completedScreen ? (
+        <View style={styles.chipRow}>
+          {STATUS_CHIPS.map((chip) => {
+            const active = statuses.includes(chip.key);
+            return (
+              <TouchableOpacity key={chip.key} style={[styles.chip, active && styles.chipActive]} onPress={() => toggleStatus(chip.key)}>
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{t(chip.labelKey)}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
 
       <FlatList
         data={items}
@@ -107,7 +125,7 @@ export default function KitsScreen() {
               <Text numberOfLines={1} style={styles.rowName}>{item.name}</Text>
               <Text numberOfLines={1} style={styles.rowSub}>{item.maker}{item.scale ? ` · ${item.scale}` : ''}</Text>
             </View>
-            <Text style={styles.rowStatus}>{t(STATUS_CHIPS.find((c) => c.key === item.status)?.labelKey ?? 'status')}</Text>
+            <Text style={styles.rowStatus}>{t(STATUS_LABEL_KEYS[item.status])}</Text>
           </TouchableOpacity>
         )}
         ListEmptyComponent={(
@@ -121,7 +139,7 @@ export default function KitsScreen() {
 
       <AddKitModal
         visible={showAdd}
-        defaultBoxId={selected === 'all' ? null : selected}
+        defaultBoxId={completedScreen || selected === 'all' ? defaultBoxId : selected}
         onClose={() => { setShowAdd(false); reload(); }}
       />
       <KitDetailModal
@@ -132,6 +150,10 @@ export default function KitsScreen() {
       />
     </View>
   );
+}
+
+export default function KitsRouteScreen() {
+  return <KitsScreen />;
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
