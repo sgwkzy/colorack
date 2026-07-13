@@ -1,7 +1,7 @@
 // components/KitDetailModal.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconChevronDown, IconDotsVertical, IconX } from '@tabler/icons-react-native';
+import { IconChevronDown, IconChevronLeft, IconDotsVertical, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   addKitPhoto,
@@ -22,7 +22,9 @@ import {
   updateKitBox,
   updateKitCategory,
   updateKitColorName,
+  updateKitName,
   updateKitNote,
+  updateKitScale,
   updateKitSeries,
 } from '../lib/db';
 import { deleteKitPhoto } from '../lib/kitPhoto';
@@ -60,6 +62,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [detail, setDetail] = useState<KitDetail | null>(null);
   const [kitColors, setKitColors] = useState<KitColorSummary[]>([]);
   const [photos, setPhotos] = useState<KitPhoto[]>([]);
+  const [name, setName] = useState('');
+  const [scale, setScale] = useState('');
   const [note, setNote] = useState('');
   const [series, setSeries] = useState('');
   const [category, setCategory] = useState('');
@@ -79,6 +83,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     setDetail(row);
     setKitColors(colorRows);
     setPhotos(photoRows);
+    setName(row?.name ?? '');
+    setScale(row?.scale ?? '');
     setNote(row?.note ?? '');
     setSeries(row?.series ?? '');
     setCategory(row?.category ?? '');
@@ -92,6 +98,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setDetail(null);
       setKitColors([]);
       setPhotos([]);
+      setName('');
+      setScale('');
       setNote('');
       setSeries('');
       setCategory('');
@@ -103,6 +111,23 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setEditMode(false);
     }
   }, [visible, load]);
+
+  const saveName = async () => {
+    if (!detail) return;
+    const trimmed = name.trim();
+    if (trimmed === '' || trimmed === detail.name) return;
+    await updateKitName(detail.id, trimmed);
+    await load();
+    onChanged?.();
+  };
+
+  const saveScale = async () => {
+    if (!detail) return;
+    if (scale === (detail.scale ?? '')) return;
+    await updateKitScale(detail.id, scale);
+    await load();
+    onChanged?.();
+  };
 
   const saveNote = async () => {
     if (!detail) return;
@@ -128,13 +153,25 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     onChanged?.();
   };
 
+  const flushPendingFields = async () => {
+    if (!detail) return;
+    const trimmedName = name.trim();
+    if (trimmedName !== '' && trimmedName !== detail.name) { await updateKitName(detail.id, trimmedName); onChanged?.(); }
+    if (scale !== (detail.scale ?? '')) { await updateKitScale(detail.id, scale); onChanged?.(); }
+    if (note !== (detail.note ?? '')) { await updateKitNote(detail.id, note); onChanged?.(); }
+    if (series !== (detail.series ?? '')) { await updateKitSeries(detail.id, series); onChanged?.(); }
+    if (category !== (detail.category ?? '')) { await updateKitCategory(detail.id, category); onChanged?.(); }
+  };
+
   const closeAfterSavingFields = async () => {
-    if (detail) {
-      if (note !== (detail.note ?? '')) { await updateKitNote(detail.id, note); onChanged?.(); }
-      if (series !== (detail.series ?? '')) { await updateKitSeries(detail.id, series); onChanged?.(); }
-      if (category !== (detail.category ?? '')) { await updateKitCategory(detail.id, category); onChanged?.(); }
-    }
+    await flushPendingFields();
     onClose();
+  };
+
+  const exitEditMode = async () => {
+    await flushPendingFields();
+    await load();
+    setEditMode(false);
   };
 
   const changeBox = async (boxId: number) => {
@@ -224,15 +261,24 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
         <SafeAreaView style={styles.container} edges={['top']}>
           <SwipeDownHeader onClose={closeAfterSavingFields}>
             <View style={styles.header}>
-              <Text style={styles.title}>{t('kitDetailTitle')}</Text>
-              <View style={styles.headerActions}>
-                <TouchableOpacity onPress={() => setMenuOpen(true)} hitSlop={8}>
-                  <IconDotsVertical color={colors.text} size={22} />
+              {editMode ? (
+                <TouchableOpacity onPress={exitEditMode} hitSlop={8} style={styles.backBtn}>
+                  <IconChevronLeft color={colors.primary} size={22} />
+                  <Text style={styles.title}>{t('editKitTitle')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={closeAfterSavingFields} hitSlop={8}>
-                  <IconX color={colors.text} size={24} />
-                </TouchableOpacity>
-              </View>
+              ) : (
+                <Text style={styles.title}>{t('kitDetailTitle')}</Text>
+              )}
+              {!editMode ? (
+                <View style={styles.headerActions}>
+                  <TouchableOpacity onPress={() => setMenuOpen(true)} hitSlop={8}>
+                    <IconDotsVertical color={colors.text} size={22} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={closeAfterSavingFields} hitSlop={8}>
+                    <IconX color={colors.text} size={24} />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
           </SwipeDownHeader>
 
@@ -241,8 +287,21 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           ) : (
             <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingFields} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <View style={styles.titleBlock}>
-                <Text style={styles.name}>{detail.name}</Text>
-                <Text style={styles.maker}>{detail.maker}{detail.scale ? ` · ${detail.scale}` : ''}</Text>
+                {editMode ? (
+                  <>
+                    <ClearableInput style={styles.nameEditInput} value={name} onChangeText={setName} onBlur={saveName} placeholder={t('name')} />
+                    <Text style={styles.maker}>{detail.maker}</Text>
+                    <View style={styles.field}>
+                      <Text style={styles.sectionTitle}>{t('scale')}</Text>
+                      <ClearableInput style={styles.input} value={scale} onChangeText={setScale} onBlur={saveScale} placeholder="1/144" />
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.name}>{detail.name}</Text>
+                    <Text style={styles.maker}>{detail.maker}{detail.scale ? ` · ${detail.scale}` : ''}</Text>
+                  </>
+                )}
               </View>
               <KitPhotoGrid
                 photos={photos.map((p) => ({ key: p.id, uri: p.uri }))}
@@ -363,7 +422,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
               <TouchableOpacity style={styles.deleteBtn} onPress={confirmDelete}>
                 <Text style={styles.deleteBtnText}>{t('delete')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveEditBtn} onPress={() => setEditMode(false)}>
+              <TouchableOpacity style={styles.saveEditBtn} onPress={exitEditMode}>
                 <Text style={styles.saveEditBtnText}>{t('save')}</Text>
               </TouchableOpacity>
             </View>
@@ -390,7 +449,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           <ActionSheet
             visible={menuOpen}
             buttons={[
-              { text: editMode ? t('exitEditMode') : t('enterEditMode'), onPress: () => setEditMode((e) => !e) },
+              { text: t('enterEditMode'), onPress: () => setEditMode(true) },
               { text: t('cancel'), style: 'cancel' },
             ]}
             onClose={() => setMenuOpen(false)}
@@ -414,11 +473,13 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   scroll: { flex: 1 },
   content: { padding: spacing.xl, gap: spacing.lg },
   titleBlock: { gap: spacing.xs },
   name: { fontSize: 20, fontWeight: '700', color: colors.text },
+  nameEditInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 20, fontWeight: '700' },
   maker: { fontSize: 14, color: colors.textMuted },
   controlCard: { flexDirection: 'row', backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, gap: spacing.lg },
   control: { flex: 1, gap: spacing.sm },

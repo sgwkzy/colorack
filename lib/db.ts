@@ -413,6 +413,22 @@ export async function updateKitNote(kitId: number, note: string): Promise<void> 
   );
 }
 
+// kits.name は NOT NULL のため、空文字を渡さないのは呼び出し側の責務。
+export async function updateKitName(kitId: number, name: string): Promise<void> {
+  await getDB().runAsync(
+    "UPDATE kits SET name = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [name, kitId]
+  );
+}
+
+export async function updateKitScale(kitId: number, scale: string): Promise<void> {
+  const normalized = scale.trim() === '' ? null : scale;
+  await getDB().runAsync(
+    "UPDATE kits SET scale = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [normalized, kitId]
+  );
+}
+
 export async function updateKitSeries(kitId: number, series: string): Promise<void> {
   const normalized = series.trim() === '' ? null : series;
   await getDB().runAsync(
