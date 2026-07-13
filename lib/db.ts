@@ -75,7 +75,7 @@ export async function initDB(): Promise<void> {
     'CREATE TABLE IF NOT EXISTS kits (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     '  box_id INTEGER,' +
-    '  name TEXT NOT NULL, maker TEXT NOT NULL, series TEXT, category TEXT, scale TEXT, note TEXT,' +
+    '  name TEXT NOT NULL, maker TEXT NOT NULL, series TEXT, category TEXT, scale TEXT, note TEXT, price INTEGER,' +
     "  status TEXT NOT NULL DEFAULT 'not_started' CHECK(status IN ('not_started','building','completed'))," +
     "  added_at TEXT DEFAULT (datetime('now')), status_changed_at TEXT DEFAULT (datetime('now'))" +
     ');' +
@@ -108,6 +108,7 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE inventory ADD COLUMN status_changed_at TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN series TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN category TEXT'); } catch { /* 既にある */ }
+  try { await db.execAsync('ALTER TABLE kits ADD COLUMN price INTEGER'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kit_colors ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0'); } catch { /* 既にある */ }
   await db.runAsync(
     'UPDATE inventory SET status_changed_at = added_at WHERE status_changed_at IS NULL OR status_changed_at < added_at'
@@ -428,6 +429,7 @@ export interface KitDetail {
   category: string | null;
   scale: string | null;
   note: string | null;
+  price: number | null;
   status: KitStatus;
   added_at: string | null;
   status_changed_at: string | null;
@@ -435,7 +437,7 @@ export interface KitDetail {
 
 export async function getKitDetail(kitId: number): Promise<KitDetail | null> {
   const row = await getDB().getFirstAsync<KitDetail>(
-    'SELECT k.id, k.box_id, b.name AS box_name, k.name, k.maker, k.series, k.category, k.scale, k.note, k.status, k.added_at, k.status_changed_at'
+    'SELECT k.id, k.box_id, b.name AS box_name, k.name, k.maker, k.series, k.category, k.scale, k.note, k.price, k.status, k.added_at, k.status_changed_at'
     + ' FROM kits k LEFT JOIN kit_boxes b ON k.box_id = b.id'
     + ' WHERE k.id = ?',
     [kitId]
@@ -487,6 +489,16 @@ export async function updateKitCategory(kitId: number, category: string): Promis
   const normalized = category.trim() === '' ? null : category;
   await getDB().runAsync(
     "UPDATE kits SET category = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [normalized, kitId]
+  );
+}
+
+export async function updateKitPrice(kitId: number, price: string): Promise<void> {
+  const trimmed = price.trim();
+  const parsed = trimmed === '' ? null : Number(trimmed);
+  const normalized = parsed !== null && Number.isFinite(parsed) ? parsed : null;
+  await getDB().runAsync(
+    "UPDATE kits SET price = ?, status_changed_at = datetime('now') WHERE id = ?",
     [normalized, kitId]
   );
 }
