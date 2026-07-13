@@ -40,7 +40,6 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [step, setStep] = useState<'setup' | 'pick'>('setup');
   const [name, setName] = useState('');
-  const [note, setNote] = useState('');
   const [paintType, setPaintType] = useState<string | null>(null);
   const [tab, setTab] = useState<typeof TABS[number]>('hierarchy');
   const [selectedPaints, setSelectedPaints] = useState<SelectedPaint[]>([]);
@@ -51,7 +50,6 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
     if (visible) {
       setStep('setup');
       setName('');
-      setNote('');
       setPaintType(null);
       setTab('hierarchy');
       setSelectedPaints([]);
@@ -104,7 +102,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
     const normalized = total > 0
       ? selectedPaints.map((p) => ({ paintId: p.paintId, ratio: p.ratio / total }))
       : selectedPaints.map((p) => ({ paintId: p.paintId, ratio: 1 / selectedPaints.length }));
-    await addKitColor(kitId, name.trim() || null, note.trim() || null, normalized);
+    await addKitColor(kitId, name.trim() || null, null, normalized);
     onAdded();
     onClose();
   };
@@ -136,12 +134,6 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
                 value={name}
                 onChangeText={setName}
                 placeholder={t('colorNameLabel')}
-              />
-              <ClearableInput
-                style={styles.nameInput}
-                value={note}
-                onChangeText={setNote}
-                placeholder={t('note')}
               />
               <Text style={styles.sectionLabel}>{t('paintType')}</Text>
               <View style={styles.typeGrid}>
@@ -246,7 +238,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   backBtn: { flexDirection: 'row', alignItems: 'center' },
   backText: { fontSize: 15, color: colors.primary, marginLeft: 2 },
   setupContent: { flex: 1, padding: spacing.xl, gap: spacing.lg },
-  nameInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 10, color: colors.text },
+  nameInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
   sectionLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   typeChip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.chip },

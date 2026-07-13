@@ -35,18 +35,18 @@ export default function KitColorRow({ color, onNameChange, onNoteChange, onRemov
     <View style={styles.row}>
       <View style={styles.top}>
         <View style={[styles.swatch, { backgroundColor: swatchHex ?? colors.transparent }]} />
-        <Text numberOfLines={1} style={styles.breakdown}>{breakdown}</Text>
+        <ClearableInput
+          style={styles.nameInput}
+          value={name}
+          onChangeText={setName}
+          onBlur={() => onNameChange(name)}
+          placeholder={fallbackName || t('colorNameLabel')}
+        />
         <TouchableOpacity onPress={onRemove} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('delete')}>
           <IconTrash color={colors.danger} size={20} />
         </TouchableOpacity>
       </View>
-      <ClearableInput
-        style={styles.nameInput}
-        value={name}
-        onChangeText={setName}
-        onBlur={() => onNameChange(name)}
-        placeholder={fallbackName || t('colorNameLabel')}
-      />
+      <Text numberOfLines={1} style={styles.breakdown}>{breakdown}</Text>
       <ClearableInput
         style={styles.noteInput}
         value={note}
@@ -62,7 +62,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   row: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.md, gap: spacing.sm },
   top: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   swatch: { width: 32, height: 32, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
-  breakdown: { flex: 1, fontSize: 12, color: colors.textMuted },
-  nameInput: { minHeight: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 10, color: colors.text, fontSize: 15, fontWeight: '600' },
-  noteInput: { minHeight: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 10, color: colors.text, fontSize: 13 },
+  breakdown: { fontSize: 12, color: colors.textMuted },
+  nameInput: { flex: 1, minHeight: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 15, fontWeight: '600' },
+  noteInput: { minHeight: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 13 },
 });
