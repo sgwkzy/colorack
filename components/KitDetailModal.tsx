@@ -228,18 +228,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 }}
               />
 
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>{t('note')}</Text>
-                <ClearableInput
-                  style={[styles.input, styles.noteInput]}
-                  value={note}
-                  onChangeText={setNote}
-                  multiline
-                  textAlignVertical="top"
-                  onBlur={saveNote}
-                />
-              </View>
-
               <View style={styles.tabBar}>
                 <TouchableOpacity
                   style={[styles.tabBtn, detailTab === 'details' && styles.tabBtnActive]}
@@ -296,6 +284,18 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                       <Text style={styles.sectionTitle}>{t('lastUpdatedAt')}</Text>
                       <Text style={styles.pickerText}>{dateLabel(detail.status_changed_at)}</Text>
                     </View>
+                  </View>
+
+                  <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>{t('note')}</Text>
+                    <ClearableInput
+                      style={[styles.input, styles.noteInput]}
+                      value={note}
+                      onChangeText={setNote}
+                      multiline
+                      textAlignVertical="top"
+                      onBlur={saveNote}
+                    />
                   </View>
                 </>
               ) : (

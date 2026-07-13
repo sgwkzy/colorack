@@ -13,7 +13,8 @@ async function ensureDir(): Promise<void> {
 
 async function persist(sourceUri: string): Promise<string> {
   await ensureDir();
-  const dest = `${KIT_PHOTO_DIR}${Date.now()}.jpg`;
+  // 複数枚を続けて保存する際にファイル名が衝突しないよう乱数を添える。
+  const dest = `${KIT_PHOTO_DIR}${Date.now()}-${Math.floor(Math.random() * 1e6)}.jpg`;
   await FileSystem.copyAsync({ from: sourceUri, to: dest });
   return dest;
 }
@@ -26,12 +27,23 @@ export async function pickKitPhotoFromCamera(): Promise<string | null> {
   return persist(result.assets[0].uri);
 }
 
-export async function pickKitPhotoFromLibrary(): Promise<string | null> {
+// 端末の写真ライブラリから複数枚を一度に選択できる。maxCountで選択可能数をOS側にも伝える。
+export async function pickKitPhotosFromLibrary(maxCount: number): Promise<string[]> {
+  if (maxCount <= 0) return [];
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) return null;
-  const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
-  if (result.canceled || !result.assets[0]) return null;
-  return persist(result.assets[0].uri);
+  if (!permission.granted) return [];
+  const result = await ImagePicker.launchImageLibraryAsync({
+    quality: 0.7,
+    mediaTypes: ['images'],
+    allowsMultipleSelection: true,
+    selectionLimit: maxCount,
+  });
+  if (result.canceled) return [];
+  const persisted: string[] = [];
+  for (const asset of result.assets) {
+    persisted.push(await persist(asset.uri));
+  }
+  return persisted;
 }
 
 export async function deleteKitPhoto(photoUri: string | null): Promise<void> {

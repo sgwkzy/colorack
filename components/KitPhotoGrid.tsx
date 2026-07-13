@@ -4,7 +4,7 @@
 import { useMemo, useState } from 'react';
 import { Image, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { IconPlus, IconX } from '@tabler/icons-react-native';
-import { pickKitPhotoFromCamera, pickKitPhotoFromLibrary } from '../lib/kitPhoto';
+import { pickKitPhotoFromCamera, pickKitPhotosFromLibrary } from '../lib/kitPhoto';
 import { t } from '../lib/i18n';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
 import ActionSheet, { ActionSheetButton } from './ActionSheet';
@@ -16,7 +16,7 @@ export interface KitPhotoGridItem {
 
 interface Props {
   photos: KitPhotoGridItem[];
-  onAdd: (uri: string) => void;
+  onAdd: (uri: string) => void | Promise<void>;
   onRemove: (key: string | number) => void;
 }
 
@@ -30,8 +30,18 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove }: Props) {
   const canAddMore = photos.length < MAX_PHOTOS;
 
   const runAction = async (action: 'camera' | 'library') => {
-    const uri = action === 'camera' ? await pickKitPhotoFromCamera() : await pickKitPhotoFromLibrary();
-    if (uri) onAdd(uri);
+    if (action === 'camera') {
+      const uri = await pickKitPhotoFromCamera();
+      if (uri) await onAdd(uri);
+      return;
+    }
+    // ギャラリーは残り枠数までまとめて選択できる。DB書き込みを伴うonAddは
+    // sort_orderの採番が競合しないよう1件ずつ順番に待つ。
+    const remaining = MAX_PHOTOS - photos.length;
+    const uris = await pickKitPhotosFromLibrary(remaining);
+    for (const uri of uris) {
+      await onAdd(uri);
+    }
   };
 
   // iOSでは、ActionSheetのModalが完全に閉じ切る前にカメラ/ギャラリーを起動すると
