@@ -1,4 +1,5 @@
 import { useEffect, useReducer } from 'react';
+import { setSetting } from './db';
 
 export type ActiveBox = number | 'all';
 
@@ -11,6 +12,7 @@ export function setActiveBox(next: ActiveBox): void {
   if (activeBox === next) return;
   activeBox = next;
   listeners.forEach((listener) => listener());
+  setSetting('last_box_id', String(next));
 }
 
 export function useActiveBox(): ActiveBox {

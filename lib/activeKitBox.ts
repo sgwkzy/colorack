@@ -1,4 +1,5 @@
 import { useEffect, useReducer } from 'react';
+import { setSetting } from './db';
 
 export type ActiveKitBox = number | 'all';
 
@@ -11,6 +12,7 @@ export function setActiveKitBox(next: ActiveKitBox): void {
   if (activeKitBox === next) return;
   activeKitBox = next;
   listeners.forEach((listener) => listener());
+  setSetting('last_kit_box_id', String(next));
 }
 
 export function useActiveKitBox(): ActiveKitBox {
