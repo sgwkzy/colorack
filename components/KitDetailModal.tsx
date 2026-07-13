@@ -358,6 +358,17 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
             </SwipeDownScrollView>
           )}
 
+          {editMode ? (
+            <View style={styles.editBar}>
+              <TouchableOpacity style={styles.deleteBtn} onPress={confirmDelete}>
+                <Text style={styles.deleteBtnText}>{t('delete')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveEditBtn} onPress={() => setEditMode(false)}>
+                <Text style={styles.saveEditBtnText}>{t('save')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
           <ActionSheet
             visible={boxPickerOpen}
             title={t('box')}
@@ -380,7 +391,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
             visible={menuOpen}
             buttons={[
               { text: editMode ? t('exitEditMode') : t('enterEditMode'), onPress: () => setEditMode((e) => !e) },
-              { text: t('delete'), style: 'destructive', onPress: confirmDelete },
               { text: t('cancel'), style: 'cancel' },
             ]}
             onClose={() => setMenuOpen(false)}
@@ -429,4 +439,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   paintsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   addLink: { color: colors.primary, fontWeight: '700', fontSize: 14 },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
+  editBar: { flexDirection: 'row', gap: spacing.md, padding: spacing.xl, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  deleteBtn: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.danger, borderRadius: radius.md },
+  deleteBtnText: { color: colors.danger, fontWeight: '700', fontSize: 16 },
+  saveEditBtn: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md },
+  saveEditBtnText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
 });

@@ -76,7 +76,7 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.grid}>
         {photos.map((photo, index) => (
           <View key={photo.key} style={[styles.tile, index === 0 && styles.thumbnailTile]}>
-            <TouchableOpacity activeOpacity={0.8} onPress={() => setViewerUri(photo.uri)}>
+            <TouchableOpacity activeOpacity={0.8} disabled={editable} onPress={() => setViewerUri(photo.uri)}>
               <Image source={{ uri: photo.uri }} style={styles.image} resizeMode="cover" />
             </TouchableOpacity>
             {editable ? (
