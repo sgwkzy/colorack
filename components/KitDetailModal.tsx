@@ -26,6 +26,7 @@ import {
   updateKitMaker,
   updateKitName,
   updateKitNote,
+  updateKitPrice,
   updateKitScale,
   updateKitSeries,
 } from '../lib/db';
@@ -68,6 +69,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [name, setName] = useState('');
   const [maker, setMaker] = useState('');
   const [scale, setScale] = useState('');
+  const [price, setPrice] = useState('');
   const [note, setNote] = useState('');
   const [series, setSeries] = useState('');
   const [category, setCategory] = useState('');
@@ -91,6 +93,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     setName(row?.name ?? '');
     setMaker(row?.maker ?? '');
     setScale(row?.scale ?? '');
+    setPrice(row?.price != null ? String(row.price) : '');
     setNote(row?.note ?? '');
     setSeries(row?.series ?? '');
     setCategory(row?.category ?? '');
@@ -108,6 +111,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setName('');
       setMaker('');
       setScale('');
+      setPrice('');
       setNote('');
       setSeries('');
       setCategory('');
@@ -146,6 +150,15 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     onChanged?.();
   };
 
+  const savePrice = async () => {
+    if (!detail) return;
+    const currentPrice = detail.price != null ? String(detail.price) : '';
+    if (price === currentPrice) return;
+    await updateKitPrice(detail.id, price);
+    await load();
+    onChanged?.();
+  };
+
   const saveNote = async () => {
     if (!detail) return;
     if (note === (detail.note ?? '')) return;
@@ -177,6 +190,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     const trimmedMaker = maker.trim();
     if (trimmedMaker !== '' && trimmedMaker !== detail.maker) { await updateKitMaker(detail.id, trimmedMaker); onChanged?.(); }
     if (scale !== (detail.scale ?? '')) { await updateKitScale(detail.id, scale); onChanged?.(); }
+    const currentPrice = detail.price != null ? String(detail.price) : '';
+    if (price !== currentPrice) { await updateKitPrice(detail.id, price); onChanged?.(); }
     if (note !== (detail.note ?? '')) { await updateKitNote(detail.id, note); onChanged?.(); }
     if (series !== (detail.series ?? '')) { await updateKitSeries(detail.id, series); onChanged?.(); }
     if (category !== (detail.category ?? '')) { await updateKitCategory(detail.id, category); onChanged?.(); }
@@ -369,6 +384,14 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                         <ClearableInput style={styles.input} value={category} onChangeText={setCategory} onBlur={saveCategory} />
                       ) : (
                         <Text style={styles.pickerText}>{category || t('unknown')}</Text>
+                      )}
+                    </View>
+                    <View style={styles.field}>
+                      <Text style={styles.sectionTitle}>{t('price')}</Text>
+                      {editMode ? (
+                        <ClearableInput style={styles.input} value={price} onChangeText={setPrice} onBlur={savePrice} keyboardType="numeric" placeholder="0" />
+                      ) : (
+                        <Text style={styles.pickerText}>{detail.price != null ? detail.price.toLocaleString() : t('unknown')}</Text>
                       )}
                     </View>
                   </View>
