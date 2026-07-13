@@ -1,8 +1,10 @@
+// components/NavigationDrawer.tsx
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { IconArchive, IconBox, IconBriefcase, IconBuildingWarehouse, IconFlask, IconHistory, IconHeart, IconPackage, IconPalette, IconPlus, IconSettings, IconShoppingCartPlus, IconStack } from '@tabler/icons-react-native';
+import { IconArchive, IconBox, IconBriefcase, IconBuildingWarehouse, IconCircleCheck, IconFlask, IconHistory, IconHeart, IconPackage, IconPalette, IconPlus, IconSettings, IconShoppingCartPlus, IconStack } from '@tabler/icons-react-native';
 import { router, usePathname } from 'expo-router';
+import { AppMode, setAppMode, useAppMode } from '../lib/appMode';
 import { notifyBoxesChanged, setActiveBox, useActiveBox } from '../lib/activeBox';
 import { notifyKitBoxesChanged, setActiveKitBox, useActiveKitBox } from '../lib/activeKitBox';
 import { getDB } from '../lib/db';
@@ -20,6 +22,7 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
   const locale = useLocale();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const pathname = usePathname();
+  const mode = useAppMode();
   const activeBoxId = useActiveBox();
   const allBoxesLabel = locale === 'ja' ? 'すべてのボックス' : 'All Boxes';
   const [boxes, setBoxes] = useState<Box[]>([]);
@@ -31,18 +34,20 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
   const activeKitBoxId = useActiveKitBox();
   const [kitBoxes, setKitBoxes] = useState<Box[]>([]);
   const [kitCounts, setKitCounts] = useState<Map<number | null, number>>(new Map());
+  const [completedCount, setCompletedCount] = useState(0);
   const [editingKitBox, setEditingKitBox] = useState<'new' | null>(null);
 
   const loadBoxes = useCallback(async () => {
     const db = getDB();
-    const [boxRows, countRows, favoriteRow, wishlistRow, usedRow, kitBoxRows, kitCountRows] = await Promise.all([
+    const [boxRows, countRows, favoriteRow, wishlistRow, usedRow, kitBoxRows, kitCountRows, completedRow] = await Promise.all([
       db.getAllAsync<Box>('SELECT id, name, icon, icon_color FROM boxes ORDER BY sort_order, id'),
       db.getAllAsync<CountRow>("SELECT box_id, COUNT(*) AS n FROM inventory WHERE status IN ('owned', 'in_use') GROUP BY box_id"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM lists WHERE type = 'favorites'"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM lists WHERE type = 'wishlist'"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM inventory WHERE status = 'used_up'"),
       db.getAllAsync<Box>('SELECT id, name, icon, icon_color FROM kit_boxes ORDER BY sort_order, id'),
-      db.getAllAsync<CountRow>('SELECT box_id, COUNT(*) AS n FROM kits GROUP BY box_id'),
+      db.getAllAsync<CountRow>("SELECT box_id, COUNT(*) AS n FROM kits WHERE status != 'completed' GROUP BY box_id"),
+      db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM kits WHERE status = 'completed'"),
     ]);
     setBoxes(boxRows);
     setBoxCounts(new Map(countRows.map((row) => [row.box_id, row.n])));
@@ -51,6 +56,7 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     setUsedCount(usedRow?.n ?? 0);
     setKitBoxes(kitBoxRows);
     setKitCounts(new Map(kitCountRows.map((row) => [row.box_id, row.n])));
+    setCompletedCount(completedRow?.n ?? 0);
   }, []);
   useEffect(() => { if (visible) loadBoxes(); }, [visible, loadBoxes]);
   const saveBox = async ({ name, icon, color }: BoxDraft) => {
@@ -76,6 +82,10 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     onClose();
     router.navigate({ pathname: '/kits', params: { boxId: String(boxId) } });
   };
+  const goCompleted = () => {
+    onClose();
+    router.navigate('/completed');
+  };
   const item = (label: string, onPress: () => void, icon: ReactNode, active = false, count?: number, key?: string) => (
     <TouchableOpacity key={key} style={[styles.item, active && styles.activeItem]} onPress={onPress} accessibilityRole="button">
       <View style={styles.icon}>{icon}</View><Text style={[styles.itemText, active && styles.activeText]}>{label}</Text>
@@ -93,31 +103,46 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     return <IconBox color={color} size={22} />;
   };
   const totalCount = Array.from(boxCounts.values()).reduce((sum, count) => sum + count, 0);
-  const allKitBoxesLabel = locale === 'ja' ? 'すべてのキットボックス' : 'All Kit Boxes';
   const kitTotalCount = Array.from(kitCounts.values()).reduce((sum, count) => sum + count, 0);
+  const otherMode: AppMode = mode === 'colorack' ? 'kitrack' : 'colorack';
+  const otherModeLabel = otherMode === 'colorack' ? 'Colorack' : 'Kitrack';
+
   return (
         <SafeAreaView edges={['top', 'bottom']} style={styles.drawerContent}>
           <ScrollView contentContainerStyle={styles.content}>
-            <Text style={styles.title}>Colorack</Text>
-            {item(allBoxesLabel, () => go('/owned', 'all'), <IconBox color={colors.textMuted} size={22} />, pathname.endsWith('/owned') && activeBoxId === 'all', totalCount)}
-            <View style={styles.divider} />
-            {boxes.map((box) => item(box.name, () => go('/owned', box.id), boxIcon(box), pathname.endsWith('/owned') && activeBoxId === box.id, boxCounts.get(box.id) ?? 0, `box-${box.id}`))}
-            {boxes.length < 8 ? item(t('addBox'), () => setEditingBox('new'), <IconPlus color={colors.primary} size={22} />) : null}
-            <View style={styles.divider} />
-            {item(t('statusUsedUp'), () => go('/used'), <IconHistory color={colors.textMuted} size={22} />, pathname.endsWith('/used'), usedCount)}
-            {item(t('favorites'), () => go('/favorites'), <IconHeart color={colors.textMuted} size={22} />, pathname.endsWith('/favorites'), favoriteCount)}
-            {item(t('wishlist'), () => go('/wishlist'), <IconShoppingCartPlus color={colors.textMuted} size={22} />, pathname.endsWith('/wishlist'), wishlistCount)}
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>{mode === 'colorack' ? 'Colorack' : 'Kitrack'}</Text>
+              <TouchableOpacity onPress={() => setAppMode(otherMode)} hitSlop={8} accessibilityRole="button" accessibilityLabel={otherModeLabel}>
+                <Text style={styles.modeSwitchText}>{otherModeLabel}</Text>
+              </TouchableOpacity>
+            </View>
+            {mode === 'colorack' ? (
+              <>
+                {item(allBoxesLabel, () => go('/owned', 'all'), <IconBox color={colors.textMuted} size={22} />, pathname.endsWith('/owned') && activeBoxId === 'all', totalCount)}
+                <View style={styles.divider} />
+                {boxes.map((box) => item(box.name, () => go('/owned', box.id), boxIcon(box), pathname.endsWith('/owned') && activeBoxId === box.id, boxCounts.get(box.id) ?? 0, `box-${box.id}`))}
+                {boxes.length < 8 ? item(t('addBox'), () => setEditingBox('new'), <IconPlus color={colors.primary} size={22} />) : null}
+                <View style={styles.divider} />
+                {item(t('statusUsedUp'), () => go('/used'), <IconHistory color={colors.textMuted} size={22} />, pathname.endsWith('/used'), usedCount)}
+                {item(t('favorites'), () => go('/favorites'), <IconHeart color={colors.textMuted} size={22} />, pathname.endsWith('/favorites'), favoriteCount)}
+                {item(t('wishlist'), () => go('/wishlist'), <IconShoppingCartPlus color={colors.textMuted} size={22} />, pathname.endsWith('/wishlist'), wishlistCount)}
+              </>
+            ) : (
+              <>
+                {item(allBoxesLabel, () => goKits('all'), <IconBox color={colors.textMuted} size={22} />, pathname.endsWith('/kits') && activeKitBoxId === 'all', kitTotalCount)}
+                <View style={styles.divider} />
+                {kitBoxes.map((box) => item(box.name, () => goKits(box.id), boxIcon(box), pathname.endsWith('/kits') && activeKitBoxId === box.id, kitCounts.get(box.id) ?? 0, `kitbox-${box.id}`))}
+                {kitBoxes.length < 8 ? item(t('addBox'), () => setEditingKitBox('new'), <IconPlus color={colors.primary} size={22} />) : null}
+                <View style={styles.divider} />
+                {item(t('completedKits'), goCompleted, <IconCircleCheck color={colors.textMuted} size={22} />, pathname.endsWith('/completed'), completedCount)}
+              </>
+            )}
             <View style={styles.divider} />
             {item(t('catalog'), () => go('/catalog'), <IconPalette color={colors.textMuted} size={22} />, pathname.endsWith('/catalog'))}
             {item(t('settings'), () => go('/settings'), <IconSettings color={colors.textMuted} size={22} />, pathname.endsWith('/settings'))}
-            <View style={styles.divider} />
-            <Text style={styles.sectionLabel}>{t('kits')}</Text>
-            {item(allKitBoxesLabel, () => goKits('all'), <IconBox color={colors.textMuted} size={22} />, pathname.endsWith('/kits') && activeKitBoxId === 'all', kitTotalCount)}
-            {kitBoxes.map((box) => item(box.name, () => goKits(box.id), boxIcon(box), pathname.endsWith('/kits') && activeKitBoxId === box.id, kitCounts.get(box.id) ?? 0, `kitbox-${box.id}`))}
-            {kitBoxes.length < 8 ? item(t('addKitBox'), () => setEditingKitBox('new'), <IconPlus color={colors.primary} size={22} />) : null}
           </ScrollView>
           <BoxEditorModal visible={editingBox === 'new'} title={t('addBox')} onSave={saveBox} onClose={() => setEditingBox(null)} />
-          <BoxEditorModal visible={editingKitBox === 'new'} title={t('addKitBox')} onSave={saveKitBox} onClose={() => setEditingKitBox(null)} />
+          <BoxEditorModal visible={editingKitBox === 'new'} title={t('addBox')} onSave={saveKitBox} onClose={() => setEditingKitBox(null)} />
         </SafeAreaView>
   );
 }
@@ -125,7 +150,9 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   drawerContent: { flex: 1, backgroundColor: colors.surface },
   content: { paddingBottom: spacing.xxl },
-  title: { paddingHorizontal: spacing.xxl, paddingBottom: spacing.xl, fontSize: 22, fontWeight: '700', color: colors.text },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xxl, paddingBottom: spacing.xl },
+  title: { fontSize: 22, fontWeight: '700', color: colors.text },
+  modeSwitchText: { fontSize: 14, fontWeight: '700', color: colors.primary },
   item: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.md },
   activeItem: { backgroundColor: colors.primarySoft },
   icon: { width: 32, alignItems: 'center' },
@@ -133,5 +160,4 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   count: { marginLeft: 'auto', color: colors.textFaint, fontSize: 14, fontVariant: ['tabular-nums'] },
   activeText: { color: colors.primary, fontWeight: '700' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderLight, marginVertical: spacing.sm, marginHorizontal: spacing.xl },
-  sectionLabel: { paddingHorizontal: spacing.xl, paddingBottom: spacing.sm, fontSize: 12, fontWeight: '700', color: colors.textFaint, textTransform: 'uppercase' },
 });
