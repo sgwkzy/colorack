@@ -1,7 +1,7 @@
 // components/KitDetailModal.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconChevronDown, IconChevronLeft, IconDotsVertical, IconX } from '@tabler/icons-react-native';
+import { IconChevronDown, IconChevronLeft, IconEdit, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   addKitPhoto,
@@ -71,7 +71,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [boxPickerOpen, setBoxPickerOpen] = useState(false);
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<'details' | 'colors'>('details');
   const [editMode, setEditMode] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -107,7 +106,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setBoxPickerOpen(false);
       setStatusPickerOpen(false);
       setPickerOpen(false);
-      setMenuOpen(false);
       setDetailTab('details');
       setEditMode(false);
       setViewerOpen(false);
@@ -239,7 +237,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
 
   const confirmDelete = () => {
     if (!detail) return;
-    setMenuOpen(false);
     Alert.alert(detail.name, t('deleteKitConfirm'), [
       { text: t('cancel'), style: 'cancel' },
       {
@@ -272,14 +269,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 <Text style={styles.title}>{t('kitDetailTitle')}</Text>
               )}
               {!editMode ? (
-                <View style={styles.headerActions}>
-                  <TouchableOpacity onPress={() => setMenuOpen(true)} hitSlop={8}>
-                    <IconDotsVertical color={colors.text} size={22} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={closeAfterSavingFields} hitSlop={8}>
-                    <IconX color={colors.text} size={24} />
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity onPress={closeAfterSavingFields} hitSlop={8}>
+                  <IconX color={colors.text} size={24} />
+                </TouchableOpacity>
               ) : null}
             </View>
           </SwipeDownHeader>
@@ -300,7 +292,12 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                   </>
                 ) : (
                   <>
-                    <Text style={styles.name}>{detail.name}</Text>
+                    <View style={styles.nameRow}>
+                      <Text style={styles.name}>{detail.name}</Text>
+                      <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('enterEditMode')}>
+                        <IconEdit color={colors.textMuted} size={20} />
+                      </TouchableOpacity>
+                    </View>
                     <Text style={styles.maker}>{detail.maker}{detail.scale ? ` · ${detail.scale}` : ''}</Text>
                   </>
                 )}
@@ -450,14 +447,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
             ]}
             onClose={() => setStatusPickerOpen(false)}
           />
-          <ActionSheet
-            visible={menuOpen}
-            buttons={[
-              { text: t('enterEditMode'), onPress: () => setEditMode(true) },
-              { text: t('cancel'), style: 'cancel' },
-            ]}
-            onClose={() => setMenuOpen(false)}
-          />
           {detail ? (
             <KitColorComposerModal
               visible={pickerOpen}
@@ -476,12 +465,12 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   scroll: { flex: 1 },
   content: { padding: spacing.xl, gap: spacing.lg },
   titleBlock: { gap: spacing.xs },
+  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   name: { fontSize: 20, fontWeight: '700', color: colors.text },
   nameEditInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 20, fontWeight: '700' },
   maker: { fontSize: 14, color: colors.textMuted },
