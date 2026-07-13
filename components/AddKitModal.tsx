@@ -28,19 +28,23 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
   const [series, setSeries] = useState('');
   const [category, setCategory] = useState('');
   const [scale, setScale] = useState('');
+  const [price, setPrice] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const canSave = name.trim() !== '' && maker.trim() !== '';
 
   useEffect(() => {
-    if (visible) { setName(''); setMaker(''); setSeries(''); setCategory(''); setScale(''); setNote(''); setPhotos([]); }
+    if (visible) { setName(''); setMaker(''); setSeries(''); setCategory(''); setScale(''); setPrice(''); setNote(''); setPhotos([]); }
   }, [visible]);
 
   const save = async () => {
     if (!canSave) return;
+    const trimmedPrice = price.trim();
+    const parsedPrice = trimmedPrice === '' ? null : Number(trimmedPrice);
+    const normalizedPrice = parsedPrice !== null && Number.isInteger(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
     const result = await getDB().runAsync(
-      'INSERT INTO kits (box_id, name, maker, series, category, scale, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [defaultBoxId, name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, note.trim() || null, 'not_started']
+      'INSERT INTO kits (box_id, name, maker, series, category, scale, price, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [defaultBoxId, name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, normalizedPrice, note.trim() || null, 'not_started']
     );
     const kitId = result.lastInsertRowId;
     for (const uri of photos) await addKitPhoto(kitId, uri);
@@ -103,6 +107,10 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
             <View style={styles.field}>
               <Text style={styles.label}>{t('scale')}</Text>
               <ClearableInput style={styles.input} value={scale} onChangeText={setScale} placeholder="1/144" />
+            </View>
+            <View style={styles.field}>
+              <Text style={styles.label}>{t('price')}</Text>
+              <ClearableInput style={styles.input} value={price} onChangeText={setPrice} keyboardType="numeric" placeholder="0" />
             </View>
             <View style={styles.field}>
               <Text style={styles.label}>{t('note')}</Text>
