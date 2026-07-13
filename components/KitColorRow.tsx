@@ -44,9 +44,9 @@ export default function KitColorRow({ color, onNameChange, onRemove, onMove, edi
         </Text>
         {color.paints.map((p) => (
           <View key={p.paint_id} style={styles.paintLine}>
-            {(ownedMap.get(p.paint_id) ?? 0) > 0 ? (
-              <IconCheck color={textColor} size={13} style={styles.checkIcon} />
-            ) : null}
+            <View style={styles.checkSlot}>
+              {(ownedMap.get(p.paint_id) ?? 0) > 0 ? <IconCheck color={textColor} size={13} /> : null}
+            </View>
             <Text numberOfLines={1} style={[styles.paintLineText, { color: textColor }]}>
               {paintName(p.name_ja, p.name_en)} {Math.round(p.ratio * 100)}%
             </Text>
@@ -97,8 +97,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   row: { borderRadius: radius.md, overflow: 'hidden', borderWidth: 1, borderColor: colors.borderLight },
   swatch: { padding: spacing.lg, gap: spacing.xs },
   swatchName: { fontSize: 17, fontWeight: '700' },
-  paintLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  checkIcon: { marginTop: 1 },
+  paintLine: { flexDirection: 'row', alignItems: 'center' },
+  checkSlot: { width: 18, alignItems: 'center' },
   paintLineText: { fontSize: 13, fontWeight: '600' },
   editControls: { backgroundColor: colors.surfaceAlt, padding: spacing.md, gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
   nameInput: { minHeight: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 15, fontWeight: '600' },
