@@ -22,17 +22,33 @@ interface Props {
   onMove: (key: string | number, direction: -1 | 1) => void;
   // falseの間は削除・並び替えボタンを隠す(閲覧のみ)。タップでの拡大表示と追加は常に可能。
   editable: boolean;
+  // trueの間はタップでの拡大表示を無効化する(削除・並び替えボタンと誤操作しやすいため)。
+  // editableとは別軸: キット編集モードでのみ拡大を止めたいが、キット新規作成フォームは
+  // 常時editableながら拡大表示は常に使いたいため、同じフラグを使い回さない。
+  disableTapPreview?: boolean;
+  // 全画面の写真ビューアーが開いている/閉じたタイミングを親に伝える。
+  // 親側のスワイプで閉じるジェスチャーを一時的に無効化するために使う。
+  onViewerChange?: (open: boolean) => void;
 }
 
 const MAX_PHOTOS = 10;
 
-export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable }: Props) {
+export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable, disableTapPreview, onViewerChange }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<'camera' | 'library' | null>(null);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
   const canAddMore = photos.length < MAX_PHOTOS;
+
+  const openViewer = (uri: string) => {
+    setViewerUri(uri);
+    onViewerChange?.(true);
+  };
+  const closeViewer = () => {
+    setViewerUri(null);
+    onViewerChange?.(false);
+  };
 
   const runAction = async (action: 'camera' | 'library') => {
     if (action === 'camera') {
@@ -76,7 +92,7 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.grid}>
         {photos.map((photo, index) => (
           <View key={photo.key} style={[styles.tile, index === 0 && styles.thumbnailTile]}>
-            <TouchableOpacity activeOpacity={0.8} disabled={editable} onPress={() => setViewerUri(photo.uri)}>
+            <TouchableOpacity activeOpacity={0.8} disabled={disableTapPreview} onPress={() => openViewer(photo.uri)}>
               <Image source={{ uri: photo.uri }} style={styles.image} resizeMode="cover" />
             </TouchableOpacity>
             {editable ? (
@@ -132,7 +148,7 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable
         onClose={() => setPickerOpen(false)}
         onDismiss={handleSheetDismiss}
       />
-      <PhotoViewerModal visible={viewerUri != null} uri={viewerUri} onClose={() => setViewerUri(null)} />
+      <PhotoViewerModal visible={viewerUri != null} uri={viewerUri} onClose={closeViewer} />
     </View>
   );
 }

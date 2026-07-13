@@ -74,6 +74,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [menuOpen, setMenuOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<'details' | 'colors'>('details');
   const [editMode, setEditMode] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
 
@@ -109,6 +110,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setMenuOpen(false);
       setDetailTab('details');
       setEditMode(false);
+      setViewerOpen(false);
     }
   }, [visible, load]);
 
@@ -257,9 +259,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={closeAfterSavingFields}>
       <SafeAreaProvider>
-        <SwipeBack enabled={visible} onBack={closeAfterSavingFields}>
+        <SwipeBack enabled={visible && !viewerOpen} onBack={closeAfterSavingFields}>
         <SafeAreaView style={styles.container} edges={['top']}>
-          <SwipeDownHeader onClose={closeAfterSavingFields}>
+          <SwipeDownHeader onClose={closeAfterSavingFields} enabled={!viewerOpen}>
             <View style={styles.header}>
               {editMode ? (
                 <TouchableOpacity onPress={exitEditMode} hitSlop={8} style={styles.backBtn}>
@@ -306,6 +308,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
               <KitPhotoGrid
                 photos={photos.map((p) => ({ key: p.id, uri: p.uri }))}
                 editable={editMode}
+                disableTapPreview={editMode}
+                onViewerChange={setViewerOpen}
                 onAdd={addPhoto}
                 onRemove={(key) => {
                   const photo = photos.find((p) => p.id === key);
