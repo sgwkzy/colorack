@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconArchive, IconBox, IconBriefcase, IconBuildingWarehouse, IconCircleCheck, IconFlask, IconHistory, IconHeart, IconPackage, IconPalette, IconPlus, IconSettings, IconShoppingCartPlus, IconStack } from '@tabler/icons-react-native';
 import { router, usePathname } from 'expo-router';
-import { AppMode, setAppMode, useAppMode } from '../lib/appMode';
+import { AppMode, useAppMode } from '../lib/appMode';
 import { notifyBoxesChanged, setActiveBox, useActiveBox } from '../lib/activeBox';
 import { notifyKitBoxesChanged, setActiveKitBox, useActiveKitBox } from '../lib/activeKitBox';
 import { getDB } from '../lib/db';
@@ -22,7 +22,12 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
   const locale = useLocale();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const pathname = usePathname();
-  const mode = useAppMode();
+  const appMode = useAppMode();
+  const [previewMode, setPreviewMode] = useState<AppMode>(appMode);
+  // ドロワーを開くたびに本当のモード(実際に表示中の画面)へ同期し直す。閉じている間に
+  // トグルだけして実際にはボックスへ移動しなかった場合、次に開いた時は元のモードに戻る。
+  useEffect(() => { if (visible) setPreviewMode(appMode); }, [visible, appMode]);
+  const mode = previewMode;
   const activeBoxId = useActiveBox();
   const allBoxesLabel = locale === 'ja' ? 'すべてのボックス' : 'All Boxes';
   const [boxes, setBoxes] = useState<Box[]>([]);
@@ -112,7 +117,7 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
           <ScrollView contentContainerStyle={styles.content}>
             <View style={styles.titleRow}>
               <Text style={styles.title}>{mode === 'colorack' ? 'Colorack' : 'Kitrack'}</Text>
-              <TouchableOpacity onPress={() => setAppMode(otherMode)} hitSlop={8} accessibilityRole="button" accessibilityLabel={otherModeLabel}>
+              <TouchableOpacity onPress={() => setPreviewMode(otherMode)} hitSlop={8} accessibilityRole="button" accessibilityLabel={otherModeLabel}>
                 <Text style={styles.modeSwitchText}>{otherModeLabel}</Text>
               </TouchableOpacity>
             </View>
