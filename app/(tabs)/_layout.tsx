@@ -47,6 +47,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="owned" options={{ headerTitle: () => <BoxTitlePicker />, headerRight: () => <BoxOptions /> }} />
       <Tabs.Screen name="kits" options={{ headerTitle: () => <KitBoxTitlePicker />, headerRight: () => <KitBoxOptions /> }} />
       <Tabs.Screen name="used" options={{ title: t('statusUsedUp') }} />
+      <Tabs.Screen name="completed" options={{ title: t('completedKits') }} />
       <Tabs.Screen name="favorites" options={{ title: t('favorites') }} />
       <Tabs.Screen name="wishlist" options={{ title: t('wishlist') }} />
       <Tabs.Screen name="catalog" options={{ title: t('catalog') }} />

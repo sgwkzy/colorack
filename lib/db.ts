@@ -196,6 +196,20 @@ export async function initDB(): Promise<void> {
       + ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
       ['default_kit_box_id', String(kitRes.lastInsertRowId)]
     );
+  } else {
+    // この仕様導入前からキットボックスがあった端末はdefault_kit_box_id未設定のため、
+    // 先頭のキットボックスへ一度だけバックフィルする。
+    const existingDefault = await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'default_kit_box_id'");
+    if (!existingDefault?.value) {
+      const first = await db.getFirstAsync<{ id: number }>('SELECT id FROM kit_boxes ORDER BY sort_order, id LIMIT 1');
+      if (first) {
+        await db.runAsync(
+          'INSERT INTO app_settings (key, value) VALUES (?, ?)'
+          + ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+          ['default_kit_box_id', String(first.id)]
+        );
+      }
+    }
   }
 
   // この仕様導入前に完成(completed)になっていたキットのbox_idを一度だけクリアする。
