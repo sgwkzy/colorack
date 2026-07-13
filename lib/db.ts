@@ -186,6 +186,22 @@ export async function initDB(): Promise<void> {
     );
   }
 
+  // 初期キットボックス「Box」を用意し、デフォルトに設定(キットボックスが無い時だけ)。
+  // 塗料ボックスと同じ仕組み。
+  const kitBoxCount = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM kit_boxes');
+  if ((kitBoxCount?.n ?? 0) === 0) {
+    const kitRes = await db.runAsync('INSERT INTO kit_boxes (name) VALUES (?)', ['Box']);
+    await db.runAsync(
+      'INSERT INTO app_settings (key, value) VALUES (?, ?)'
+      + ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      ['default_kit_box_id', String(kitRes.lastInsertRowId)]
+    );
+  }
+
+  // この仕様導入前に完成(completed)になっていたキットのbox_idを一度だけクリアする。
+  // 塗料の使用済み(used_up)がボックスから外れているのと同じ扱いにするため。
+  await db.runAsync("UPDATE kits SET box_id = NULL WHERE status = 'completed'");
+
   // シードバージョンが古い端末は catalog_paints をシードの内容へ更新。
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   const current = row?.user_version ?? 0;
@@ -261,6 +277,14 @@ export async function getDefaultBoxId(): Promise<number | null> {
   if (!v) return null;
   const id = Number(v);
   const exists = await getDB().getFirstAsync('SELECT id FROM boxes WHERE id = ?', [id]);
+  return exists ? id : null;
+}
+
+export async function getDefaultKitBoxId(): Promise<number | null> {
+  const v = await getSetting('default_kit_box_id');
+  if (!v) return null;
+  const id = Number(v);
+  const exists = await getDB().getFirstAsync('SELECT id FROM kit_boxes WHERE id = ?', [id]);
   return exists ? id : null;
 }
 
@@ -461,9 +485,10 @@ export async function updateKitBox(kitId: number, boxId: number): Promise<void> 
 }
 
 export async function setKitStatus(kitId: number, status: KitStatus): Promise<void> {
+  const defaultBoxId = status === 'completed' ? null : await getDefaultKitBoxId();
   await getDB().runAsync(
-    "UPDATE kits SET status = ?, status_changed_at = datetime('now') WHERE id = ?",
-    [status, kitId]
+    "UPDATE kits SET status = ?, box_id = CASE WHEN ? = 'completed' THEN NULL WHEN box_id IS NULL THEN ? ELSE box_id END, status_changed_at = datetime('now') WHERE id = ?",
+    [status, status, defaultBoxId, kitId]
   );
 }
 
