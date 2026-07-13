@@ -496,7 +496,7 @@ export async function updateKitCategory(kitId: number, category: string): Promis
 export async function updateKitPrice(kitId: number, price: string): Promise<void> {
   const trimmed = price.trim();
   const parsed = trimmed === '' ? null : Number(trimmed);
-  const normalized = parsed !== null && Number.isFinite(parsed) ? parsed : null;
+  const normalized = parsed !== null && Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
   await getDB().runAsync(
     "UPDATE kits SET price = ?, status_changed_at = datetime('now') WHERE id = ?",
     [normalized, kitId]

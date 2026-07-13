@@ -162,7 +162,7 @@ export async function updateKitCategory(kitId: number, category: string): Promis
 export async function updateKitPrice(kitId: number, price: string): Promise<void> {
   const trimmed = price.trim();
   const parsed = trimmed === '' ? null : Number(trimmed);
-  const normalized = parsed !== null && Number.isFinite(parsed) ? parsed : null;
+  const normalized = parsed !== null && Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
   await getDB().runAsync(
     "UPDATE kits SET price = ?, status_changed_at = datetime('now') WHERE id = ?",
     [normalized, kitId]
@@ -310,7 +310,7 @@ Replace with:
     if (!canSave) return;
     const trimmedPrice = price.trim();
     const parsedPrice = trimmedPrice === '' ? null : Number(trimmedPrice);
-    const normalizedPrice = parsedPrice !== null && Number.isFinite(parsedPrice) ? parsedPrice : null;
+    const normalizedPrice = parsedPrice !== null && Number.isInteger(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
     const result = await getDB().runAsync(
       'INSERT INTO kits (box_id, name, maker, series, category, scale, price, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [defaultBoxId, name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, normalizedPrice, note.trim() || null, 'not_started']
