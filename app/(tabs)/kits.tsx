@@ -5,7 +5,9 @@ import { IconBox, IconChevronDown } from '@tabler/icons-react-native';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { getDB, getDefaultKitBoxId, KitStatus } from '../../lib/db';
 import { setActiveKitBox } from '../../lib/activeKitBox';
+import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
+import { setLastScreen } from '../../lib/lastScreen';
 import { lightColors, radius, spacing, touch, useTheme } from '../../lib/theme';
 import ActionSheet, { ActionSheetButton } from '../../components/ActionSheet';
 import AddKitModal from '../../components/AddKitModal';
@@ -77,6 +79,12 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   }, [boxId, completedScreen]);
 
   useEffect(() => { if (!completedScreen) setActiveKitBox(selected); }, [completedScreen, selected]);
+
+  // 実際にこの画面が表示された時点で、起動時復元先とドロワーのモードを常に一致させる。
+  useFocusEffect(useCallback(() => {
+    setLastScreen(completedScreen ? 'completed' : 'kits');
+    setAppMode('kitrack');
+  }, [completedScreen]));
 
   useEffect(() => {
     if (completedScreen) {
