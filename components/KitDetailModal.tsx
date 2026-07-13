@@ -20,7 +20,6 @@ import {
   updateKitBox,
   updateKitCategory,
   updateKitColorName,
-  updateKitColorNote,
   updateKitNote,
   updateKitSeries,
 } from '../lib/db';
@@ -170,11 +169,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     await load();
   };
 
-  const changeColorNote = async (kitColorId: number, next: string) => {
-    await updateKitColorNote(kitColorId, next);
-    await load();
-  };
-
   const confirmDelete = () => {
     if (!detail) return;
     setMenuOpen(false);
@@ -217,20 +211,18 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
             <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingFields} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-              <View style={styles.topRow}>
-                <KitPhotoGrid
-                  photos={photos.map((p) => ({ key: p.id, uri: p.uri }))}
-                  onAdd={addPhoto}
-                  onRemove={(key) => {
-                    const photo = photos.find((p) => p.id === key);
-                    if (photo) removePhoto(photo.id, photo.uri);
-                  }}
-                />
-                <View style={styles.titleBlock}>
-                  <Text style={styles.name}>{detail.name}</Text>
-                  <Text style={styles.maker}>{detail.maker}{detail.scale ? ` · ${detail.scale}` : ''}</Text>
-                </View>
+              <View style={styles.titleBlock}>
+                <Text style={styles.name}>{detail.name}</Text>
+                <Text style={styles.maker}>{detail.maker}{detail.scale ? ` · ${detail.scale}` : ''}</Text>
               </View>
+              <KitPhotoGrid
+                photos={photos.map((p) => ({ key: p.id, uri: p.uri }))}
+                onAdd={addPhoto}
+                onRemove={(key) => {
+                  const photo = photos.find((p) => p.id === key);
+                  if (photo) removePhoto(photo.id, photo.uri);
+                }}
+              />
 
               <View style={styles.controlCard}>
                 <View style={styles.control}>
@@ -285,7 +277,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                     key={color.id}
                     color={color}
                     onNameChange={(next) => changeColorName(color.id, next)}
-                    onNoteChange={(next) => changeColorNote(color.id, next)}
                     onRemove={() => removeColor(color.id)}
                   />
                 ))}
@@ -341,8 +332,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   scroll: { flex: 1 },
   content: { padding: spacing.xl, gap: spacing.lg },
-  topRow: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
-  titleBlock: { flex: 1, gap: spacing.xs },
+  titleBlock: { gap: spacing.xs },
   name: { fontSize: 20, fontWeight: '700', color: colors.text },
   maker: { fontSize: 14, color: colors.textMuted },
   controlCard: { flexDirection: 'row', backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, gap: spacing.lg },

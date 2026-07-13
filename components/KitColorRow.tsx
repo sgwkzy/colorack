@@ -12,15 +12,13 @@ import ClearableInput from './ClearableInput';
 interface Props {
   color: KitColorSummary;
   onNameChange: (name: string) => void;
-  onNoteChange: (note: string) => void;
   onRemove: () => void;
 }
 
-export default function KitColorRow({ color, onNameChange, onNoteChange, onRemove }: Props) {
+export default function KitColorRow({ color, onNameChange, onRemove }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [name, setName] = useState(color.name ?? '');
-  const [note, setNote] = useState(color.note ?? '');
 
   const swatchHex = useMemo(() => mixHexColors(
     color.paints.filter((p) => p.hex).map((p) => ({ hex: p.hex as string, ratio: p.ratio }))
@@ -47,13 +45,6 @@ export default function KitColorRow({ color, onNameChange, onNoteChange, onRemov
         </TouchableOpacity>
       </View>
       <Text numberOfLines={1} style={styles.breakdown}>{breakdown}</Text>
-      <ClearableInput
-        style={styles.noteInput}
-        value={note}
-        onChangeText={setNote}
-        onBlur={() => onNoteChange(note)}
-        placeholder={t('note')}
-      />
     </View>
   );
 }
@@ -64,5 +55,4 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   swatch: { width: 32, height: 32, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
   breakdown: { fontSize: 12, color: colors.textMuted },
   nameInput: { flex: 1, minHeight: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 15, fontWeight: '600' },
-  noteInput: { minHeight: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 13 },
 });

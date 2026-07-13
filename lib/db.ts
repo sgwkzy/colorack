@@ -544,11 +544,6 @@ export async function updateKitColorName(kitColorId: number, name: string): Prom
   await getDB().runAsync('UPDATE kit_colors SET name = ? WHERE id = ?', [normalized, kitColorId]);
 }
 
-export async function updateKitColorNote(kitColorId: number, note: string): Promise<void> {
-  const normalized = note.trim() === '' ? null : note;
-  await getDB().runAsync('UPDATE kit_colors SET note = ? WHERE id = ?', [normalized, kitColorId]);
-}
-
 export async function removeKitColor(kitColorId: number): Promise<void> {
   const db = getDB();
   await db.withTransactionAsync(async () => {
