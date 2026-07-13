@@ -7,6 +7,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
+import { initAppMode } from '../lib/appMode';
 import { initDB } from '../lib/db';
 import { initTheme, useTheme } from '../lib/theme';
 import { initLocale } from '../lib/i18n';
@@ -29,7 +30,7 @@ export default function RootLayout() {
     const initialize = async () => {
       try {
         await initDB();
-        await Promise.all([initTheme(), initLocale(), initUiPrefs()]);
+        await Promise.all([initTheme(), initLocale(), initUiPrefs(), initAppMode()]);
       } catch (error) {
         console.error(error);
         setInitFailed(true);
