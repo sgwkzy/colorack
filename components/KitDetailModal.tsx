@@ -22,6 +22,7 @@ import {
   updateKitBox,
   updateKitCategory,
   updateKitColorName,
+  updateKitMaker,
   updateKitName,
   updateKitNote,
   updateKitScale,
@@ -63,6 +64,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [kitColors, setKitColors] = useState<KitColorSummary[]>([]);
   const [photos, setPhotos] = useState<KitPhoto[]>([]);
   const [name, setName] = useState('');
+  const [maker, setMaker] = useState('');
   const [scale, setScale] = useState('');
   const [note, setNote] = useState('');
   const [series, setSeries] = useState('');
@@ -84,6 +86,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     setKitColors(colorRows);
     setPhotos(photoRows);
     setName(row?.name ?? '');
+    setMaker(row?.maker ?? '');
     setScale(row?.scale ?? '');
     setNote(row?.note ?? '');
     setSeries(row?.series ?? '');
@@ -99,6 +102,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setKitColors([]);
       setPhotos([]);
       setName('');
+      setMaker('');
       setScale('');
       setNote('');
       setSeries('');
@@ -117,6 +121,15 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     const trimmed = name.trim();
     if (trimmed === '' || trimmed === detail.name) return;
     await updateKitName(detail.id, trimmed);
+    await load();
+    onChanged?.();
+  };
+
+  const saveMaker = async () => {
+    if (!detail) return;
+    const trimmed = maker.trim();
+    if (trimmed === '' || trimmed === detail.maker) return;
+    await updateKitMaker(detail.id, trimmed);
     await load();
     onChanged?.();
   };
@@ -157,6 +170,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     if (!detail) return;
     const trimmedName = name.trim();
     if (trimmedName !== '' && trimmedName !== detail.name) { await updateKitName(detail.id, trimmedName); onChanged?.(); }
+    const trimmedMaker = maker.trim();
+    if (trimmedMaker !== '' && trimmedMaker !== detail.maker) { await updateKitMaker(detail.id, trimmedMaker); onChanged?.(); }
     if (scale !== (detail.scale ?? '')) { await updateKitScale(detail.id, scale); onChanged?.(); }
     if (note !== (detail.note ?? '')) { await updateKitNote(detail.id, note); onChanged?.(); }
     if (series !== (detail.series ?? '')) { await updateKitSeries(detail.id, series); onChanged?.(); }
@@ -284,7 +299,10 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 {editMode ? (
                   <>
                     <ClearableInput style={styles.nameEditInput} value={name} onChangeText={setName} onBlur={saveName} placeholder={t('name')} />
-                    <Text style={styles.maker}>{detail.maker}</Text>
+                    <View style={styles.field}>
+                      <Text style={styles.sectionTitle}>{t('maker')}</Text>
+                      <ClearableInput style={styles.input} value={maker} onChangeText={setMaker} onBlur={saveMaker} placeholder={t('maker')} />
+                    </View>
                     <View style={styles.field}>
                       <Text style={styles.sectionTitle}>{t('scale')}</Text>
                       <ClearableInput style={styles.input} value={scale} onChangeText={setScale} onBlur={saveScale} placeholder="1/144" />

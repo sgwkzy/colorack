@@ -421,6 +421,14 @@ export async function updateKitName(kitId: number, name: string): Promise<void> 
   );
 }
 
+// kits.maker は NOT NULL のため、空文字を渡さないのは呼び出し側の責務。
+export async function updateKitMaker(kitId: number, maker: string): Promise<void> {
+  await getDB().runAsync(
+    "UPDATE kits SET maker = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [maker, kitId]
+  );
+}
+
 export async function updateKitScale(kitId: number, scale: string): Promise<void> {
   const normalized = scale.trim() === '' ? null : scale;
   await getDB().runAsync(
