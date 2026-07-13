@@ -470,6 +470,15 @@ export async function removeKitPhoto(photoId: number): Promise<void> {
   await getDB().runAsync('DELETE FROM kit_photos WHERE id = ?', [photoId]);
 }
 
+export async function reorderKitPhotos(photoIds: number[]): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    for (const [index, id] of photoIds.entries()) {
+      await db.runAsync('UPDATE kit_photos SET sort_order = ? WHERE id = ?', [index, id]);
+    }
+  });
+}
+
 export async function deleteKit(kitId: number): Promise<void> {
   const db = getDB();
   await db.withTransactionAsync(async () => {

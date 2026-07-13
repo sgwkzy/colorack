@@ -72,6 +72,16 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
                 deleteKitPhoto(key as string);
                 setPhotos((current) => current.filter((uri) => uri !== key));
               }}
+              onMove={(key, direction) => {
+                setPhotos((current) => {
+                  const index = current.indexOf(key as string);
+                  const targetIndex = index + direction;
+                  if (index < 0 || targetIndex < 0 || targetIndex >= current.length) return current;
+                  const next = [...current];
+                  [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+                  return next;
+                });
+              }}
             />
             <View style={styles.field}>
               <Text style={styles.label}>{t('name')}*</Text>

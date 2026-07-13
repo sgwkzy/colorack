@@ -1,9 +1,9 @@
 // components/KitPhotoGrid.tsx
 // 複数枚(最大10枚)の写真グリッド。1枚目はサムネイル扱いのため枠線で強調する。
-// 並び替えUIは持たない(削除して撮り直す運用を想定)。
+// 並び替えは左右矢印ボタンで一つずつ移動する方式(キットボックスの並び替えと同じ仕組み)。
 import { useMemo, useState } from 'react';
 import { Image, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { IconPlus, IconX } from '@tabler/icons-react-native';
+import { IconChevronLeft, IconChevronRight, IconPlus, IconX } from '@tabler/icons-react-native';
 import { pickKitPhotoFromCamera, pickKitPhotosFromLibrary } from '../lib/kitPhoto';
 import { t } from '../lib/i18n';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
@@ -18,11 +18,12 @@ interface Props {
   photos: KitPhotoGridItem[];
   onAdd: (uri: string) => void | Promise<void>;
   onRemove: (key: string | number) => void;
+  onMove: (key: string | number, direction: -1 | 1) => void;
 }
 
 const MAX_PHOTOS = 10;
 
-export default function KitPhotoGrid({ photos, onAdd, onRemove }: Props) {
+export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -81,6 +82,28 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove }: Props) {
             >
               <IconX color="#fff" size={14} />
             </TouchableOpacity>
+            {index > 0 ? (
+              <TouchableOpacity
+                style={styles.moveLeftBtn}
+                onPress={() => onMove(photo.key, -1)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('moveLeft')}
+              >
+                <IconChevronLeft color="#fff" size={14} />
+              </TouchableOpacity>
+            ) : null}
+            {index < photos.length - 1 ? (
+              <TouchableOpacity
+                style={styles.moveRightBtn}
+                onPress={() => onMove(photo.key, 1)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('moveRight')}
+              >
+                <IconChevronRight color="#fff" size={14} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         ))}
         {canAddMore ? (
@@ -112,4 +135,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   image: { width: '100%', height: '100%' },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   removeBtn: { position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  moveLeftBtn: { position: 'absolute', bottom: 2, left: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  moveRightBtn: { position: 'absolute', bottom: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
 });

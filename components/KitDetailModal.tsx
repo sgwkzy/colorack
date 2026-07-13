@@ -16,6 +16,7 @@ import {
   KitStatus,
   removeKitColor,
   removeKitPhoto,
+  reorderKitPhotos,
   setKitStatus,
   updateKitBox,
   updateKitCategory,
@@ -163,6 +164,17 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     onChanged?.();
   };
 
+  const movePhoto = async (photoId: number, direction: -1 | 1) => {
+    const index = photos.findIndex((p) => p.id === photoId);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= photos.length) return;
+    const next = [...photos];
+    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+    await reorderKitPhotos(next.map((p) => p.id));
+    await load();
+    onChanged?.();
+  };
+
   const removeColor = async (kitColorId: number) => {
     await removeKitColor(kitColorId);
     await load();
@@ -226,6 +238,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                   const photo = photos.find((p) => p.id === key);
                   if (photo) removePhoto(photo.id, photo.uri);
                 }}
+                onMove={(key, direction) => movePhoto(key as number, direction)}
               />
 
               <View style={styles.tabBar}>
