@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconCheck, IconChevronLeft, IconChevronRight, IconTrash } from '@tabler/icons-react-native';
 import { KitColorSummary } from '../lib/db';
+import { brandLabel } from '../lib/brands';
 import { readableTextColor } from '../lib/color';
 import { mixHexColors } from '../lib/colorMix';
 import { t } from '../lib/i18n';
@@ -28,11 +29,16 @@ export default function KitColorRow({ color, onNameChange, onRemove, onMove, edi
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [name, setName] = useState(color.name ?? '');
+  const [tooltipPaintId, setTooltipPaintId] = useState<number | null>(null);
 
   const swatchHex = useMemo(() => mixHexColors(
     color.paints.filter((p) => p.hex).map((p) => ({ hex: p.hex as string, ratio: p.ratio }))
   ), [color.paints]);
   const textColor = swatchHex ? readableTextColor(swatchHex) : colors.text;
+  // 色詳細画面のタップツールチップと同じく、スウォッチの明暗に応じて背景を反転させる。
+  const tooltipBackground = swatchHex
+    ? (textColor === '#fff' ? 'rgba(0,0,0,0.78)' : 'rgba(255,255,255,0.92)')
+    : colors.surface;
 
   const fallbackName = color.paints[0] ? paintName(color.paints[0].name_ja, color.paints[0].name_en) : '';
 
@@ -43,13 +49,26 @@ export default function KitColorRow({ color, onNameChange, onRemove, onMove, edi
           {name || fallbackName || t('colorNameLabel')}
         </Text>
         {color.paints.map((p) => (
-          <View key={p.paint_id} style={styles.paintLine}>
-            <View style={styles.checkSlot}>
-              {(ownedMap.get(p.paint_id) ?? 0) > 0 ? <IconCheck color={textColor} size={13} /> : null}
-            </View>
-            <Text numberOfLines={1} style={[styles.paintLineText, { color: textColor }]}>
-              {paintName(p.name_ja, p.name_en)} {Math.round(p.ratio * 100)}%
-            </Text>
+          <View key={p.paint_id}>
+            <TouchableOpacity
+              style={styles.paintLine}
+              onPress={() => setTooltipPaintId((current) => (current === p.paint_id ? null : p.paint_id))}
+              accessibilityRole="button"
+              accessibilityLabel={`${brandLabel(p.brand)} ${paintName(p.name_ja, p.name_en)}`}
+            >
+              <View style={styles.checkSlot}>
+                {(ownedMap.get(p.paint_id) ?? 0) > 0 ? <IconCheck color={textColor} size={13} /> : null}
+              </View>
+              <Text numberOfLines={1} style={[styles.paintLineText, { color: textColor }]}>
+                {paintName(p.name_ja, p.name_en)} {Math.round(p.ratio * 100)}%
+              </Text>
+            </TouchableOpacity>
+            {tooltipPaintId === p.paint_id ? (
+              <View style={[styles.paintTooltip, { backgroundColor: tooltipBackground }]}>
+                <Text selectable style={[styles.paintTooltipBrand, { color: textColor }]}>{brandLabel(p.brand)}</Text>
+                <Text selectable style={[styles.paintTooltipName, { color: textColor }]}>{paintName(p.name_ja, p.name_en)}</Text>
+              </View>
+            ) : null}
           </View>
         ))}
       </View>
@@ -100,6 +119,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   paintLine: { flexDirection: 'row', alignItems: 'center' },
   checkSlot: { width: 18, alignItems: 'center' },
   paintLineText: { fontSize: 13, fontWeight: '600' },
+  paintTooltip: { alignSelf: 'flex-start', marginLeft: 18, marginBottom: spacing.xs, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, borderRadius: radius.sm },
+  paintTooltipBrand: { fontSize: 11, fontWeight: '700', opacity: 0.85 },
+  paintTooltipName: { fontSize: 13, fontWeight: '600' },
   editControls: { backgroundColor: colors.surfaceAlt, padding: spacing.md, gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
   nameInput: { minHeight: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 15, fontWeight: '600' },
   editButtonsRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
