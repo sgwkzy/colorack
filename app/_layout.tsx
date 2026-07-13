@@ -11,6 +11,7 @@ import { initAppMode } from '../lib/appMode';
 import { initDB } from '../lib/db';
 import { initTheme, useTheme } from '../lib/theme';
 import { initLocale } from '../lib/i18n';
+import { initLastScreen } from '../lib/lastScreen';
 import { initUiPrefs } from '../lib/uiPrefs';
 
 void SplashScreen.preventAutoHideAsync();
@@ -30,7 +31,7 @@ export default function RootLayout() {
     const initialize = async () => {
       try {
         await initDB();
-        await Promise.all([initTheme(), initLocale(), initUiPrefs(), initAppMode()]);
+        await Promise.all([initTheme(), initLocale(), initUiPrefs(), initAppMode(), initLastScreen()]);
       } catch (error) {
         console.error(error);
         setInitFailed(true);
