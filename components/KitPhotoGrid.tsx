@@ -8,6 +8,7 @@ import { pickKitPhotoFromCamera, pickKitPhotosFromLibrary } from '../lib/kitPhot
 import { t } from '../lib/i18n';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
 import ActionSheet, { ActionSheetButton } from './ActionSheet';
+import PhotoViewerModal from './PhotoViewerModal';
 
 export interface KitPhotoGridItem {
   key: string | number;
@@ -19,15 +20,18 @@ interface Props {
   onAdd: (uri: string) => void | Promise<void>;
   onRemove: (key: string | number) => void;
   onMove: (key: string | number, direction: -1 | 1) => void;
+  // falseの間は削除・並び替えボタンを隠す(閲覧のみ)。タップでの拡大表示と追加は常に可能。
+  editable: boolean;
 }
 
 const MAX_PHOTOS = 10;
 
-export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove }: Props) {
+export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<'camera' | 'library' | null>(null);
+  const [viewerUri, setViewerUri] = useState<string | null>(null);
   const canAddMore = photos.length < MAX_PHOTOS;
 
   const runAction = async (action: 'camera' | 'library') => {
@@ -72,17 +76,21 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove }: Props)
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.grid}>
         {photos.map((photo, index) => (
           <View key={photo.key} style={[styles.tile, index === 0 && styles.thumbnailTile]}>
-            <Image source={{ uri: photo.uri }} style={styles.image} resizeMode="cover" />
-            <TouchableOpacity
-              style={styles.removeBtn}
-              onPress={() => onRemove(photo.key)}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={t('removePhoto')}
-            >
-              <IconX color="#fff" size={14} />
+            <TouchableOpacity activeOpacity={0.8} onPress={() => setViewerUri(photo.uri)}>
+              <Image source={{ uri: photo.uri }} style={styles.image} resizeMode="cover" />
             </TouchableOpacity>
-            {index > 0 ? (
+            {editable ? (
+              <TouchableOpacity
+                style={styles.removeBtn}
+                onPress={() => onRemove(photo.key)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('removePhoto')}
+              >
+                <IconX color="#fff" size={14} />
+              </TouchableOpacity>
+            ) : null}
+            {editable && index > 0 ? (
               <TouchableOpacity
                 style={styles.moveLeftBtn}
                 onPress={() => onMove(photo.key, -1)}
@@ -93,7 +101,7 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove }: Props)
                 <IconChevronLeft color="#fff" size={14} />
               </TouchableOpacity>
             ) : null}
-            {index < photos.length - 1 ? (
+            {editable && index < photos.length - 1 ? (
               <TouchableOpacity
                 style={styles.moveRightBtn}
                 onPress={() => onMove(photo.key, 1)}
@@ -124,6 +132,7 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove }: Props)
         onClose={() => setPickerOpen(false)}
         onDismiss={handleSheetDismiss}
       />
+      <PhotoViewerModal visible={viewerUri != null} uri={viewerUri} onClose={() => setViewerUri(null)} />
     </View>
   );
 }

@@ -16,6 +16,7 @@ import {
   KitStatus,
   removeKitColor,
   removeKitPhoto,
+  reorderKitColors,
   reorderKitPhotos,
   setKitStatus,
   updateKitBox,
@@ -68,6 +69,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [pickerOpen, setPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<'details' | 'colors'>('details');
+  const [editMode, setEditMode] = useState(false);
 
   const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
 
@@ -98,6 +100,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setPickerOpen(false);
       setMenuOpen(false);
       setDetailTab('details');
+      setEditMode(false);
     }
   }, [visible, load]);
 
@@ -185,6 +188,16 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     await load();
   };
 
+  const moveColor = async (kitColorId: number, direction: -1 | 1) => {
+    const index = kitColors.findIndex((c) => c.id === kitColorId);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= kitColors.length) return;
+    const next = [...kitColors];
+    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+    await reorderKitColors(next.map((c) => c.id));
+    await load();
+  };
+
   const confirmDelete = () => {
     if (!detail) return;
     setMenuOpen(false);
@@ -233,6 +246,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
               </View>
               <KitPhotoGrid
                 photos={photos.map((p) => ({ key: p.id, uri: p.uri }))}
+                editable={editMode}
                 onAdd={addPhoto}
                 onRemove={(key) => {
                   const photo = photos.find((p) => p.id === key);
@@ -261,11 +275,19 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                   <View style={styles.card}>
                     <View style={styles.field}>
                       <Text style={styles.sectionTitle}>{t('series')}</Text>
-                      <ClearableInput style={styles.input} value={series} onChangeText={setSeries} onBlur={saveSeries} />
+                      {editMode ? (
+                        <ClearableInput style={styles.input} value={series} onChangeText={setSeries} onBlur={saveSeries} />
+                      ) : (
+                        <Text style={styles.pickerText}>{series || t('unknown')}</Text>
+                      )}
                     </View>
                     <View style={styles.field}>
                       <Text style={styles.sectionTitle}>{t('category')}</Text>
-                      <ClearableInput style={styles.input} value={category} onChangeText={setCategory} onBlur={saveCategory} />
+                      {editMode ? (
+                        <ClearableInput style={styles.input} value={category} onChangeText={setCategory} onBlur={saveCategory} />
+                      ) : (
+                        <Text style={styles.pickerText}>{category || t('unknown')}</Text>
+                      )}
                     </View>
                   </View>
 
@@ -319,12 +341,16 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                       <Text style={styles.addLink}>{t('addColor')}</Text>
                     </TouchableOpacity>
                   </View>
-                  {kitColors.map((color) => (
+                  {kitColors.map((color, index) => (
                     <KitColorRow
                       key={color.id}
                       color={color}
+                      editable={editMode}
+                      canMoveLeft={index > 0}
+                      canMoveRight={index < kitColors.length - 1}
                       onNameChange={(next) => changeColorName(color.id, next)}
                       onRemove={() => removeColor(color.id)}
+                      onMove={(direction) => moveColor(color.id, direction)}
                     />
                   ))}
                 </View>
@@ -353,6 +379,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           <ActionSheet
             visible={menuOpen}
             buttons={[
+              { text: editMode ? t('exitEditMode') : t('enterEditMode'), onPress: () => setEditMode((e) => !e) },
               { text: t('delete'), style: 'destructive', onPress: confirmDelete },
               { text: t('cancel'), style: 'cancel' },
             ]}

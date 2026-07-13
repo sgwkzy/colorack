@@ -81,7 +81,7 @@ export async function initDB(): Promise<void> {
     ');' +
     'CREATE TABLE IF NOT EXISTS kit_colors (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  kit_id INTEGER NOT NULL, name TEXT, note TEXT,' +
+    '  kit_id INTEGER NOT NULL, name TEXT, note TEXT, sort_order INTEGER NOT NULL DEFAULT 0,' +
     "  added_at TEXT DEFAULT (datetime('now'))" +
     ');' +
     'CREATE TABLE IF NOT EXISTS kit_color_paints (' +
@@ -108,6 +108,7 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE inventory ADD COLUMN status_changed_at TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN series TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN category TEXT'); } catch { /* 既にある */ }
+  try { await db.execAsync('ALTER TABLE kit_colors ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0'); } catch { /* 既にある */ }
   await db.runAsync(
     'UPDATE inventory SET status_changed_at = added_at WHERE status_changed_at IS NULL OR status_changed_at < added_at'
   );
@@ -510,7 +511,7 @@ export interface KitColorSummary {
 export async function getKitColors(kitId: number): Promise<KitColorSummary[]> {
   const db = getDB();
   const colorRows = await db.getAllAsync<{ id: number; name: string | null; note: string | null }>(
-    'SELECT id, name, note FROM kit_colors WHERE kit_id = ? ORDER BY added_at',
+    'SELECT id, name, note FROM kit_colors WHERE kit_id = ? ORDER BY sort_order, id',
     [kitId]
   );
   const paintRows = await db.getAllAsync<KitColorPaint & { kit_color_id: number }>(
@@ -534,9 +535,13 @@ export async function addKitColor(
 ): Promise<void> {
   const db = getDB();
   await db.withTransactionAsync(async () => {
+    const row = await db.getFirstAsync<{ n: number }>(
+      'SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM kit_colors WHERE kit_id = ?',
+      [kitId]
+    );
     const result = await db.runAsync(
-      'INSERT INTO kit_colors (kit_id, name, note) VALUES (?, ?, ?)',
-      [kitId, name, note]
+      'INSERT INTO kit_colors (kit_id, name, note, sort_order) VALUES (?, ?, ?, ?)',
+      [kitId, name, note, row?.n ?? 0]
     );
     const kitColorId = result.lastInsertRowId;
     for (const [index, p] of paints.entries()) {
@@ -558,6 +563,15 @@ export async function removeKitColor(kitColorId: number): Promise<void> {
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM kit_color_paints WHERE kit_color_id = ?', [kitColorId]);
     await db.runAsync('DELETE FROM kit_colors WHERE id = ?', [kitColorId]);
+  });
+}
+
+export async function reorderKitColors(colorIds: number[]): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    for (const [index, id] of colorIds.entries()) {
+      await db.runAsync('UPDATE kit_colors SET sort_order = ? WHERE id = ?', [index, id]);
+    }
   });
 }
 

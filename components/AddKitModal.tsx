@@ -67,6 +67,7 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
           <SwipeDownScrollView onClose={cancelAndClose} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
             <KitPhotoGrid
               photos={photos.map((uri) => ({ key: uri, uri }))}
+              editable
               onAdd={(uri) => setPhotos((current) => [...current, uri])}
               onRemove={(key) => {
                 deleteKitPhoto(key as string);
