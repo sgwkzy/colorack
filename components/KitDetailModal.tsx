@@ -10,6 +10,7 @@ import {
   getKitColors,
   getKitDetail,
   getKitPhotos,
+  getOwnedCountMap,
   KitColorSummary,
   KitDetail,
   KitPhoto,
@@ -62,6 +63,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const styles = makeStyles(colors);
   const [detail, setDetail] = useState<KitDetail | null>(null);
   const [kitColors, setKitColors] = useState<KitColorSummary[]>([]);
+  const [ownedMap, setOwnedMap] = useState<Map<number, number>>(new Map());
   const [photos, setPhotos] = useState<KitPhoto[]>([]);
   const [name, setName] = useState('');
   const [maker, setMaker] = useState('');
@@ -81,10 +83,11 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
 
   const load = useCallback(async () => {
     if (kitId == null) return;
-    const [row, colorRows, photoRows] = await Promise.all([getKitDetail(kitId), getKitColors(kitId), getKitPhotos(kitId)]);
+    const [row, colorRows, photoRows, owned] = await Promise.all([getKitDetail(kitId), getKitColors(kitId), getKitPhotos(kitId), getOwnedCountMap()]);
     setDetail(row);
     setKitColors(colorRows);
     setPhotos(photoRows);
+    setOwnedMap(owned);
     setName(row?.name ?? '');
     setMaker(row?.maker ?? '');
     setScale(row?.scale ?? '');
@@ -100,6 +103,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     } else {
       setDetail(null);
       setKitColors([]);
+      setOwnedMap(new Map());
       setPhotos([]);
       setName('');
       setMaker('');
@@ -424,6 +428,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                       key={color.id}
                       color={color}
                       editable={editMode}
+                      ownedMap={ownedMap}
                       canMoveLeft={index > 0}
                       canMoveRight={index < kitColors.length - 1}
                       onNameChange={(next) => changeColorName(color.id, next)}
