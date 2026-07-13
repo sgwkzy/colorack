@@ -370,29 +370,33 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
               {detailTab === 'details' ? (
                 <>
                   <View style={styles.card}>
-                    <View style={styles.field}>
-                      <Text style={styles.sectionTitle}>{t('series')}</Text>
-                      {editMode ? (
-                        <ClearableInput style={styles.input} value={series} onChangeText={setSeries} onBlur={saveSeries} />
-                      ) : (
-                        <Text style={styles.pickerText}>{series || t('unknown')}</Text>
-                      )}
+                    <View style={styles.fieldRow}>
+                      <View style={[styles.field, styles.fieldHalf]}>
+                        <Text style={styles.sectionTitle}>{t('series')}</Text>
+                        {editMode ? (
+                          <ClearableInput style={styles.input} value={series} onChangeText={setSeries} onBlur={saveSeries} />
+                        ) : (
+                          <Text style={styles.pickerText}>{series || t('unknown')}</Text>
+                        )}
+                      </View>
+                      <View style={[styles.field, styles.fieldHalf]}>
+                        <Text style={styles.sectionTitle}>{t('category')}</Text>
+                        {editMode ? (
+                          <ClearableInput style={styles.input} value={category} onChangeText={setCategory} onBlur={saveCategory} />
+                        ) : (
+                          <Text style={styles.pickerText}>{category || t('unknown')}</Text>
+                        )}
+                      </View>
                     </View>
-                    <View style={styles.field}>
-                      <Text style={styles.sectionTitle}>{t('category')}</Text>
-                      {editMode ? (
-                        <ClearableInput style={styles.input} value={category} onChangeText={setCategory} onBlur={saveCategory} />
-                      ) : (
-                        <Text style={styles.pickerText}>{category || t('unknown')}</Text>
-                      )}
-                    </View>
-                    <View style={styles.field}>
-                      <Text style={styles.sectionTitle}>{t('price')}</Text>
-                      {editMode ? (
-                        <ClearableInput style={styles.input} value={price} onChangeText={setPrice} onBlur={savePrice} keyboardType="numeric" placeholder="0" />
-                      ) : (
-                        <Text style={styles.pickerText}>{detail.price != null ? detail.price.toLocaleString() : t('unknown')}</Text>
-                      )}
+                    <View style={styles.fieldRow}>
+                      <View style={[styles.field, styles.fieldHalf]}>
+                        <Text style={styles.sectionTitle}>{t('price')}</Text>
+                        {editMode ? (
+                          <ClearableInput style={styles.input} value={price} onChangeText={setPrice} onBlur={savePrice} keyboardType="numeric" placeholder="0" />
+                        ) : (
+                          <Text style={styles.pickerText}>{detail.price != null ? detail.price.toLocaleString() : t('unknown')}</Text>
+                        )}
+                      </View>
                     </View>
                   </View>
 
@@ -527,6 +531,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   pickerText: { flex: 1, color: colors.text, fontSize: 14, fontWeight: '600' },
   card: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, gap: spacing.md },
   field: { gap: spacing.xs },
+  fieldRow: { flexDirection: 'row', gap: spacing.lg },
+  fieldHalf: { flex: 1 },
   tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   tabBtn: { flex: 1, padding: spacing.md, alignItems: 'center' },
   tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
