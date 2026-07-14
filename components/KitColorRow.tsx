@@ -66,10 +66,15 @@ export default function KitColorRow({ color, onNameChange, onRemove, onMove, edi
           </TouchableOpacity>
         ))}
         {tooltipPaint ? (
-          <View style={[styles.paintTooltip, { backgroundColor: tooltipBackground }]}>
+          <TouchableOpacity
+            style={[styles.paintTooltip, { backgroundColor: tooltipBackground }]}
+            onPress={() => setTooltipPaintId(null)}
+            accessibilityRole="button"
+            accessibilityLabel={t('cancel')}
+          >
             <Text selectable style={[styles.paintTooltipBrand, { color: textColor }]}>{brandLabel(tooltipPaint.brand)}</Text>
             <Text selectable style={[styles.paintTooltipName, { color: textColor }]}>{paintName(tooltipPaint.name_ja, tooltipPaint.name_en)}</Text>
-          </View>
+          </TouchableOpacity>
         ) : null}
       </View>
       {editable ? (
@@ -119,7 +124,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   paintLine: { flexDirection: 'row', alignItems: 'center' },
   checkSlot: { width: 18, alignItems: 'center' },
   paintLineText: { fontSize: 13, fontWeight: '600' },
-  paintTooltip: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, zIndex: 2 },
+  // 塗料行(タップ対象)の上に重ねず、色名(タップ不要)の位置に重ねて隠す。タップで閉じられる。
+  paintTooltip: { position: 'absolute', left: 0, right: 0, top: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, zIndex: 2 },
   paintTooltipBrand: { fontSize: 11, fontWeight: '700', opacity: 0.85 },
   paintTooltipName: { fontSize: 13, fontWeight: '600' },
   editControls: { backgroundColor: colors.surfaceAlt, padding: spacing.md, gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
