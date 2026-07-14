@@ -35,7 +35,7 @@ export default function ColorCameraPicker({ visible, onClose, onPick }: Props) {
       onPick(hex);
       onClose();
     } catch {
-      Alert.alert(t('error'), t('colorPickFailed'));
+      Alert.alert(t('error'), t('colorCaptureError'));
     } finally {
       setCapturing(false);
     }
@@ -47,7 +47,7 @@ export default function ColorCameraPicker({ visible, onClose, onPick }: Props) {
         <View style={styles.center} />
       ) : !permission.granted ? (
         <View style={styles.center}>
-          <Text style={styles.msg}>{t('pickColorWithCamera')}</Text>
+          <Text style={styles.msg}>{t('cameraPermissionMessage')}</Text>
           <TouchableOpacity onPress={requestPermission} accessibilityRole="button" accessibilityLabel={t('allowCamera')}><Text style={styles.link}>{t('allowCamera')}</Text></TouchableOpacity>
         </View>
       ) : (

@@ -1,13 +1,13 @@
 // components/AddKitModal.tsx
 import { useEffect, useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { addKitPhoto, getDB } from '../lib/db';
 import { t } from '../lib/i18n';
 import { deleteKitPhoto } from '../lib/kitPhoto';
 import { useModalLock } from '../lib/modalLock';
-import { lightColors, radius, spacing, useTheme } from '../lib/theme';
+import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
 import ClearableInput from './ClearableInput';
 import KitPhotoGrid from './KitPhotoGrid';
 import SwipeDownHeader from './SwipeDownHeader';
@@ -31,14 +31,18 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
   const [price, setPrice] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const canSave = name.trim() !== '' && maker.trim() !== '';
 
   useEffect(() => {
-    if (visible) { setName(''); setMaker(''); setSeries(''); setCategory(''); setScale(''); setPrice(''); setNote(''); setPhotos([]); }
+    if (visible) { setName(''); setMaker(''); setSeries(''); setCategory(''); setScale(''); setPrice(''); setNote(''); setPhotos([]); setViewerOpen(false); }
   }, [visible]);
 
   const save = async () => {
-    if (!canSave) return;
+    if (!canSave || busy) return;
+    setBusy(true);
+    try {
     const trimmedPrice = price.trim();
     const parsedPrice = trimmedPrice === '' ? null : Number(trimmedPrice);
     if (parsedPrice !== null && (!Number.isInteger(parsedPrice) || parsedPrice < 0)) {
@@ -53,6 +57,7 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
     const kitId = result.lastInsertRowId;
     for (const uri of photos) await addKitPhoto(kitId, uri);
     onClose();
+    } finally { setBusy(false); }
   };
 
   const cancelAndClose = async () => {
@@ -64,18 +69,20 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
     <Modal visible={visible} animationType="slide" onRequestClose={cancelAndClose}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={cancelAndClose}>
+          <SwipeDownHeader onClose={cancelAndClose} enabled={!viewerOpen}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('addKit')}</Text>
-              <TouchableOpacity onPress={cancelAndClose} hitSlop={8}>
+              <TouchableOpacity onPress={cancelAndClose} hitSlop={8} accessibilityLabel={t('close')}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
           </SwipeDownHeader>
-          <SwipeDownScrollView onClose={cancelAndClose} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <SwipeDownScrollView onClose={cancelAndClose} closeEnabled={!viewerOpen} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
             <KitPhotoGrid
               photos={photos.map((uri) => ({ key: uri, uri }))}
               editable
+              onViewerChange={setViewerOpen}
               onAdd={(uri) => setPhotos((current) => [...current, uri])}
               onRemove={(key) => {
                 deleteKitPhoto(key as string);
@@ -121,9 +128,10 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
               <ClearableInput style={[styles.input, styles.noteInput]} value={note} onChangeText={setNote} multiline textAlignVertical="top" />
             </View>
           </SwipeDownScrollView>
-          <TouchableOpacity style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]} onPress={save} disabled={!canSave}>
+          <TouchableOpacity style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]} onPress={save} disabled={!canSave || busy}>
             <Text style={styles.saveBtnText}>{t('save')}</Text>
           </TouchableOpacity>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </SafeAreaProvider>
     </Modal>
@@ -137,9 +145,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.lg },
   field: { gap: spacing.xs },
   label: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg, color: colors.text },
   noteInput: { minHeight: 72, alignItems: 'flex-start' },
-  saveBtn: { minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, margin: spacing.xl, borderRadius: radius.md },
+  saveBtn: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, margin: spacing.xl, borderRadius: radius.md },
   saveBtnDisabled: { backgroundColor: colors.primaryDisabled },
   saveBtnText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
 });

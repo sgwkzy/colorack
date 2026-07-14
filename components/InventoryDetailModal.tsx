@@ -184,7 +184,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
           <SwipeDownHeader onClose={colorDetailVisible ? () => {} : closeAfterSavingNote}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('inventoryDetailTitle')}</Text>
-              <TouchableOpacity onPress={closeAfterSavingNote} hitSlop={8}>
+              <TouchableOpacity onPress={closeAfterSavingNote} hitSlop={8} accessibilityLabel={t('close')}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>

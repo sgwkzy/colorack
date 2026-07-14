@@ -13,8 +13,8 @@ i18n.locale = deviceLocale;
 i18n.enableFallback = true;
 i18n.defaultLocale = 'ja';
 
-export function t(key: string): string {
-  return i18n.t(key);
+export function t(key: string, options?: Record<string, string | number>): string {
+  return i18n.t(key, options);
 }
 
 // ロケール変更を購読して再レンダリングさせる仕組み(タブ名などが即時に切り替わる)。

@@ -45,6 +45,7 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
   const [boxId, setBoxId] = useState<number | null>(defaultBoxId);
   const [boxes, setBoxes] = useState<{ id: number; name: string }[]>([]);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
   const canSave = nameJa.trim() !== '' && brand.trim() !== '' && series.trim() !== '';
 
   useEffect(() => {
@@ -54,8 +55,10 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
   }, [showInventory]);
 
   const save = async () => {
+    if (busy) return;
     const normalized = validateManualPaint({ nameJa, brand, series, code, hex, gloss, paintType });
     if (!normalized) return;
+    setBusy(true);
     const db = getDB();
     try {
       const result = await db.runAsync(
@@ -70,9 +73,8 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
         { id: result.lastInsertRowId as number, name_ja: normalized.nameJa, name_en: '', brand: normalized.brand, hex: normalized.normalizedHex ?? '' },
         showInventory ? { status, boxId } : undefined
       );
-    } catch {
-      Alert.alert('入力エラー', '同じブランド内に同じ品番が既に登録されています。別の品番にしてください。');
-    }
+    } catch { Alert.alert(t('inputError'), t('duplicateCodeError')); }
+    finally { setBusy(false); }
   };
 
   const chip = optionChip;
@@ -114,7 +116,7 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
       <TouchableOpacity
         style={[styles.btn, !canSave && styles.btnDisabled]}
         onPress={save}
-        disabled={!canSave}
+        disabled={!canSave || busy}
       >
         <Text style={styles.btnText}>{t('save')}</Text>
       </TouchableOpacity>
@@ -135,7 +137,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   chipOn: { backgroundColor: colors.primary },
   chipText: { fontSize: 13, color: colors.textSecondary },
   chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
-  btn: { backgroundColor: colors.primary, padding: 14, borderRadius: radius.md, alignItems: 'center', marginTop: spacing.md },
+  btn: { backgroundColor: colors.primary, minHeight: 44, padding: spacing.lg, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', marginTop: spacing.md },
   btnDisabled: { backgroundColor: colors.primaryDisabled },
   btnText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
 });

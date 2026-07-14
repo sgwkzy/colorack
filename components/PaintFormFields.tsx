@@ -91,7 +91,7 @@ export default function PaintFormFields({
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   field: { marginBottom: spacing.lg },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg, color: colors.text },
   hexRow: { flexDirection: 'row', alignItems: 'center' },
   hexInput: { flex: 1 },
   previewSwatch: { marginLeft: spacing.md, width: touch.min, height: touch.min, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },

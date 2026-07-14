@@ -9,9 +9,9 @@ import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 interface Paint {
   id: number;
   name_ja: string;
-  name_en: string;
+  name_en: string | null;
   brand: string;
-  hex: string;
+  hex: string | null;
 }
 
 interface Props {
