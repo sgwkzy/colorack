@@ -41,8 +41,6 @@ export default function KitColorRow({ color, onNameChange, onRemove, onMove, edi
     : colors.surface;
 
   const fallbackName = color.paints[0] ? paintName(color.paints[0].name_ja, color.paints[0].name_en) : '';
-  const tooltipPaint = color.paints.find((p) => p.paint_id === tooltipPaintId) ?? null;
-
   return (
     <View style={styles.row}>
       <View style={[styles.swatch, { backgroundColor: swatchHex ?? colors.surfaceAlt }]}>
@@ -50,32 +48,33 @@ export default function KitColorRow({ color, onNameChange, onRemove, onMove, edi
           {name || fallbackName || t('colorNameLabel')}
         </Text>
         {color.paints.map((p) => (
-          <TouchableOpacity
-            key={p.paint_id}
-            style={styles.paintLine}
-            onPress={() => setTooltipPaintId((current) => (current === p.paint_id ? null : p.paint_id))}
-            accessibilityRole="button"
-            accessibilityLabel={`${brandLabel(p.brand)} ${paintName(p.name_ja, p.name_en)}`}
-          >
-            <View style={styles.checkSlot}>
-              {(ownedMap.get(p.paint_id) ?? 0) > 0 ? <IconCheck color={textColor} size={13} /> : null}
-            </View>
-            <Text numberOfLines={1} style={[styles.paintLineText, { color: textColor }]}>
-              {paintName(p.name_ja, p.name_en)} {Math.round(p.ratio * 100)}%
-            </Text>
-          </TouchableOpacity>
+          <View key={p.paint_id} style={styles.paintLineWrap}>
+            <TouchableOpacity
+              style={styles.paintLine}
+              onPress={() => setTooltipPaintId((current) => (current === p.paint_id ? null : p.paint_id))}
+              accessibilityRole="button"
+              accessibilityLabel={`${brandLabel(p.brand)} ${paintName(p.name_ja, p.name_en)}`}
+            >
+              <View style={styles.checkSlot}>
+                {(ownedMap.get(p.paint_id) ?? 0) > 0 ? <IconCheck color={textColor} size={13} /> : null}
+              </View>
+              <Text numberOfLines={1} style={[styles.paintLineText, { color: textColor }]}>
+                {paintName(p.name_ja, p.name_en)} {Math.round(p.ratio * 100)}%
+              </Text>
+            </TouchableOpacity>
+            {tooltipPaintId === p.paint_id ? (
+              <TouchableOpacity
+                style={[styles.paintTooltip, { backgroundColor: tooltipBackground }]}
+                onPress={() => setTooltipPaintId(null)}
+                accessibilityRole="button"
+                accessibilityLabel={t('cancel')}
+              >
+                <Text selectable style={[styles.paintTooltipBrand, { color: textColor }]}>{brandLabel(p.brand)}</Text>
+                <Text selectable style={[styles.paintTooltipName, { color: textColor }]}>{paintName(p.name_ja, p.name_en)}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         ))}
-        {tooltipPaint ? (
-          <TouchableOpacity
-            style={[styles.paintTooltip, { backgroundColor: tooltipBackground }]}
-            onPress={() => setTooltipPaintId(null)}
-            accessibilityRole="button"
-            accessibilityLabel={t('cancel')}
-          >
-            <Text selectable style={[styles.paintTooltipBrand, { color: textColor }]}>{brandLabel(tooltipPaint.brand)}</Text>
-            <Text selectable style={[styles.paintTooltipName, { color: textColor }]}>{paintName(tooltipPaint.name_ja, tooltipPaint.name_en)}</Text>
-          </TouchableOpacity>
-        ) : null}
       </View>
       {editable ? (
         <View style={styles.editControls}>
@@ -121,11 +120,12 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   row: { borderRadius: radius.md, overflow: 'hidden', borderWidth: 1, borderColor: colors.borderLight },
   swatch: { padding: spacing.lg, gap: spacing.xs },
   swatchName: { fontSize: 17, fontWeight: '700' },
+  paintLineWrap: { position: 'relative' },
   paintLine: { flexDirection: 'row', alignItems: 'center' },
   checkSlot: { width: 18, alignItems: 'center' },
   paintLineText: { fontSize: 13, fontWeight: '600' },
-  // 塗料一覧の下端に重ねて表示。タップした行が隠れても、ツールチップ自体のタップで閉じられる。
-  paintTooltip: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, zIndex: 2 },
+  // タップした塗料の行のすぐ下に重ねて表示。他の行を押し下げない。タップで閉じられる。
+  paintTooltip: { position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 2, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, zIndex: 2 },
   paintTooltipBrand: { fontSize: 11, fontWeight: '700', opacity: 0.85 },
   paintTooltipName: { fontSize: 13, fontWeight: '600' },
   editControls: { backgroundColor: colors.surfaceAlt, padding: spacing.md, gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
