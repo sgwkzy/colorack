@@ -11,6 +11,7 @@ import { brandLabel } from '../lib/brands';
 import { readableTextColor } from '../lib/color';
 import {
   CatalogPaintDetail,
+  deletePaint,
   getCatalogPaintDetail,
   getDB,
   getDefaultBoxId,
@@ -222,10 +223,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       {
         text: t('delete'), style: 'destructive',
         onPress: async () => {
-          const db = getDB();
-          await db.runAsync('DELETE FROM inventory WHERE paint_id = ?', [detail.id]);
-          await db.runAsync('DELETE FROM lists WHERE paint_id = ?', [detail.id]);
-          await db.runAsync('DELETE FROM catalog_paints WHERE id = ?', [detail.id]);
+          await deletePaint(detail.id);
           onChanged?.();
           onClose();
         },

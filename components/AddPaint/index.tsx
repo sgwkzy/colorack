@@ -64,7 +64,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
     } else {
       await db.runAsync(
         'INSERT INTO inventory (paint_id, status, box_id) VALUES (?, ?, ?)',
-        [paint.id, opts?.status ?? defaultStatus, opts?.boxId !== undefined ? opts.boxId : boxId]
+        [paint.id, opts?.status ?? defaultStatus, (opts?.status ?? defaultStatus) === 'used_up' ? null : (opts?.boxId !== undefined ? opts.boxId : boxId)]
       );
     }
     setToast(paintName(paint.name_ja, paint.name_en) + t('addedToast'));
@@ -94,6 +94,8 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
                 key={tabKey}
                 style={[styles.tabBtn, tab === tabKey && styles.tabBtnActive]}
                 onPress={() => setTab(tabKey)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: tab === tabKey }}
               >
                 <Text style={[styles.tabText, tab === tabKey && styles.tabTextActive]} numberOfLines={1}>
                   {t(tabKey)}

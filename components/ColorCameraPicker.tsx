@@ -6,6 +6,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { inflate } from 'pako';
 import { IconX } from '@tabler/icons-react-native';
 import { hex_to_rgb } from '../lib/color';
+import { t } from '../lib/i18n';
 import { useTheme, lightColors, radius, spacing } from '../lib/theme';
 
 interface Props {
@@ -34,7 +35,7 @@ export default function ColorCameraPicker({ visible, onClose, onPick }: Props) {
       onPick(hex);
       onClose();
     } catch {
-      Alert.alert('エラー', '色の取得に失敗しました');
+      Alert.alert(t('error'), t('colorPickFailed'));
     } finally {
       setCapturing(false);
     }
@@ -46,13 +47,13 @@ export default function ColorCameraPicker({ visible, onClose, onPick }: Props) {
         <View style={styles.center} />
       ) : !permission.granted ? (
         <View style={styles.center}>
-          <Text style={styles.msg}>カメラで色を取得します</Text>
-          <Text style={styles.link} onPress={requestPermission}>カメラを許可</Text>
+          <Text style={styles.msg}>{t('pickColorWithCamera')}</Text>
+          <TouchableOpacity onPress={requestPermission} accessibilityRole="button" accessibilityLabel={t('allowCamera')}><Text style={styles.link}>{t('allowCamera')}</Text></TouchableOpacity>
         </View>
       ) : (
         <View style={styles.container}>
           <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" mode="picture" />
-          <TouchableOpacity style={styles.close} onPress={onClose} hitSlop={8}>
+          <TouchableOpacity style={styles.close} onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('close')}>
             <IconX color={colors.onPrimary} size={26} />
           </TouchableOpacity>
           <View pointerEvents="none" style={styles.aim}>
@@ -63,7 +64,7 @@ export default function ColorCameraPicker({ visible, onClose, onPick }: Props) {
               style={[styles.shutter, capturing && styles.shutterOff]}
               onPress={capture}
               disabled={capturing}
-              accessibilityLabel="カメラで色を取得"
+              accessibilityLabel={t('pickColorWithCamera')}
             >
               <View style={styles.shutterInner} />
             </TouchableOpacity>

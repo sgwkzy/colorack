@@ -1,6 +1,6 @@
 // components/AddKitModal.tsx
 import { useEffect, useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { addKitPhoto, getDB } from '../lib/db';
@@ -41,6 +41,10 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
     if (!canSave) return;
     const trimmedPrice = price.trim();
     const parsedPrice = trimmedPrice === '' ? null : Number(trimmedPrice);
+    if (parsedPrice !== null && (!Number.isInteger(parsedPrice) || parsedPrice < 0)) {
+      Alert.alert(t('price'), t('invalidPrice'));
+      return;
+    }
     const normalizedPrice = parsedPrice !== null && Number.isInteger(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
     const result = await getDB().runAsync(
       'INSERT INTO kits (box_id, name, maker, series, category, scale, price, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',

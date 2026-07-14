@@ -88,7 +88,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
   const clear = () => { setBrands([]); setSeries([]); setGloss([]); setTypes([]); setSearch(''); };
 
   const checkRow = (key: string, label: string, checked: boolean, onPress: () => void) => (
-    <TouchableOpacity key={key} style={styles.checkRow} onPress={onPress}>
+    <TouchableOpacity key={key} style={styles.checkRow} onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked }} accessibilityLabel={label}>
       {checked
         ? <IconSquareCheck size={20} color={colors.primary} style={styles.checkIcon} />
         : <IconSquare size={20} color={colors.textPlaceholder} style={styles.checkIcon} />}
