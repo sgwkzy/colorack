@@ -1,6 +1,6 @@
 // components/KitDetailModal.tsx
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronDown, IconChevronLeft, IconEdit, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -78,6 +78,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<'details' | 'colors'>('details');
+  // 使用する色タブのツールチップは1つだけ開けるよう、ここで一元管理する。
+  const [openTooltipKey, setOpenTooltipKey] = useState<string | null>(null);
+  const toggleTooltip = (key: string) => setOpenTooltipKey((current) => (current === key ? null : key));
   const [editMode, setEditMode] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
 
@@ -121,6 +124,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setDetailTab('details');
       setEditMode(false);
       setViewerOpen(false);
+      setOpenTooltipKey(null);
     }
   }, [visible, load]);
 
@@ -443,7 +447,10 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                   </View>
                 </>
               ) : (
-                <View style={styles.paintsSection}>
+                // 色以外(見出し・パディング部分)をタップした時にもツールチップを閉じたいので、
+                // セクション全体をPressableにする。子のTouchableOpacity/KitColorRow内のタップは
+                // それぞれが先に消費するため、ここのonPressは「何もつかまなかった時」だけ発火する。
+                <Pressable style={styles.paintsSection} onPress={() => setOpenTooltipKey(null)}>
                   <View style={styles.paintsHeader}>
                     <Text style={styles.sectionTitle}>{t('usedPaints')}</Text>
                     <TouchableOpacity onPress={() => setPickerOpen(true)}>
@@ -461,9 +468,11 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                       onNameChange={(next) => changeColorName(color.id, next)}
                       onRemove={() => removeColor(color.id)}
                       onMove={(direction) => moveColor(color.id, direction)}
+                      openTooltipKey={openTooltipKey}
+                      onToggleTooltip={toggleTooltip}
                     />
                   ))}
-                </View>
+                </Pressable>
               )}
             </SwipeDownScrollView>
           )}

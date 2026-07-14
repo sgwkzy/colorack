@@ -23,13 +23,17 @@ interface Props {
   canMoveRight: boolean;
   // 構成塗料のうち所有している(在庫あり)ものにチェックマークを付けるための所有数マップ。
   ownedMap: Map<number, number>;
+  // ツールチップの開閉状態は親(KitDetailModal)で一元管理する。同じ塗料が複数の色に
+  // またがることがあるため、キーは `${colorId}-${paintId}` の組み合わせにする。これにより
+  // 他の色/行をタップした時や、色一覧の外側をタップした時に確実に1つだけに保てる。
+  openTooltipKey: string | null;
+  onToggleTooltip: (key: string) => void;
 }
 
-export default function KitColorRow({ color, onNameChange, onRemove, onMove, editable, canMoveLeft, canMoveRight, ownedMap }: Props) {
+export default function KitColorRow({ color, onNameChange, onRemove, onMove, editable, canMoveLeft, canMoveRight, ownedMap, openTooltipKey, onToggleTooltip }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [name, setName] = useState(color.name ?? '');
-  const [tooltipPaintId, setTooltipPaintId] = useState<number | null>(null);
 
   const swatchHex = useMemo(() => mixHexColors(
     color.paints.filter((p) => p.hex).map((p) => ({ hex: p.hex as string, ratio: p.ratio }))
@@ -47,34 +51,38 @@ export default function KitColorRow({ color, onNameChange, onRemove, onMove, edi
         <Text numberOfLines={1} style={[styles.swatchName, { color: textColor }]}>
           {name || fallbackName || t('colorNameLabel')}
         </Text>
-        {color.paints.map((p) => (
-          <View key={p.paint_id} style={styles.paintLineWrap}>
-            <TouchableOpacity
-              style={styles.paintLine}
-              onPress={() => setTooltipPaintId((current) => (current === p.paint_id ? null : p.paint_id))}
-              accessibilityRole="button"
-              accessibilityLabel={`${brandLabel(p.brand)} ${paintName(p.name_ja, p.name_en)}`}
-            >
-              <View style={styles.checkSlot}>
-                {(ownedMap.get(p.paint_id) ?? 0) > 0 ? <IconCheck color={textColor} size={13} /> : null}
-              </View>
-              <Text numberOfLines={1} style={[styles.paintLineText, { color: textColor }]}>
-                {paintName(p.name_ja, p.name_en)} {Math.round(p.ratio * 100)}%
-              </Text>
-            </TouchableOpacity>
-            {tooltipPaintId === p.paint_id ? (
+        {color.paints.map((p) => {
+          const tooltipKey = `${color.id}-${p.paint_id}`;
+          const tooltipOpen = openTooltipKey === tooltipKey;
+          return (
+            <View key={p.paint_id} style={styles.paintLineWrap}>
               <TouchableOpacity
-                style={[styles.paintTooltip, { backgroundColor: tooltipBackground }]}
-                onPress={() => setTooltipPaintId(null)}
+                style={styles.paintLine}
+                onPress={() => onToggleTooltip(tooltipKey)}
                 accessibilityRole="button"
-                accessibilityLabel={t('cancel')}
+                accessibilityLabel={`${brandLabel(p.brand)} ${paintName(p.name_ja, p.name_en)}`}
               >
-                <Text selectable style={[styles.paintTooltipBrand, { color: textColor }]}>{brandLabel(p.brand)}</Text>
-                <Text selectable style={[styles.paintTooltipName, { color: textColor }]}>{paintName(p.name_ja, p.name_en)}</Text>
+                <View style={styles.checkSlot}>
+                  {(ownedMap.get(p.paint_id) ?? 0) > 0 ? <IconCheck color={textColor} size={13} /> : null}
+                </View>
+                <Text numberOfLines={1} style={[styles.paintLineText, { color: textColor }]}>
+                  {paintName(p.name_ja, p.name_en)} {Math.round(p.ratio * 100)}%
+                </Text>
               </TouchableOpacity>
-            ) : null}
-          </View>
-        ))}
+              {tooltipOpen ? (
+                <TouchableOpacity
+                  style={[styles.paintTooltip, { backgroundColor: tooltipBackground }]}
+                  onPress={() => onToggleTooltip(tooltipKey)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('cancel')}
+                >
+                  <Text selectable style={[styles.paintTooltipBrand, { color: textColor }]}>{brandLabel(p.brand)}</Text>
+                  <Text selectable style={[styles.paintTooltipName, { color: textColor }]}>{paintName(p.name_ja, p.name_en)}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          );
+        })}
       </View>
       {editable ? (
         <View style={styles.editControls}>
