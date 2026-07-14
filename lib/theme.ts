@@ -29,7 +29,7 @@ export const lightColors = {
   text: '#333',
   textSecondary: '#555',
   textMuted: '#666',
-  textFaint: '#888',
+  textFaint: '#767676',
   textPlaceholder: '#999',
   onPrimary: '#fff',
   transparent: 'transparent',

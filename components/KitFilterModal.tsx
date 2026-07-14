@@ -76,7 +76,7 @@ export default function KitFilterModal({ visible, options, initial, onApply, onC
   const clear = () => { setMakers([]); setSeries([]); setCategories([]); setScales([]); setSearch(''); };
 
   const checkRow = (key: string, label: string, checked: boolean, onPress: () => void) => (
-    <TouchableOpacity key={key} style={styles.checkRow} onPress={onPress}>
+    <TouchableOpacity key={key} style={styles.checkRow} onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked }} accessibilityLabel={label}>
       {checked
         ? <IconSquareCheck size={20} color={colors.primary} style={styles.checkIcon} />
         : <IconSquare size={20} color={colors.textPlaceholder} style={styles.checkIcon} />}

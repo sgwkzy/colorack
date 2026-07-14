@@ -254,7 +254,8 @@ async function upsertCatalogFromSeed(db: SQLite.SQLiteDatabase): Promise<void> {
     await db.runAsync(
       `DELETE FROM catalog_paints WHERE catalog_code NOT IN (${placeholders})` +
       ' AND id NOT IN (SELECT paint_id FROM inventory)' +
-      ' AND id NOT IN (SELECT paint_id FROM lists)',
+      ' AND id NOT IN (SELECT paint_id FROM lists)' +
+      ' AND id NOT IN (SELECT paint_id FROM kit_color_paints)',
       catalogCodes
     );
   });
@@ -264,10 +265,26 @@ async function upsertCatalogFromSeed(db: SQLite.SQLiteDatabase): Promise<void> {
 // 公式カタログはシードの内容(未編集の状態)へ戻す。
 export async function resetCatalogToMaster(): Promise<void> {
   const db = getDB();
-  await db.runAsync("DELETE FROM inventory WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
-  await db.runAsync("DELETE FROM lists WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
-  await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
+  await db.withTransactionAsync(async () => {
+    await db.runAsync("DELETE FROM inventory WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await db.runAsync("DELETE FROM lists WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await db.runAsync("DELETE FROM kit_color_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await db.runAsync('DELETE FROM kit_colors WHERE id NOT IN (SELECT DISTINCT kit_color_id FROM kit_color_paints)');
+    await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
+  });
   await upsertCatalogFromSeed(db);
+}
+
+// 塗料削除時は、在庫・リスト・混色レシピの参照を同時に消して孤児を作らない。
+export async function deletePaint(paintId: number): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM inventory WHERE paint_id = ?', [paintId]);
+    await db.runAsync('DELETE FROM lists WHERE paint_id = ?', [paintId]);
+    await db.runAsync('DELETE FROM kit_color_paints WHERE paint_id = ?', [paintId]);
+    await db.runAsync('DELETE FROM kit_colors WHERE id NOT IN (SELECT DISTINCT kit_color_id FROM kit_color_paints)');
+    await db.runAsync('DELETE FROM catalog_paints WHERE id = ?', [paintId]);
+  });
 }
 
 // --- 設定(キー値) ---

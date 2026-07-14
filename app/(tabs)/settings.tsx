@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
 import { useUiPrefs, setActionOrder, setListFontSize } from '../../lib/uiPrefs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
   { value: 'light', labelKey: 'themeLight' },
@@ -18,6 +19,7 @@ export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
   const { colors, mode } = useTheme();
   const { actionOrder, listFontSize } = useUiPrefs();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const toggleLang = (val: boolean) => {
     setIsJa(val);
@@ -54,7 +56,7 @@ export default function SettingsScreen() {
   const resetCatalog = () => confirmReset(t('resetCatalog'), resetCatalogToMaster);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('language')}</Text>
         <View style={styles.langRow}>
@@ -71,6 +73,8 @@ export default function SettingsScreen() {
               key={opt.value}
               style={[styles.themeBtn, mode === opt.value && styles.themeBtnOn]}
               onPress={() => setThemeMode(opt.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: mode === opt.value }}
             >
               <Text style={[styles.themeBtnText, mode === opt.value && styles.themeBtnTextOn]} numberOfLines={1}>{t(opt.labelKey)}</Text>
             </TouchableOpacity>

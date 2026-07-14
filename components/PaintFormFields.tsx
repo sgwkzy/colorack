@@ -36,7 +36,7 @@ type ChipStyles = { chip: object; chipOn: object; chipText: object; chipTextOn: 
 
 export function optionChip(value: string, selected: boolean, label: string, onPress: () => void, chipStyles: ChipStyles) {
   return (
-    <TouchableOpacity key={value} style={[chipStyles.chip, selected && chipStyles.chipOn]} onPress={onPress}>
+    <TouchableOpacity key={value} style={[chipStyles.chip, selected && chipStyles.chipOn]} onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} accessibilityLabel={label}>
       <Text style={[chipStyles.chipText, selected && chipStyles.chipTextOn]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -66,7 +66,7 @@ export default function PaintFormFields({
           <TouchableOpacity
             style={styles.cameraBtn}
             onPress={onOpenCamera}
-            accessibilityLabel="カメラで色を取得"
+            accessibilityLabel={t('pickColorWithCamera')}
           >
             <IconCamera color={colors.primary} size={22} />
           </TouchableOpacity>

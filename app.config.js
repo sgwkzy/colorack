@@ -49,7 +49,10 @@ module.exports = ({ config }) => ({
         resizeMode: 'contain',
       },
     ],
-    'expo-camera',
+    [
+      'expo-camera',
+      { recordAudioAndroid: false },
+    ],
     [
       'expo-tracking-transparency',
       {
