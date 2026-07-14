@@ -1,9 +1,9 @@
 // app/(tabs)/kits.tsx
 import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Image, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Image, LayoutAnimation, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconBox, IconChevronDown } from '@tabler/icons-react-native';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
-import { getDB, getDefaultKitBoxId, KitStatus } from '../../lib/db';
+import { getDB, getDefaultKitBoxId, KitStatus, setKitStatus } from '../../lib/db';
 import { setActiveKitBox } from '../../lib/activeKitBox';
 import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
@@ -153,6 +153,14 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
     load(selected, next, filter, sort);
   };
 
+  // 未着手⇄制作中 トグル(完成品画面では完成→未着手に戻す)。塗料の在庫⇄使用中トグルと同じ挙動。
+  const toggleKitStatus = async (item: KitListItem) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    if (item.status === 'completed') { await setKitStatus(item.id, 'not_started'); reload(); return; }
+    await setKitStatus(item.id, item.status === 'building' ? 'not_started' : 'building');
+    reload();
+  };
+
   const filterActive = filter.makers.length > 0 || filter.series.length > 0 || filter.categories.length > 0 || filter.scales.length > 0 || filter.search.trim() !== '';
   const statusDefault = statuses.length === 2 && statuses.includes('not_started') && statuses.includes('building');
   const trulyEmpty = completedScreen ? items.length === 0 : !filterActive && statusDefault && kitTotal === 0;
@@ -201,7 +209,16 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
               <Text numberOfLines={1} style={styles.rowName}>{item.name}</Text>
               <Text numberOfLines={1} style={styles.rowSub}>{item.maker}{item.scale ? ` · ${item.scale}` : ''}</Text>
             </View>
-            <Text style={styles.rowStatus}>{t(STATUS_LABEL_KEYS[item.status])}</Text>
+            <TouchableOpacity
+              style={[styles.iconBtn, {
+                backgroundColor: item.status === 'completed'
+                  ? colors.usedUp
+                  : (item.status === 'building' ? colors.inUse : colors.primary),
+              }]}
+              onPress={() => toggleKitStatus(item)}
+            >
+              <Text style={styles.iconBtnText}>{t(STATUS_LABEL_KEYS[item.status])}</Text>
+            </TouchableOpacity>
           </TouchableOpacity>
         )}
         ListEmptyComponent={(
@@ -290,5 +307,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   rowInfo: { flex: 1 },
   rowName: { fontSize: 15, fontWeight: '600', color: colors.text },
   rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  rowStatus: { fontSize: 12, color: colors.textFaint },
+  iconBtn: { width: 64, borderRadius: 12, minHeight: touch.min, alignItems: 'center', justifyContent: 'center' },
+  iconBtnText: { color: colors.onPrimary, fontSize: 12, fontWeight: 'bold' },
 });
