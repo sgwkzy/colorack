@@ -43,7 +43,7 @@ export default function KitColorRow({ color, onNameChange, onRemove, onMove, edi
   const fallbackName = color.paints[0] ? paintName(color.paints[0].name_ja, color.paints[0].name_en) : '';
   return (
     <View style={styles.row}>
-      <View style={[styles.swatch, { backgroundColor: swatchHex ?? colors.surfaceAlt }]}>
+      <View style={[styles.swatch, { backgroundColor: swatchHex ?? colors.surfaceAlt }, !editable && styles.swatchRounded]}>
         <Text numberOfLines={1} style={[styles.swatchName, { color: textColor }]}>
           {name || fallbackName || t('colorNameLabel')}
         </Text>
@@ -117,8 +117,11 @@ export default function KitColorRow({ color, onNameChange, onRemove, onMove, edi
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  row: { borderRadius: radius.md, overflow: 'hidden', borderWidth: 1, borderColor: colors.borderLight },
-  swatch: { padding: spacing.lg, gap: spacing.xs },
+  // 角丸のクリップにoverflow:hiddenを使うと、はみ出して表示するツールチップまで
+  // 切り取られてしまうため、swatch/editControls側で個別に角丸を持たせる。
+  row: { borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderLight },
+  swatch: { padding: spacing.lg, gap: spacing.xs, borderTopLeftRadius: radius.md, borderTopRightRadius: radius.md },
+  swatchRounded: { borderBottomLeftRadius: radius.md, borderBottomRightRadius: radius.md },
   swatchName: { fontSize: 17, fontWeight: '700' },
   paintLineWrap: { position: 'relative' },
   paintLine: { flexDirection: 'row', alignItems: 'center' },
@@ -128,7 +131,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   paintTooltip: { position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 2, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, zIndex: 2 },
   paintTooltipBrand: { fontSize: 11, fontWeight: '700', opacity: 0.85 },
   paintTooltipName: { fontSize: 13, fontWeight: '600' },
-  editControls: { backgroundColor: colors.surfaceAlt, padding: spacing.md, gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  editControls: { backgroundColor: colors.surfaceAlt, padding: spacing.md, gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight, borderBottomLeftRadius: radius.md, borderBottomRightRadius: radius.md },
   nameInput: { minHeight: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 15, fontWeight: '600' },
   editButtonsRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   moveBtn: { width: touch.min, height: 32, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
