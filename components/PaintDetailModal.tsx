@@ -8,6 +8,7 @@ import { IconCamera, IconChevronDown, IconChevronLeft, IconHeart, IconPencil, Ic
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { brandLabel } from '../lib/brands';
+import { readableTextColor } from '../lib/color';
 import {
   CatalogPaintDetail,
   getCatalogPaintDetail,
@@ -46,13 +47,6 @@ interface Props {
   onChanged?: () => void; // 保存/リセット/削除で内容が変わった時、呼び出し元に一覧再読み込みを促す
   // trueで開くと最初から編集モードで表示する(色編集ボタンからの遷移用)。
   initialEditing?: boolean;
-}
-
-function readableTextColor(hex: string | null): string {
-  const value = hex?.replace('#', '');
-  if (!value || !/^[0-9a-f]{6}$/i.test(value)) return '#333';
-  const [r, g, b] = [0, 2, 4].map((index) => parseInt(value.slice(index, index + 2), 16));
-  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#222' : '#fff';
 }
 
 function toneColors(hex: string | null): string[] {

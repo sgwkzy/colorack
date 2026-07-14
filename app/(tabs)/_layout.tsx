@@ -5,10 +5,13 @@ import DrawerLayout from 'react-native-gesture-handler/DrawerLayout';
 import { Tabs } from 'expo-router';
 import { IconMenu3 } from '@tabler/icons-react-native';
 import { t, useLocale } from '../../lib/i18n';
+import { getRestoreTarget } from '../../lib/lastScreen';
 import { useTheme } from '../../lib/theme';
 import NavigationDrawer from '../../components/NavigationDrawer';
 import BoxTitlePicker from '../../components/BoxTitlePicker';
 import BoxOptions from '../../components/BoxOptions';
+import KitBoxTitlePicker from '../../components/KitBoxTitlePicker';
+import KitBoxOptions from '../../components/KitBoxOptions';
 import { useModalOpen } from '../../lib/modalLock';
 
 export default function TabsLayout() {
@@ -18,6 +21,7 @@ export default function TabsLayout() {
   const modalOpen = useModalOpen();
   const drawerRef = useRef<DrawerLayout>(null);
   const { width } = useWindowDimensions();
+  const restoreTarget = getRestoreTarget();
   return (
     <DrawerLayout
       ref={drawerRef}
@@ -33,7 +37,9 @@ export default function TabsLayout() {
       onDrawerClose={() => setDrawerOpen(false)}
       renderNavigationView={() => <NavigationDrawer visible={drawerOpen} onClose={() => drawerRef.current?.closeDrawer()} />}
     >
-    <Tabs screenOptions={{
+    <Tabs
+      initialRouteName={restoreTarget?.screen}
+      screenOptions={{
       tabBarActiveTintColor: colors.primary,
       tabBarStyle: { display: 'none' },
       tabBarInactiveTintColor: colors.textFaint,
@@ -42,8 +48,18 @@ export default function TabsLayout() {
       headerShadowVisible: !isDark,
       headerLeft: () => <TouchableOpacity onPress={() => drawerRef.current?.openDrawer()} accessibilityRole="button" accessibilityLabel="Menu" hitSlop={12} style={{ marginLeft: 16 }}><IconMenu3 color={colors.text} size={26} /></TouchableOpacity>,
     }}>
-      <Tabs.Screen name="owned" options={{ headerTitle: () => <BoxTitlePicker />, headerRight: () => <BoxOptions /> }} />
+      <Tabs.Screen
+        name="owned"
+        initialParams={restoreTarget?.screen === 'owned' && restoreTarget.boxId ? { boxId: restoreTarget.boxId } : undefined}
+        options={{ headerTitle: () => <BoxTitlePicker />, headerRight: () => <BoxOptions /> }}
+      />
+      <Tabs.Screen
+        name="kits"
+        initialParams={restoreTarget?.screen === 'kits' && restoreTarget.boxId ? { boxId: restoreTarget.boxId } : undefined}
+        options={{ headerTitle: () => <KitBoxTitlePicker />, headerRight: () => <KitBoxOptions /> }}
+      />
       <Tabs.Screen name="used" options={{ title: t('statusUsedUp') }} />
+      <Tabs.Screen name="completed" options={{ title: t('completedKits') }} />
       <Tabs.Screen name="favorites" options={{ title: t('favorites') }} />
       <Tabs.Screen name="wishlist" options={{ title: t('wishlist') }} />
       <Tabs.Screen name="catalog" options={{ title: t('catalog') }} />

@@ -8,7 +8,9 @@ import { IconBox, IconChevronDown } from '@tabler/icons-react-native';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { getDB, getDefaultBoxId, getListMembership, PaintStatus, setInventoryStatus } from '../../lib/db';
 import { setActiveBox } from '../../lib/activeBox';
+import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
+import { setLastScreen } from '../../lib/lastScreen';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import AddPaintModal from '../../components/AddPaint';
@@ -90,6 +92,12 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
   }, [isUsedScreen, boxId]);
 
   useEffect(() => { if (!isUsedScreen) setActiveBox(selected); }, [isUsedScreen, selected]);
+
+  // 実際にこの画面が表示された時点で、起動時復元先とドロワーのモードを常に一致させる。
+  useFocusEffect(useCallback(() => {
+    setLastScreen(isUsedScreen ? 'used' : 'owned');
+    setAppMode('colorack');
+  }, [isUsedScreen]));
 
   useEffect(() => {
     if (isUsedScreen) return;

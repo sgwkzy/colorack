@@ -36,9 +36,11 @@ interface Props {
   onSelectView: (paint: Paint) => void;
   // 一覧を最上部からさらに引っ張って離した時に親モーダルを閉じる
   onRequestClose?: () => void;
+  // 指定時、塗料種別フィルタをこの1種類に固定し、種別チップUIを非表示にする
+  lockedPaintType?: string;
 }
 
-export default function ColorMatcher({ onSelect, onSelectView, onRequestClose }: Props) {
+export default function ColorMatcher({ onSelect, onSelectView, onRequestClose, lockedPaintType }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const closeProps = onRequestClose ? swipeDownCloseProps(onRequestClose) : undefined;
@@ -49,7 +51,7 @@ export default function ColorMatcher({ onSelect, onSelectView, onRequestClose }:
   const [glossOptions, setGlossOptions] = useState<string[]>([]);
   const [selectedGloss, setSelectedGloss] = useState<string[]>([]);
   const [typeOptions, setTypeOptions] = useState<string[]>([]);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(lockedPaintType ? [lockedPaintType] : []);
   const [glossOpen, setGlossOpen] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
   const canMatchHex = isValidHex(hex);
@@ -160,15 +162,17 @@ export default function ColorMatcher({ onSelect, onSelectView, onRequestClose }:
           })}
         </View>
       )}
-      <TouchableOpacity style={styles.dropdown} onPress={() => setTypeOpen((o) => !o)}>
-        <Text style={styles.dropdownLabel}>
-          {t('paintType')}{selectedTypes.length ? ` (${selectedTypes.length})` : ''}
-        </Text>
-        {typeOpen
-          ? <IconChevronUp size={16} color={colors.textFaint} />
-          : <IconChevronDown size={16} color={colors.textFaint} />}
-      </TouchableOpacity>
-      {typeOpen && (
+      {!lockedPaintType && (
+        <TouchableOpacity style={styles.dropdown} onPress={() => setTypeOpen((o) => !o)}>
+          <Text style={styles.dropdownLabel}>
+            {t('paintType')}{selectedTypes.length ? ` (${selectedTypes.length})` : ''}
+          </Text>
+          {typeOpen
+            ? <IconChevronUp size={16} color={colors.textFaint} />
+            : <IconChevronDown size={16} color={colors.textFaint} />}
+        </TouchableOpacity>
+      )}
+      {!lockedPaintType && typeOpen && (
         <View style={styles.chipRow}>
           {typeOptions.map((p) => {
             const selected = selectedTypes.includes(p);

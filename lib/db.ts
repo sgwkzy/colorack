@@ -4,6 +4,7 @@ import seedData from '../assets/seed_catalog.json';
 import { validateManualPaint } from './manualPaint';
 
 export type PaintStatus = 'owned' | 'in_use' | 'used_up';
+export type KitStatus = 'not_started' | 'building' | 'completed';
 export type ListType = 'favorites' | 'wishlist';
 
 export type SeedRow = {
@@ -66,6 +67,31 @@ export async function initDB(): Promise<void> {
     ');' +
     'CREATE TABLE IF NOT EXISTS app_settings (' +
     '  key TEXT PRIMARY KEY, value TEXT' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_boxes (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    "  name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'box', icon_color TEXT NOT NULL DEFAULT '#4a90d9', sort_order INTEGER NOT NULL DEFAULT 0" +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kits (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  box_id INTEGER,' +
+    '  name TEXT NOT NULL, maker TEXT NOT NULL, series TEXT, category TEXT, scale TEXT, note TEXT, price INTEGER,' +
+    "  status TEXT NOT NULL DEFAULT 'not_started' CHECK(status IN ('not_started','building','completed'))," +
+    "  added_at TEXT DEFAULT (datetime('now')), status_changed_at TEXT DEFAULT (datetime('now'))" +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_colors (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  kit_id INTEGER NOT NULL, name TEXT, note TEXT, sort_order INTEGER NOT NULL DEFAULT 0,' +
+    "  added_at TEXT DEFAULT (datetime('now'))" +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_color_paints (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  kit_color_id INTEGER NOT NULL, paint_id INTEGER NOT NULL, ratio REAL NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_photos (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  kit_id INTEGER NOT NULL, uri TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0,' +
+    "  added_at TEXT DEFAULT (datetime('now'))" +
     ');'
   );
   await db.execAsync(
@@ -80,6 +106,10 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN series_en TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE catalog_paints ADD COLUMN notes TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE inventory ADD COLUMN status_changed_at TEXT'); } catch { /* 既にある */ }
+  try { await db.execAsync('ALTER TABLE kits ADD COLUMN series TEXT'); } catch { /* 既にある */ }
+  try { await db.execAsync('ALTER TABLE kits ADD COLUMN category TEXT'); } catch { /* 既にある */ }
+  try { await db.execAsync('ALTER TABLE kits ADD COLUMN price INTEGER'); } catch { /* 既にある */ }
+  try { await db.execAsync('ALTER TABLE kit_colors ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0'); } catch { /* 既にある */ }
   await db.runAsync(
     'UPDATE inventory SET status_changed_at = added_at WHERE status_changed_at IS NULL OR status_changed_at < added_at'
   );
@@ -116,6 +146,33 @@ export async function initDB(): Promise<void> {
     );
   }
 
+  // 旧 kit_paints (1塗料1行) が残っていれば kit_colors/kit_color_paints へ移行して削除。
+  const hasKitPaints = await db.getFirstAsync(
+    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='kit_paints'"
+  );
+  if (hasKitPaints) {
+    const oldRows = await db.getAllAsync<{ id: number; kit_id: number; paint_id: number; note: string | null }>(
+      'SELECT id, kit_id, paint_id, note FROM kit_paints'
+    );
+    await db.withTransactionAsync(async () => {
+      for (const oldRow of oldRows) {
+        const paint = await db.getFirstAsync<{ name_ja: string }>(
+          'SELECT name_ja FROM catalog_paints WHERE id = ?',
+          [oldRow.paint_id]
+        );
+        const colorResult = await db.runAsync(
+          'INSERT INTO kit_colors (kit_id, name, note) VALUES (?, ?, ?)',
+          [oldRow.kit_id, paint?.name_ja ?? null, oldRow.note]
+        );
+        await db.runAsync(
+          'INSERT INTO kit_color_paints (kit_color_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
+          [colorResult.lastInsertRowId, oldRow.paint_id, 1.0, 0]
+        );
+      }
+      await db.execAsync('DROP TABLE kit_paints');
+    });
+  }
+
   // 旧デフォルト名「ボックス」の既存端末を「Box」へ一度だけ移行。
   await db.runAsync("UPDATE boxes SET name = 'Box' WHERE name = 'ボックス'");
 
@@ -129,6 +186,36 @@ export async function initDB(): Promise<void> {
       ['default_box_id', String(res.lastInsertRowId)]
     );
   }
+
+  // 初期キットボックス「Box」を用意し、デフォルトに設定(キットボックスが無い時だけ)。
+  // 塗料ボックスと同じ仕組み。
+  const kitBoxCount = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM kit_boxes');
+  if ((kitBoxCount?.n ?? 0) === 0) {
+    const kitRes = await db.runAsync('INSERT INTO kit_boxes (name) VALUES (?)', ['Box']);
+    await db.runAsync(
+      'INSERT INTO app_settings (key, value) VALUES (?, ?)'
+      + ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      ['default_kit_box_id', String(kitRes.lastInsertRowId)]
+    );
+  } else {
+    // この仕様導入前からキットボックスがあった端末はdefault_kit_box_id未設定のため、
+    // 先頭のキットボックスへ一度だけバックフィルする。
+    const existingDefault = await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'default_kit_box_id'");
+    if (!existingDefault?.value) {
+      const first = await db.getFirstAsync<{ id: number }>('SELECT id FROM kit_boxes ORDER BY sort_order, id LIMIT 1');
+      if (first) {
+        await db.runAsync(
+          'INSERT INTO app_settings (key, value) VALUES (?, ?)'
+          + ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+          ['default_kit_box_id', String(first.id)]
+        );
+      }
+    }
+  }
+
+  // この仕様導入前に完成(completed)になっていたキットのbox_idを一度だけクリアする。
+  // 塗料の使用済み(used_up)がボックスから外れているのと同じ扱いにするため。
+  await db.runAsync("UPDATE kits SET box_id = NULL WHERE status = 'completed'");
 
   // シードバージョンが古い端末は catalog_paints をシードの内容へ更新。
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
@@ -205,6 +292,14 @@ export async function getDefaultBoxId(): Promise<number | null> {
   if (!v) return null;
   const id = Number(v);
   const exists = await getDB().getFirstAsync('SELECT id FROM boxes WHERE id = ?', [id]);
+  return exists ? id : null;
+}
+
+export async function getDefaultKitBoxId(): Promise<number | null> {
+  const v = await getSetting('default_kit_box_id');
+  if (!v) return null;
+  const id = Number(v);
+  const exists = await getDB().getFirstAsync('SELECT id FROM kit_boxes WHERE id = ?', [id]);
   return exists ? id : null;
 }
 
@@ -322,6 +417,237 @@ export async function setInventoryStatus(inventoryId: number, status: PaintStatu
     "UPDATE inventory SET status = ?, box_id = CASE WHEN ? = 'used_up' THEN NULL WHEN box_id IS NULL THEN ? ELSE box_id END, status_changed_at = datetime('now') WHERE id = ?",
     [status, status, defaultBoxId, inventoryId]
   );
+}
+
+export interface KitDetail {
+  id: number;
+  box_id: number | null;
+  box_name: string | null;
+  name: string;
+  maker: string;
+  series: string | null;
+  category: string | null;
+  scale: string | null;
+  note: string | null;
+  price: number | null;
+  status: KitStatus;
+  added_at: string | null;
+  status_changed_at: string | null;
+}
+
+export async function getKitDetail(kitId: number): Promise<KitDetail | null> {
+  const row = await getDB().getFirstAsync<KitDetail>(
+    'SELECT k.id, k.box_id, b.name AS box_name, k.name, k.maker, k.series, k.category, k.scale, k.note, k.price, k.status, k.added_at, k.status_changed_at'
+    + ' FROM kits k LEFT JOIN kit_boxes b ON k.box_id = b.id'
+    + ' WHERE k.id = ?',
+    [kitId]
+  );
+  return row ?? null;
+}
+
+export async function updateKitNote(kitId: number, note: string): Promise<void> {
+  const normalized = note.trim() === '' ? null : note;
+  await getDB().runAsync(
+    "UPDATE kits SET note = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [normalized, kitId]
+  );
+}
+
+// kits.name は NOT NULL のため、空文字を渡さないのは呼び出し側の責務。
+export async function updateKitName(kitId: number, name: string): Promise<void> {
+  await getDB().runAsync(
+    "UPDATE kits SET name = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [name, kitId]
+  );
+}
+
+// kits.maker は NOT NULL のため、空文字を渡さないのは呼び出し側の責務。
+export async function updateKitMaker(kitId: number, maker: string): Promise<void> {
+  await getDB().runAsync(
+    "UPDATE kits SET maker = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [maker, kitId]
+  );
+}
+
+export async function updateKitScale(kitId: number, scale: string): Promise<void> {
+  const normalized = scale.trim() === '' ? null : scale;
+  await getDB().runAsync(
+    "UPDATE kits SET scale = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [normalized, kitId]
+  );
+}
+
+export async function updateKitSeries(kitId: number, series: string): Promise<void> {
+  const normalized = series.trim() === '' ? null : series;
+  await getDB().runAsync(
+    "UPDATE kits SET series = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [normalized, kitId]
+  );
+}
+
+export async function updateKitCategory(kitId: number, category: string): Promise<void> {
+  const normalized = category.trim() === '' ? null : category;
+  await getDB().runAsync(
+    "UPDATE kits SET category = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [normalized, kitId]
+  );
+}
+
+export async function updateKitPrice(kitId: number, price: string): Promise<void> {
+  const trimmed = price.trim();
+  const parsed = trimmed === '' ? null : Number(trimmed);
+  const normalized = parsed !== null && Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+  await getDB().runAsync(
+    "UPDATE kits SET price = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [normalized, kitId]
+  );
+}
+
+export async function updateKitBox(kitId: number, boxId: number): Promise<void> {
+  await getDB().runAsync(
+    "UPDATE kits SET box_id = ?, status_changed_at = datetime('now') WHERE id = ?",
+    [boxId, kitId]
+  );
+}
+
+export async function setKitStatus(kitId: number, status: KitStatus): Promise<void> {
+  const defaultBoxId = status === 'completed' ? null : await getDefaultKitBoxId();
+  await getDB().runAsync(
+    "UPDATE kits SET status = ?, box_id = CASE WHEN ? = 'completed' THEN NULL WHEN box_id IS NULL THEN ? ELSE box_id END, status_changed_at = datetime('now') WHERE id = ?",
+    [status, status, defaultBoxId, kitId]
+  );
+}
+
+export interface KitPhoto {
+  id: number;
+  uri: string;
+  sort_order: number;
+}
+
+export async function getKitPhotos(kitId: number): Promise<KitPhoto[]> {
+  return getDB().getAllAsync<KitPhoto>(
+    'SELECT id, uri, sort_order FROM kit_photos WHERE kit_id = ? ORDER BY sort_order, id',
+    [kitId]
+  );
+}
+
+export async function addKitPhoto(kitId: number, uri: string): Promise<void> {
+  const row = await getDB().getFirstAsync<{ n: number }>(
+    'SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM kit_photos WHERE kit_id = ?',
+    [kitId]
+  );
+  await getDB().runAsync(
+    'INSERT INTO kit_photos (kit_id, uri, sort_order) VALUES (?, ?, ?)',
+    [kitId, uri, row?.n ?? 0]
+  );
+}
+
+export async function removeKitPhoto(photoId: number): Promise<void> {
+  await getDB().runAsync('DELETE FROM kit_photos WHERE id = ?', [photoId]);
+}
+
+export async function reorderKitPhotos(photoIds: number[]): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    for (const [index, id] of photoIds.entries()) {
+      await db.runAsync('UPDATE kit_photos SET sort_order = ? WHERE id = ?', [index, id]);
+    }
+  });
+}
+
+export async function deleteKit(kitId: number): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM kit_color_paints WHERE kit_color_id IN (SELECT id FROM kit_colors WHERE kit_id = ?)', [kitId]);
+    await db.runAsync('DELETE FROM kit_colors WHERE kit_id = ?', [kitId]);
+    await db.runAsync('DELETE FROM kit_photos WHERE kit_id = ?', [kitId]);
+    await db.runAsync('DELETE FROM kits WHERE id = ?', [kitId]);
+  });
+}
+
+export interface KitColorPaint {
+  paint_id: number;
+  ratio: number;
+  sort_order: number;
+  name_ja: string;
+  name_en: string | null;
+  code: string;
+  brand: string;
+  hex: string | null;
+}
+
+export interface KitColorSummary {
+  id: number;
+  name: string | null;
+  note: string | null;
+  paints: KitColorPaint[];
+}
+
+export async function getKitColors(kitId: number): Promise<KitColorSummary[]> {
+  const db = getDB();
+  const colorRows = await db.getAllAsync<{ id: number; name: string | null; note: string | null }>(
+    'SELECT id, name, note FROM kit_colors WHERE kit_id = ? ORDER BY sort_order, id',
+    [kitId]
+  );
+  const paintRows = await db.getAllAsync<KitColorPaint & { kit_color_id: number }>(
+    'SELECT kcp.kit_color_id, kcp.paint_id, kcp.ratio, kcp.sort_order, c.name_ja, c.name_en, c.code, c.brand, c.hex'
+    + ' FROM kit_color_paints kcp JOIN catalog_paints c ON kcp.paint_id = c.id'
+    + ' WHERE kcp.kit_color_id IN (SELECT id FROM kit_colors WHERE kit_id = ?)'
+    + ' ORDER BY kcp.sort_order, kcp.id',
+    [kitId]
+  );
+  return colorRows.map((color) => ({
+    ...color,
+    paints: paintRows.filter((p) => p.kit_color_id === color.id),
+  }));
+}
+
+export async function addKitColor(
+  kitId: number,
+  name: string | null,
+  note: string | null,
+  paints: { paintId: number; ratio: number }[]
+): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    const row = await db.getFirstAsync<{ n: number }>(
+      'SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM kit_colors WHERE kit_id = ?',
+      [kitId]
+    );
+    const result = await db.runAsync(
+      'INSERT INTO kit_colors (kit_id, name, note, sort_order) VALUES (?, ?, ?, ?)',
+      [kitId, name, note, row?.n ?? 0]
+    );
+    const kitColorId = result.lastInsertRowId;
+    for (const [index, p] of paints.entries()) {
+      await db.runAsync(
+        'INSERT INTO kit_color_paints (kit_color_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
+        [kitColorId, p.paintId, p.ratio, index]
+      );
+    }
+  });
+}
+
+export async function updateKitColorName(kitColorId: number, name: string): Promise<void> {
+  const normalized = name.trim() === '' ? null : name;
+  await getDB().runAsync('UPDATE kit_colors SET name = ? WHERE id = ?', [normalized, kitColorId]);
+}
+
+export async function removeKitColor(kitColorId: number): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM kit_color_paints WHERE kit_color_id = ?', [kitColorId]);
+    await db.runAsync('DELETE FROM kit_colors WHERE id = ?', [kitColorId]);
+  });
+}
+
+export async function reorderKitColors(colorIds: number[]): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    for (const [index, id] of colorIds.entries()) {
+      await db.runAsync('UPDATE kit_colors SET sort_order = ? WHERE id = ?', [index, id]);
+    }
+  });
 }
 
 export interface CatalogPaintContentEdit {
