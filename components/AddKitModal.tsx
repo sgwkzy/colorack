@@ -32,10 +32,11 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const canSave = name.trim() !== '' && maker.trim() !== '';
 
   useEffect(() => {
-    if (visible) { setName(''); setMaker(''); setSeries(''); setCategory(''); setScale(''); setPrice(''); setNote(''); setPhotos([]); }
+    if (visible) { setName(''); setMaker(''); setSeries(''); setCategory(''); setScale(''); setPrice(''); setNote(''); setPhotos([]); setViewerOpen(false); }
   }, [visible]);
 
   const save = async () => {
@@ -68,7 +69,7 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
     <Modal visible={visible} animationType="slide" onRequestClose={cancelAndClose}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={cancelAndClose}>
+          <SwipeDownHeader onClose={cancelAndClose} enabled={!viewerOpen}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('addKit')}</Text>
               <TouchableOpacity onPress={cancelAndClose} hitSlop={8} accessibilityLabel={t('close')}>
@@ -77,10 +78,11 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
             </View>
           </SwipeDownHeader>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <SwipeDownScrollView onClose={cancelAndClose} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+          <SwipeDownScrollView onClose={cancelAndClose} closeEnabled={!viewerOpen} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
             <KitPhotoGrid
               photos={photos.map((uri) => ({ key: uri, uri }))}
               editable
+              onViewerChange={setViewerOpen}
               onAdd={(uri) => setPhotos((current) => [...current, uri])}
               onRemove={(key) => {
                 deleteKitPhoto(key as string);
