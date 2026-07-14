@@ -249,14 +249,17 @@ async function upsertCatalogFromSeed(db: SQLite.SQLiteDatabase): Promise<void> {
     }
     // 洗い替え: 新シードに無い旧カタログ行のうち、在庫/リストから参照されていない
     // ものを掃除する(参照中の行は id を壊さないため残す)。
-    const catalogCodes = seed.map((p) => catalogCode(p.brand, p.series, p.code));
-    const placeholders = catalogCodes.map(() => '?').join(',');
+    await db.execAsync('CREATE TEMP TABLE IF NOT EXISTS seed_catalog_codes (catalog_code TEXT PRIMARY KEY)');
+    await db.runAsync('DELETE FROM seed_catalog_codes');
+    for (const paint of seed) await db.runAsync(
+      'INSERT INTO seed_catalog_codes (catalog_code) VALUES (?)',
+      [catalogCode(paint.brand, paint.series, paint.code)]
+    );
     await db.runAsync(
-      `DELETE FROM catalog_paints WHERE catalog_code NOT IN (${placeholders})` +
+      'DELETE FROM catalog_paints WHERE catalog_code NOT IN (SELECT catalog_code FROM seed_catalog_codes)' +
       ' AND id NOT IN (SELECT paint_id FROM inventory)' +
       ' AND id NOT IN (SELECT paint_id FROM lists)' +
       ' AND id NOT IN (SELECT paint_id FROM kit_color_paints)',
-      catalogCodes
     );
   });
 }

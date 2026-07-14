@@ -121,7 +121,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
               ) : (
                 <Text style={styles.title}>{t('addColor')}</Text>
               )}
-              <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel={t('close')}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>

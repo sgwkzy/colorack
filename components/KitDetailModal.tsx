@@ -307,7 +307,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 <Text style={styles.title}>{t('kitDetailTitle')}</Text>
               )}
               {!editMode ? (
-                <TouchableOpacity onPress={closeAfterSavingFields} hitSlop={8}>
+                <TouchableOpacity onPress={closeAfterSavingFields} hitSlop={8} accessibilityLabel={t('close')}>
                   <IconX color={colors.text} size={24} />
                 </TouchableOpacity>
               ) : null}

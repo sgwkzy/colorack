@@ -61,7 +61,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{t('language')}</Text>
         <View style={styles.langRow}>
           <Text style={{ color: colors.text }}>EN</Text>
-          <Switch value={isJa} onValueChange={toggleLang} style={{ marginHorizontal: 8 }} />
+          <Switch value={isJa} onValueChange={toggleLang} style={{ marginHorizontal: 8 }} accessibilityLabel={t('language')} />
           <Text style={{ color: colors.text }}>JA</Text>
         </View>
       </View>
@@ -82,13 +82,13 @@ export default function SettingsScreen() {
         </View>
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{isJa ? 'メニューの並び順' : 'Action Order'}</Text>
+        <Text style={styles.sectionTitle}>{t('actionOrder')}</Text>
         <View style={styles.themeRow}>
           <TouchableOpacity style={[styles.themeBtn, actionOrder === 'normal' && styles.themeBtnOn]} onPress={() => setActionOrder('normal')}>
-            <Text style={[styles.themeBtnText, actionOrder === 'normal' && styles.themeBtnTextOn]} numberOfLines={1}>{isJa ? '正順' : 'Normal'}</Text>
+            <Text style={[styles.themeBtnText, actionOrder === 'normal' && styles.themeBtnTextOn]} numberOfLines={1}>{t('actionOrderNormal')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.themeBtn, actionOrder === 'reverse' && styles.themeBtnOn]} onPress={() => setActionOrder('reverse')}>
-            <Text style={[styles.themeBtnText, actionOrder === 'reverse' && styles.themeBtnTextOn]} numberOfLines={1}>{isJa ? '逆順' : 'Reverse'}</Text>
+            <Text style={[styles.themeBtnText, actionOrder === 'reverse' && styles.themeBtnTextOn]} numberOfLines={1}>{t('actionOrderReverse')}</Text>
           </TouchableOpacity>
         </View>
       </View>
