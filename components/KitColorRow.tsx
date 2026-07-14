@@ -124,8 +124,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   paintLine: { flexDirection: 'row', alignItems: 'center' },
   checkSlot: { width: 18, alignItems: 'center' },
   paintLineText: { fontSize: 13, fontWeight: '600' },
-  // 塗料行(タップ対象)の上に重ねず、色名(タップ不要)の位置に重ねて隠す。タップで閉じられる。
-  paintTooltip: { position: 'absolute', left: 0, right: 0, top: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, zIndex: 2 },
+  // 塗料一覧の下端に重ねて表示。タップした行が隠れても、ツールチップ自体のタップで閉じられる。
+  paintTooltip: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, zIndex: 2 },
   paintTooltipBrand: { fontSize: 11, fontWeight: '700', opacity: 0.85 },
   paintTooltipName: { fontSize: 13, fontWeight: '600' },
   editControls: { backgroundColor: colors.surfaceAlt, padding: spacing.md, gap: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
