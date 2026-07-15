@@ -234,7 +234,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
       {
         text: t('cancel'), style: 'cancel',
       },
-      { text: t('dontAddToList'), onPress: async () => { await setStatus(item, 'used_up'); showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast')); } },
+      { text: t('dontAddToList'), onPress: async () => { await setStatus(item, 'used_up'); logEvent('mark_used_up'); showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast')); } },
       {
         text: t('add'),
         onPress: async () => {
@@ -243,6 +243,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
             await getDB().runAsync("INSERT OR IGNORE INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
           }
           await setStatus(item, 'used_up');
+          logEvent('mark_used_up');
           showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast'));
         },
       },

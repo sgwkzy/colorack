@@ -144,6 +144,7 @@ export default function SettingsScreen() {
       await loadLastBackupAt();
     } catch (e) {
       console.error('handleGoogleSignIn: failed', e);
+      Alert.alert(t('error'), t('cloudBackupError'));
     } finally {
       setAccountBusy(false);
     }
@@ -157,6 +158,7 @@ export default function SettingsScreen() {
       await loadLastBackupAt();
     } catch (e) {
       console.error('handleBackupNow: failed', e);
+      Alert.alert(t('error'), t('cloudBackupError'));
     } finally {
       setAccountBusy(false);
     }
@@ -169,6 +171,7 @@ export default function SettingsScreen() {
       await signOutUser();
     } catch (e) {
       console.error('handleSignOut: failed', e);
+      Alert.alert(t('error'), t('cloudBackupError'));
     } finally {
       setAccountBusy(false);
     }

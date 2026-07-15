@@ -40,6 +40,11 @@ export async function initAuth(): Promise<void> {
   if (initialAuthResolved) return;
   if (initPromise) return initPromise;
 
+  // signInWithGoogle() を一度も呼ばずに直接サインアウトした場合でも
+  // GoogleSignin.signOut() がネイティブ側の設定不足で失敗しないよう、
+  // 起動時にも設定しておく。
+  configureGoogleSignin();
+
   initPromise = new Promise((resolve) => {
     auth().onAuthStateChanged((user) => {
       currentUser = toAuthUser(user);

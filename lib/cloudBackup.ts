@@ -238,8 +238,18 @@ async function resolvePaintId(catalog_code: string): Promise<number | null> {
 }
 
 export async function isLocalDbEmpty(): Promise<boolean> {
+  // boxes/kit_boxes は initDB() が0件の時に「Box」を1件自動作成するため、
+  // 単純な COUNT(*) では常に1以上になり判定が壊れる。ユーザーが実際に
+  // 追加ボックスを作っている(2件以上)場合だけ「空ではない」とみなす。
   const row = await getDB().getFirstAsync<{ n: number }>(
-    "SELECT (SELECT COUNT(*) FROM inventory) + (SELECT COUNT(*) FROM lists) + (SELECT COUNT(*) FROM catalog_paints WHERE source = 'manual') + (SELECT COUNT(*) FROM kits) AS n"
+    "SELECT (SELECT COUNT(*) FROM inventory)" +
+    " + (SELECT COUNT(*) FROM lists)" +
+    " + (SELECT COUNT(*) FROM catalog_paints WHERE source = 'manual')" +
+    " + (SELECT COUNT(*) FROM catalog_paints WHERE source = 'catalog' AND notes IS NOT NULL AND notes <> '')" +
+    " + (SELECT COUNT(*) FROM kits)" +
+    " + (SELECT CASE WHEN (SELECT COUNT(*) FROM boxes) > 1 THEN 1 ELSE 0 END)" +
+    " + (SELECT CASE WHEN (SELECT COUNT(*) FROM kit_boxes) > 1 THEN 1 ELSE 0 END)" +
+    " AS n"
   );
   return (row?.n ?? 0) === 0;
 }
@@ -351,17 +361,32 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
   };
 }
 
+// 連打やバックグラウンド/フォアグラウンドの素早い切り替えで複数の push が
+// 同時に走ると、後から完了した方が新しい内容を古い内容で上書きしかねない。
+// 実行中は同じ Promise を返して重複起動を防ぐ。
+let pushInFlight: Promise<void> | null = null;
+
 export async function pushBackupToFirestore(): Promise<void> {
+  if (pushInFlight) return pushInFlight;
+
   const user = auth().currentUser;
   if (!user) return;
 
-  const snapshot = await buildBackupSnapshot();
-  const now = new Date().toISOString();
-  await firestore().collection('backups').doc(user.uid).set({
-    ...snapshot,
-    updatedAt: firestore.FieldValue.serverTimestamp(),
-  });
-  await setSetting(LAST_BACKUP_AT_KEY, now);
+  pushInFlight = (async () => {
+    const snapshot = await buildBackupSnapshot();
+    const now = new Date().toISOString();
+    await firestore().collection('backups').doc(user.uid).set({
+      ...snapshot,
+      updatedAt: firestore.FieldValue.serverTimestamp(),
+    });
+    await setSetting(LAST_BACKUP_AT_KEY, now);
+  })();
+
+  try {
+    await pushInFlight;
+  } finally {
+    pushInFlight = null;
+  }
 }
 
 export async function fetchBackupSnapshot(): Promise<BackupSnapshot | null> {
@@ -532,7 +557,15 @@ export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<voi
     }
   });
 
-  for (const uri of orphanedKitPhotoUris) await deleteKitPhoto(uri);
+  // 写真ファイルの実削除はベストエフォート。DB行は既にトランザクション内で
+  // 削除済みのため、1件の削除失敗で残り全部を諦めない(ログだけ残して続行)。
+  for (const uri of orphanedKitPhotoUris) {
+    try {
+      await deleteKitPhoto(uri);
+    } catch (e) {
+      console.error('restoreFromSnapshot: failed to delete orphaned kit photo', uri, e);
+    }
+  }
 }
 
 let autoBackupInitialized = false;
