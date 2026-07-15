@@ -2,6 +2,7 @@ import { useEffect, useReducer } from 'react';
 import Constants from 'expo-constants';
 import type { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import type { GoogleSignin as GoogleSigninType } from '@react-native-google-signin/google-signin';
+import { initSubscription, linkSubscriptionUser } from './subscription';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -55,6 +56,10 @@ export async function initAuth(): Promise<void> {
   if (initialAuthResolved) return;
   if (initPromise) return initPromise;
 
+  // 広告非表示判定はGoogleサインイン状態に依存しないため、authの可否に関わらず
+  // 先にRevenueCatを初期化する(Expo Go/未設定時は内部で何もしない)。
+  await initSubscription();
+
   // signInWithGoogle() を一度も呼ばずに直接サインアウトした場合でも
   // GoogleSignin.signOut() がネイティブ側の設定不足で失敗しないよう、
   // 起動時にも設定しておく。
@@ -69,6 +74,7 @@ export async function initAuth(): Promise<void> {
     auth!().onAuthStateChanged((user) => {
       currentUser = toAuthUser(user);
       notify();
+      linkSubscriptionUser(user?.uid ?? null).catch((e) => console.error('initAuth: failed to link subscription user', e));
       if (!initialAuthResolved) {
         initialAuthResolved = true;
         resolve();
