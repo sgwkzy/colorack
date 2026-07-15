@@ -8,7 +8,17 @@
 - `gh` CLI がログイン済みであること。
 - 配布するバージョン番号は、**その時点でアプリにバンドルされている `lib/db.ts` の `SEED_VERSION` より必ず大きい値**にすること(端末側は `新バージョン > 端末の適用済みバージョン` で更新要否を判定するため、逆転させると永久に配信されなくなる)。
 
-## 手順
+## 公開
+
+次の1コマンドでSQLite生成・GitHub Release公開・`latest.json`更新・commit/pushまで実行する。
+
+```
+python scripts/publish_catalog_release.py --version 20 --notes "変更内容の概要"
+```
+
+`data/official_catalog.sqlite3` はGit管理外のローカルソースのため、GitHub Actionsではなくこのスクリプトを使う。
+
+## 手動手順(障害時のみ)
 
 1. 配布用の軽量SQLiteファイルを生成する(バージョン番号は連番でインクリメント):
 
