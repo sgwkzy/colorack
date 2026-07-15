@@ -240,6 +240,11 @@ export default function SettingsScreen() {
             <TouchableOpacity style={[styles.accountBtn, purchaseBusy && styles.accountBtnDisabled]} onPress={handleViewPlans} disabled={purchaseBusy}>
               <Text style={styles.accountBtnText}>{t('viewPlans')}</Text>
             </TouchableOpacity>
+            {authUser ? (
+              <TouchableOpacity style={[styles.resetBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleSignOut} disabled={accountBusy}>
+                <Text style={styles.resetBtnText}>{t('signOut')}</Text>
+              </TouchableOpacity>
+            ) : null}
           </>
         )}
         <TouchableOpacity style={[styles.resetBtn, purchaseBusy && styles.accountBtnDisabled]} onPress={handleRestorePurchases} disabled={purchaseBusy}>
