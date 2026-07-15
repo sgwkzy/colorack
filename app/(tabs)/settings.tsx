@@ -13,6 +13,7 @@ import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from 
 import { useUiPrefs, setActionOrder, setListFontSize } from '../../lib/uiPrefs';
 import { signInWithGoogle, signOutUser, useAuthUser } from '../../lib/auth';
 import { fetchBackupSnapshot, pushBackupToFirestore, restoreFromSnapshot, runRestoreDecision } from '../../lib/cloudBackup';
+import { presentPaywall, restorePurchases, useEntitlements } from '../../lib/subscription';
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
   { value: 'light', labelKey: 'themeLight' },
@@ -30,6 +31,8 @@ export default function SettingsScreen() {
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
   const authUser = useAuthUser();
+  const { hasBackup } = useEntitlements();
+  const [purchaseBusy, setPurchaseBusy] = useState(false);
 
   useScreenView('Settings');
 
@@ -177,28 +180,71 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleViewPlans = async () => {
+    if (purchaseBusy) return;
+    setPurchaseBusy(true);
+    try {
+      await presentPaywall();
+    } catch (e) {
+      console.error('handleViewPlans: failed', e);
+      Alert.alert(t('error'), t('purchaseError'));
+    } finally {
+      setPurchaseBusy(false);
+    }
+  };
+
+  const handleRestorePurchases = async () => {
+    if (purchaseBusy) return;
+    setPurchaseBusy(true);
+    try {
+      await restorePurchases();
+    } catch (e) {
+      console.error('handleRestorePurchases: failed', e);
+      Alert.alert(t('error'), t('purchaseError'));
+    } finally {
+      setPurchaseBusy(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('account')}</Text>
-        <Text style={styles.accountSubText}>{t('cloudBackupPhotosNote')}</Text>
-        {authUser ? (
+        <Text style={styles.accountSubText}>
+          {t('currentPlan')}: {hasBackup ? t('planStandard') : t('planFree')}
+        </Text>
+        {hasBackup ? (
           <>
-            <Text style={styles.accountText}>{authUser.displayName ?? authUser.email ?? authUser.uid}</Text>
-            {authUser.email ? <Text style={styles.accountSubText}>{authUser.email}</Text> : null}
-            <Text style={styles.accountSubText}>{t('lastBackupAt')}: {lastBackupAt ?? t('lastBackupNever')}</Text>
-            <TouchableOpacity style={[styles.accountBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleBackupNow} disabled={accountBusy}>
-              <Text style={styles.accountBtnText}>{t('backupNow')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.resetBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleSignOut} disabled={accountBusy}>
-              <Text style={styles.resetBtnText}>{t('signOut')}</Text>
-            </TouchableOpacity>
+            <Text style={styles.accountSubText}>{t('cloudBackupPhotosNote')}</Text>
+            {authUser ? (
+              <>
+                <Text style={styles.accountText}>{authUser.displayName ?? authUser.email ?? authUser.uid}</Text>
+                {authUser.email ? <Text style={styles.accountSubText}>{authUser.email}</Text> : null}
+                <Text style={styles.accountSubText}>{t('lastBackupAt')}: {lastBackupAt ?? t('lastBackupNever')}</Text>
+                <TouchableOpacity style={[styles.accountBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleBackupNow} disabled={accountBusy}>
+                  <Text style={styles.accountBtnText}>{t('backupNow')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.resetBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleSignOut} disabled={accountBusy}>
+                  <Text style={styles.resetBtnText}>{t('signOut')}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity style={[styles.accountBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleGoogleSignIn} disabled={accountBusy}>
+                <Text style={styles.accountBtnText}>{t('signInWithGoogle')}</Text>
+              </TouchableOpacity>
+            )}
           </>
         ) : (
-          <TouchableOpacity style={[styles.accountBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleGoogleSignIn} disabled={accountBusy}>
-            <Text style={styles.accountBtnText}>{t('signInWithGoogle')}</Text>
-          </TouchableOpacity>
+          <>
+            <Text style={styles.accountSubText}>{t('backupRequiresSubscription')}</Text>
+            <TouchableOpacity style={[styles.accountBtn, purchaseBusy && styles.accountBtnDisabled]} onPress={handleViewPlans} disabled={purchaseBusy}>
+              <Text style={styles.accountBtnText}>{t('viewPlans')}</Text>
+            </TouchableOpacity>
+          </>
         )}
+        <TouchableOpacity style={[styles.resetBtn, purchaseBusy && styles.accountBtnDisabled]} onPress={handleRestorePurchases} disabled={purchaseBusy}>
+          <Text style={styles.resetBtnText}>{t('restorePurchases')}</Text>
+        </TouchableOpacity>
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('analytics')}</Text>
