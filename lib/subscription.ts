@@ -96,14 +96,14 @@ export function getEntitlements(): Entitlements {
 }
 
 export async function presentPaywall(): Promise<void> {
-  if (!RevenueCatUI) {
+  if (!RevenueCatUI || !configured) {
     throw new Error('Subscriptions are not available in Expo Go. Use a development build.');
   }
   await RevenueCatUI.presentPaywall();
 }
 
 export async function restorePurchases(): Promise<void> {
-  if (!Purchases) return;
+  if (!Purchases || !configured) return;
   const info = await Purchases.restorePurchases();
   entitlements = toEntitlements(info.entitlements.active);
   notify();
