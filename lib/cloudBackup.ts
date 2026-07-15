@@ -1,8 +1,19 @@
 import { AppState, AppStateStatus } from 'react-native';
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import Constants from 'expo-constants';
 import { catalogCode, getDB, getSetting, KitStatus, PaintStatus, setSetting } from './db';
 import { deleteKitPhoto } from './kitPhoto';
+
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Expo Goのバイナリにはネイティブモジュールが含まれないため、
+// import(=require)時点でクラッシュする。mobileAds.native.tsと同じパターンで
+// Expo Go実行時はrequireせずnullにフォールバックする。
+const auth: typeof import('@react-native-firebase/auth').default | null = isExpoGo
+  ? null
+  : (require('@react-native-firebase/auth').default as typeof import('@react-native-firebase/auth').default);
+const firestore: typeof import('@react-native-firebase/firestore').default | null = isExpoGo
+  ? null
+  : (require('@react-native-firebase/firestore').default as typeof import('@react-native-firebase/firestore').default);
 
 // v2: kit_boxes/kits/kit_colors/kit_color_paints(キット管理機能)を追加。
 // v1スナップショットにはこれらのフィールドが無いため、復元側は `?? []` で
@@ -367,6 +378,7 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
 let pushInFlight: Promise<void> | null = null;
 
 export async function pushBackupToFirestore(): Promise<void> {
+  if (!auth || !firestore) return;
   if (pushInFlight) return pushInFlight;
 
   const user = auth().currentUser;
@@ -375,9 +387,9 @@ export async function pushBackupToFirestore(): Promise<void> {
   pushInFlight = (async () => {
     const snapshot = await buildBackupSnapshot();
     const now = new Date().toISOString();
-    await firestore().collection('backups').doc(user.uid).set({
+    await firestore!().collection('backups').doc(user.uid).set({
       ...snapshot,
-      updatedAt: firestore.FieldValue.serverTimestamp(),
+      updatedAt: firestore!.FieldValue.serverTimestamp(),
     });
     await setSetting(LAST_BACKUP_AT_KEY, now);
   })();
@@ -390,6 +402,7 @@ export async function pushBackupToFirestore(): Promise<void> {
 }
 
 export async function fetchBackupSnapshot(): Promise<BackupSnapshot | null> {
+  if (!auth || !firestore) return null;
   const user = auth().currentUser;
   if (!user) return null;
 

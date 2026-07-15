@@ -1,6 +1,19 @@
 import { useEffect, useReducer } from 'react';
-import auth, { FirebaseAuthTypes } from '@react-native-firebase/auth';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import Constants from 'expo-constants';
+import type { FirebaseAuthTypes } from '@react-native-firebase/auth';
+import type { GoogleSignin as GoogleSigninType } from '@react-native-google-signin/google-signin';
+
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Expo Goのバイナリにはネイティブモジュールが含まれないため、
+// import(=require)時点でクラッシュする。mobileAds.native.tsと同じパターンで
+// Expo Go実行時はrequireせずnullにフォールバックする。
+const auth: typeof import('@react-native-firebase/auth').default | null = isExpoGo
+  ? null
+  : (require('@react-native-firebase/auth').default as typeof import('@react-native-firebase/auth').default);
+const GoogleSignin: typeof GoogleSigninType | null = isExpoGo
+  ? null
+  : (require('@react-native-google-signin/google-signin').GoogleSignin as typeof GoogleSigninType);
 
 export interface AuthUser {
   uid: string;
@@ -27,12 +40,14 @@ function notify(): void {
 }
 
 function configureGoogleSignin(): void {
+  if (!GoogleSignin) return;
   GoogleSignin.configure({
     webClientId: process.env.EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID,
   });
 }
 
 async function signInWithFirebaseCredential(credential: FirebaseAuthTypes.AuthCredential): Promise<void> {
+  if (!auth) return;
   await auth().signInWithCredential(credential);
 }
 
@@ -45,8 +60,13 @@ export async function initAuth(): Promise<void> {
   // 起動時にも設定しておく。
   configureGoogleSignin();
 
+  if (!auth) {
+    initialAuthResolved = true;
+    return;
+  }
+
   initPromise = new Promise((resolve) => {
-    auth().onAuthStateChanged((user) => {
+    auth!().onAuthStateChanged((user) => {
       currentUser = toAuthUser(user);
       notify();
       if (!initialAuthResolved) {
@@ -60,6 +80,9 @@ export async function initAuth(): Promise<void> {
 }
 
 export async function signInWithGoogle(): Promise<void> {
+  if (!auth || !GoogleSignin) {
+    throw new Error('Google sign-in is not available in Expo Go. Use a development build.');
+  }
   configureGoogleSignin();
   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
   await GoogleSignin.signIn();
@@ -70,11 +93,14 @@ export async function signInWithGoogle(): Promise<void> {
 }
 
 export async function signOutUser(): Promise<void> {
-  try {
-    await GoogleSignin.signOut();
-  } catch (e) {
-    console.error('signOutUser: Google sign-out failed', e);
+  if (GoogleSignin) {
+    try {
+      await GoogleSignin.signOut();
+    } catch (e) {
+      console.error('signOutUser: Google sign-out failed', e);
+    }
   }
+  if (!auth) return;
   await auth().signOut();
 }
 
