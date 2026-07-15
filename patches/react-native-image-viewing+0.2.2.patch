@@ -1,0 +1,37 @@
+diff --git a/node_modules/react-native-image-viewing/dist/components/ImageItem/ImageItem.ios.js b/node_modules/react-native-image-viewing/dist/components/ImageItem/ImageItem.ios.js
+index 0708505..9258141 100644
+--- a/node_modules/react-native-image-viewing/dist/components/ImageItem/ImageItem.ios.js
++++ b/node_modules/react-native-image-viewing/dist/components/ImageItem/ImageItem.ios.js
+@@ -16,13 +16,16 @@ const SWIPE_CLOSE_VELOCITY = 1.55;
+ const SCREEN = Dimensions.get("screen");
+ const SCREEN_WIDTH = SCREEN.width;
+ const SCREEN_HEIGHT = SCREEN.height;
++const HEADER_HEIGHT = 116;
++const FOOTER_HEIGHT = 160;
++const VIEWPORT = { width: SCREEN_WIDTH, height: SCREEN_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT };
+ const ImageItem = ({ imageSrc, onZoom, onRequestClose, onLongPress, delayLongPress, swipeToCloseEnabled = true, doubleTapToZoomEnabled = true, }) => {
+     const scrollViewRef = useRef(null);
+     const [loaded, setLoaded] = useState(false);
+     const [scaled, setScaled] = useState(false);
+     const imageDimensions = useImageDimensions(imageSrc);
+-    const handleDoubleTap = useDoubleTapToZoom(scrollViewRef, scaled, SCREEN);
+-    const [translate, scale] = getImageTransform(imageDimensions, SCREEN);
++    const handleDoubleTap = useDoubleTapToZoom(scrollViewRef, scaled, VIEWPORT);
++    const [translate, scale] = getImageTransform(imageDimensions, VIEWPORT);
+     const scrollValueY = new Animated.Value(0);
+     const scaleValue = new Animated.Value(scale || 1);
+     const translateValue = new Animated.ValueXY(translate);
+@@ -70,10 +73,11 @@ const ImageItem = ({ imageSrc, onZoom, onRequestClose, onLongPress, delayLongPre
+ const styles = StyleSheet.create({
+     listItem: {
+         width: SCREEN_WIDTH,
+-        height: SCREEN_HEIGHT,
++        height: VIEWPORT.height,
++        marginTop: HEADER_HEIGHT,
+     },
+     imageScrollContainer: {
+-        height: SCREEN_HEIGHT,
++        height: VIEWPORT.height,
+     },
+ });
+ export default React.memo(ImageItem);
