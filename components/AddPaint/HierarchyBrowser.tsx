@@ -31,12 +31,14 @@ interface Props {
   onSelectView: (paint: Paint) => void;
   // 一覧を最上部からさらに引っ張って離した時に親モーダルを閉じる
   onRequestClose?: () => void;
+  // paintType が指定された場合、ブランド/シリーズ/塗料の全階層をその種別のみに絞り込む
+  paintType?: string;
 }
 
 // 階層を横断して「すべて」を表す番兵。実データと衝突しない値。
 const ALL = 'ALL';
 
-export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClose }: Props) {
+export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClose, paintType }: Props) {
   const { colors } = useTheme();
   const { listFontSize } = useUiPrefs();
   const styles = useMemo(() => makeStyles(colors, listFontSize), [colors, listFontSize]);
@@ -50,10 +52,12 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
   const [nameFilter, setNameFilter] = useState('');
 
   useEffect(() => {
+    const where = paintType ? ' WHERE paint_type = ?' : '';
+    const args = paintType ? [paintType] : [];
     getDB().getAllAsync<{ brand: string }>(
-      'SELECT DISTINCT brand FROM catalog_paints ORDER BY brand'
+      'SELECT DISTINCT brand FROM catalog_paints' + where + ' ORDER BY brand', args
     ).then((rows) => setBrands(rows.map((r) => r.brand)));
-  }, []);
+  }, [paintType]);
 
   // brand/series が ALL のときはその条件を外して階層下を全件取得。
   const loadPaints = async (brand: string, series: string) => {
@@ -61,6 +65,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
     const args: string[] = [];
     if (brand !== ALL) { where.push('brand = ?'); args.push(brand); }
     if (series !== ALL) { where.push('series = ?'); args.push(series); }
+    if (paintType) { where.push('paint_type = ?'); args.push(paintType); }
     const sql = 'SELECT id, name_ja, name_en, code, brand, series, series_en, hex, gloss, paint_type FROM catalog_paints'
       + (where.length ? ' WHERE ' + where.join(' AND ') : '')
       + ' ORDER BY code COLLATE NOCASE';
@@ -78,9 +83,12 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
     setPaints([]);
     if (brand === ALL) { setSelectedSeries(ALL); loadPaints(ALL, ALL); return; }
     setSelectedSeries(null);
+    const where = ['brand = ?'];
+    const args: string[] = [brand];
+    if (paintType) { where.push('paint_type = ?'); args.push(paintType); }
     const rows = await getDB().getAllAsync<{ series: string; series_en: string | null }>(
-      'SELECT series, MAX(series_en) AS series_en FROM catalog_paints WHERE brand = ? GROUP BY series ORDER BY series',
-      [brand]
+      'SELECT series, MAX(series_en) AS series_en FROM catalog_paints WHERE ' + where.join(' AND ') + ' GROUP BY series ORDER BY series',
+      args
     );
     setSeriesList(rows);
   };
@@ -107,8 +115,11 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
   if (!selectedBrand) {
     return (
       <FlatList
+        style={{ flex: 1 }}
         data={[ALL, ...brands]}
         {...closeProps}
+        contentContainerStyle={{ flexGrow: 1 }}
+        alwaysBounceVertical
         keyExtractor={(b) => b}
         renderItem={({ item }) => (
           <TouchableOpacity style={[styles.item, item === ALL && styles.allItem]} onPress={() => selectBrand(item)}>
@@ -129,8 +140,11 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
             <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
           </TouchableOpacity>
           <FlatList
+            style={{ flex: 1 }}
             data={[{ series: ALL, series_en: null }, ...seriesList]}
             {...closeProps}
+            contentContainerStyle={{ flexGrow: 1 }}
+            alwaysBounceVertical
             keyExtractor={(s) => s.series}
             renderItem={({ item }) => (
               <TouchableOpacity style={[styles.item, item.series === ALL && styles.allItem]} onPress={() => selectSeries(item.series)}>
@@ -158,8 +172,11 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
         onChangeText={setNameFilter}
       />
       <FlatList
+        style={{ flex: 1 }}
         data={shownPaints}
         {...closeProps}
+        contentContainerStyle={{ flexGrow: 1 }}
+        alwaysBounceVertical
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         keyExtractor={(p) => String(p.id)}

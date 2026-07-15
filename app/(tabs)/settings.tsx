@@ -1,15 +1,15 @@
 // app/(tabs)/settings.tsx
-import { useCallback, useMemo, useState } from 'react';
-import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import { IconChevronDown, IconChevronUp } from '@tabler/icons-react-native';
-import { useFocusEffect } from 'expo-router';
-import { getDB, getDefaultBoxId, getCatalogAppliedVersion, resetCatalogToMaster, setSetting } from '../../lib/db';
-import { checkForCatalogUpdate, downloadAndApplyCatalogUpdate, CatalogManifest, CatalogUpdateStage } from '../../lib/catalogUpdate';
+import { useMemo, useState } from 'react';
+import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { getDB, resetCatalogToMaster, setSetting } from '../../lib/db';
+import { notifyBoxesChanged, setActiveBox } from '../../lib/activeBox';
+import { notifyKitBoxesChanged, setActiveKitBox } from '../../lib/activeKitBox';
+import { deleteKitPhoto } from '../../lib/kitPhoto';
+import { router } from 'expo-router';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
-import { useUiPrefs, setFabSide, setListFontSize } from '../../lib/uiPrefs';
-
-interface Box { id: number; name: string; }
+import { useUiPrefs, setActionOrder, setListFontSize } from '../../lib/uiPrefs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
   { value: 'light', labelKey: 'themeLight' },
@@ -20,81 +20,9 @@ const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
 export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
   const { colors, mode } = useTheme();
-  const { fabSide, listFontSize } = useUiPrefs();
+  const { actionOrder, listFontSize } = useUiPrefs();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [boxes, setBoxes] = useState<Box[]>([]);
-  const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
-  const [boxPickerOpen, setBoxPickerOpen] = useState(false);
-
-  const [catalogVersion, setCatalogVersion] = useState<number | null>(null);
-  const [catalogManifest, setCatalogManifest] = useState<CatalogManifest | null>(null);
-  const [catalogChecking, setCatalogChecking] = useState(false);
-  const [catalogCheckMessage, setCatalogCheckMessage] = useState<string | null>(null);
-  const [catalogUpdateStage, setCatalogUpdateStage] = useState<CatalogUpdateStage | null>(null);
-
-  const loadBoxes = useCallback(async () => {
-    const db = getDB();
-    setBoxes(await db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'));
-    setDefaultBoxId(await getDefaultBoxId());
-  }, []);
-
-  const loadCatalogVersion = useCallback(async () => {
-    setCatalogVersion(await getCatalogAppliedVersion());
-  }, []);
-
-  useFocusEffect(useCallback(() => { loadBoxes(); loadCatalogVersion(); }, [loadBoxes, loadCatalogVersion]));
-
-  const handleCheckForUpdate = async () => {
-    setCatalogChecking(true);
-    setCatalogCheckMessage(null);
-    try {
-      const { available, manifest } = await checkForCatalogUpdate(true);
-      if (available && manifest) {
-        setCatalogManifest(manifest);
-        setCatalogCheckMessage(`${t('catalogUpdateAvailable')} (v${manifest.version})`);
-      } else {
-        setCatalogManifest(null);
-        setCatalogCheckMessage(t('catalogUpToDate'));
-      }
-    } catch {
-      setCatalogManifest(null);
-      setCatalogCheckMessage(t('catalogCheckFailed'));
-    } finally {
-      setCatalogChecking(false);
-    }
-  };
-
-  const handleUpdateNow = async () => {
-    if (!catalogManifest) return;
-    const manifest = catalogManifest;
-    setCatalogUpdateStage('downloading');
-    try {
-      await downloadAndApplyCatalogUpdate(manifest, setCatalogUpdateStage);
-      setCatalogManifest(null);
-      setCatalogCheckMessage(null);
-      await loadCatalogVersion();
-      Alert.alert(t('catalogUpdateSuccess'), `v${manifest.version}`);
-    } catch {
-      Alert.alert(t('catalogUpdateFailed'));
-    } finally {
-      setCatalogUpdateStage(null);
-    }
-  };
-
-  const catalogUpdateStageLabel = (stage: CatalogUpdateStage): string => {
-    if (stage === 'downloading') return t('catalogDownloading');
-    if (stage === 'verifying') return t('catalogVerifying');
-    return t('catalogApplying');
-  };
-
-  const chooseDefaultBox = async (boxId: number) => {
-    setDefaultBoxId(boxId);
-    setBoxPickerOpen(false);
-    await setSetting('default_box_id', String(boxId));
-  };
-
-  const defaultBoxName = boxes.find((b) => b.id === defaultBoxId)?.name ?? '';
-
   const toggleLang = (val: boolean) => {
     setIsJa(val);
     setLocale(val ? 'ja' : 'en');
@@ -112,8 +40,34 @@ export default function SettingsScreen() {
     await db.runAsync('DELETE FROM inventory');
     await db.runAsync('DELETE FROM boxes');
     const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', ['Box']);
-    await setSetting('default_box_id', String(res.lastInsertRowId));
-    await loadBoxes();
+    const boxId = Number(res.lastInsertRowId);
+    await setSetting('default_box_id', String(boxId));
+    setActiveBox(boxId);
+    notifyBoxesChanged();
+    router.navigate({ pathname: '/owned', params: { boxId: String(boxId), boxName: 'Box' } });
+  });
+
+  const resetKits = () => confirmReset(t('resetKits'), async () => {
+    const db = getDB();
+    const photos = await db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos');
+    let boxId = 0;
+    await db.withTransactionAsync(async () => {
+      await db.runAsync('DELETE FROM kit_color_paints');
+      await db.runAsync('DELETE FROM kit_colors');
+      await db.runAsync('DELETE FROM kit_photos');
+      await db.runAsync('DELETE FROM kits');
+      await db.runAsync('DELETE FROM kit_boxes');
+      const res = await db.runAsync('INSERT INTO kit_boxes (name) VALUES (?)', ['Box']);
+      boxId = Number(res.lastInsertRowId);
+      await db.runAsync(
+        'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+        ['default_kit_box_id', String(boxId)]
+      );
+    });
+    for (const { uri } of photos) await deleteKitPhoto(uri);
+    notifyKitBoxesChanged();
+    setActiveKitBox(boxId);
+    router.navigate({ pathname: '/kits', params: { boxId: String(boxId), boxName: 'Box' } });
   });
 
   const resetFavorites = () => confirmReset(t('resetFavorites'), async () => {
@@ -127,12 +81,12 @@ export default function SettingsScreen() {
   const resetCatalog = () => confirmReset(t('resetCatalog'), resetCatalogToMaster);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('language')}</Text>
         <View style={styles.langRow}>
           <Text style={{ color: colors.text }}>EN</Text>
-          <Switch value={isJa} onValueChange={toggleLang} style={{ marginHorizontal: 8 }} />
+          <Switch value={isJa} onValueChange={toggleLang} style={{ marginHorizontal: 8 }} accessibilityLabel={t('language')} />
           <Text style={{ color: colors.text }}>JA</Text>
         </View>
       </View>
@@ -144,6 +98,8 @@ export default function SettingsScreen() {
               key={opt.value}
               style={[styles.themeBtn, mode === opt.value && styles.themeBtnOn]}
               onPress={() => setThemeMode(opt.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: mode === opt.value }}
             >
               <Text style={[styles.themeBtnText, mode === opt.value && styles.themeBtnTextOn]} numberOfLines={1}>{t(opt.labelKey)}</Text>
             </TouchableOpacity>
@@ -151,16 +107,13 @@ export default function SettingsScreen() {
         </View>
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('fabPosition')}</Text>
+        <Text style={styles.sectionTitle}>{t('actionOrder')}</Text>
         <View style={styles.themeRow}>
-          <TouchableOpacity style={[styles.themeBtn, fabSide === 'left' && styles.themeBtnOn]} onPress={() => setFabSide('left')}>
-            <Text style={[styles.themeBtnText, fabSide === 'left' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionLeft')}</Text>
+          <TouchableOpacity style={[styles.themeBtn, actionOrder === 'normal' && styles.themeBtnOn]} onPress={() => setActionOrder('normal')}>
+            <Text style={[styles.themeBtnText, actionOrder === 'normal' && styles.themeBtnTextOn]} numberOfLines={1}>{t('actionOrderNormal')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.themeBtn, fabSide === 'right' && styles.themeBtnOn]} onPress={() => setFabSide('right')}>
-            <Text style={[styles.themeBtnText, fabSide === 'right' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionRight')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.themeBtn, fabSide === 'bottom' && styles.themeBtnOn]} onPress={() => setFabSide('bottom')}>
-            <Text style={[styles.themeBtnText, fabSide === 'bottom' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionBottom')}</Text>
+          <TouchableOpacity style={[styles.themeBtn, actionOrder === 'reverse' && styles.themeBtnOn]} onPress={() => setActionOrder('reverse')}>
+            <Text style={[styles.themeBtnText, actionOrder === 'reverse' && styles.themeBtnTextOn]} numberOfLines={1}>{t('actionOrderReverse')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -179,59 +132,12 @@ export default function SettingsScreen() {
         </View>
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('defaultBox')}</Text>
-        <TouchableOpacity style={styles.dropdown} onPress={() => setBoxPickerOpen((o) => !o)}>
-          <Text style={styles.dropdownLabel}>{defaultBoxName}</Text>
-          {boxPickerOpen
-            ? <IconChevronUp size={16} color={colors.textFaint} />
-            : <IconChevronDown size={16} color={colors.textFaint} />}
-        </TouchableOpacity>
-        {boxPickerOpen && (
-          <ScrollView style={styles.dropdownList} nestedScrollEnabled>
-            {boxes.map((b) => (
-              <TouchableOpacity key={b.id} style={styles.dropdownItem} onPress={() => chooseDefaultBox(b.id)}>
-                <Text style={[styles.dropdownItemText, defaultBoxId === b.id && styles.dropdownItemTextOn]}>{b.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
-      </View>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('catalogSection')}</Text>
-        <Text style={styles.catalogVersionText}>
-          {t('catalogCurrentVersion')}: {catalogVersion !== null ? `v${catalogVersion}` : '-'}
-        </Text>
-        {catalogCheckMessage && (
-          <Text style={styles.catalogCheckMessage}>{catalogCheckMessage}</Text>
-        )}
-        <TouchableOpacity
-          style={[styles.themeBtn, { marginRight: 0, marginBottom: spacing.md }]}
-          onPress={handleCheckForUpdate}
-          disabled={catalogChecking || catalogUpdateStage !== null}
-        >
-          {catalogChecking
-            ? <ActivityIndicator color={colors.textSecondary} />
-            : <Text style={styles.themeBtnText}>{t('checkForUpdate')}</Text>}
-        </TouchableOpacity>
-        {catalogManifest && (
-          <TouchableOpacity
-            style={[styles.themeBtn, styles.themeBtnOn, { marginRight: 0 }]}
-            onPress={handleUpdateNow}
-            disabled={catalogUpdateStage !== null}
-          >
-            {catalogUpdateStage
-              ? <ActivityIndicator color={colors.onPrimary} />
-              : <Text style={[styles.themeBtnText, styles.themeBtnTextOn]}>{t('updateNow')}</Text>}
-          </TouchableOpacity>
-        )}
-        {catalogUpdateStage && (
-          <Text style={styles.catalogCheckMessage}>{catalogUpdateStageLabel(catalogUpdateStage)}</Text>
-        )}
-      </View>
-      <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('reset')}</Text>
         <TouchableOpacity style={styles.resetBtn} onPress={resetOwned}>
           <Text style={styles.resetBtnText}>{t('resetOwned')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.resetBtn} onPress={resetKits}>
+          <Text style={styles.resetBtnText}>{t('resetKits')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.resetBtn} onPress={resetFavorites}>
           <Text style={styles.resetBtnText}>{t('resetFavorites')}</Text>
@@ -258,14 +164,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   themeBtnOn: { backgroundColor: colors.primary },
   themeBtnText: { color: colors.textSecondary },
   themeBtnTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
-  catalogVersionText: { color: colors.textSecondary, marginBottom: spacing.sm },
-  catalogCheckMessage: { color: colors.textSecondary, marginBottom: spacing.md },
   resetBtn: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
   resetBtnText: { color: colors.danger, fontWeight: 'bold', textAlign: 'center' },
-  dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg },
-  dropdownLabel: { fontSize: 16, color: colors.text },
-  dropdownList: { borderWidth: 1, borderColor: colors.border, borderTopWidth: 0, borderBottomLeftRadius: radius.sm, borderBottomRightRadius: radius.sm, maxHeight: 220 },
-  dropdownItem: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.borderLight },
-  dropdownItemText: { fontSize: 15, color: colors.text },
-  dropdownItemTextOn: { color: colors.primary, fontWeight: 'bold' },
 });

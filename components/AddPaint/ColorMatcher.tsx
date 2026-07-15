@@ -1,7 +1,7 @@
 // components/AddPaint/ColorMatcher.tsx
 import { useEffect, useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
-import { IconCamera, IconPlus } from '@tabler/icons-react-native';
+import { IconCamera, IconPlus, IconChevronDown, IconChevronUp } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
 import ColorCameraPicker from '../ColorCameraPicker';
 import { getDB, getOwnedCountMap } from '../../lib/db';
@@ -36,9 +36,11 @@ interface Props {
   onSelectView: (paint: Paint) => void;
   // 一覧を最上部からさらに引っ張って離した時に親モーダルを閉じる
   onRequestClose?: () => void;
+  // 指定時、塗料種別フィルタをこの1種類に固定し、種別チップUIを非表示にする
+  lockedPaintType?: string;
 }
 
-export default function ColorMatcher({ onSelect, onSelectView, onRequestClose }: Props) {
+export default function ColorMatcher({ onSelect, onSelectView, onRequestClose, lockedPaintType }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const closeProps = onRequestClose ? swipeDownCloseProps(onRequestClose) : undefined;
@@ -49,7 +51,9 @@ export default function ColorMatcher({ onSelect, onSelectView, onRequestClose }:
   const [glossOptions, setGlossOptions] = useState<string[]>([]);
   const [selectedGloss, setSelectedGloss] = useState<string[]>([]);
   const [typeOptions, setTypeOptions] = useState<string[]>([]);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(lockedPaintType ? [lockedPaintType] : []);
+  const [glossOpen, setGlossOpen] = useState(false);
+  const [typeOpen, setTypeOpen] = useState(false);
   const canMatchHex = isValidHex(hex);
 
   useEffect(() => {
@@ -122,7 +126,7 @@ export default function ColorMatcher({ onSelect, onSelectView, onRequestClose }:
         <TouchableOpacity
           style={styles.cameraBtn}
           onPress={() => setColorPickerVisible(true)}
-          accessibilityLabel="カメラで色を取得"
+          accessibilityLabel={t('pickColorWithCamera')}
         >
           <IconCamera color={colors.primary} size={22} />
         </TouchableOpacity>
@@ -134,41 +138,64 @@ export default function ColorMatcher({ onSelect, onSelectView, onRequestClose }:
           <Text style={styles.btnText}>{t('colorMatch')}</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.glossSectionLabel}>{t('gloss')}</Text>
-      <View style={styles.chipRow}>
-        {glossOptions.map((g) => {
-          const selected = selectedGloss.includes(g);
-          return (
-            <TouchableOpacity
-              key={g}
-              style={[styles.chip, { backgroundColor: selected ? colors.primary : colors.chip }]}
-              onPress={() => toggleGloss(g)}
-            >
-              <Text style={[styles.chipText, { color: selected ? colors.onPrimary : colors.text }]}>{glossLabel(g)}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      <Text style={styles.glossSectionLabel}>{t('paintType')}</Text>
-      <View style={styles.chipRow}>
-        {typeOptions.map((p) => {
-          const selected = selectedTypes.includes(p);
-          return (
-            <TouchableOpacity
-              key={p}
-              style={[styles.chip, { backgroundColor: selected ? colors.primary : colors.chip }]}
-              onPress={() => toggleType(p)}
-            >
-              <Text style={[styles.chipText, { color: selected ? colors.onPrimary : colors.text }]}>{paintTypeLabel(p)}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      <TouchableOpacity style={styles.dropdown} onPress={() => setGlossOpen((o) => !o)}>
+        <Text style={styles.dropdownLabel}>
+          {t('gloss')}{selectedGloss.length ? ` (${selectedGloss.length})` : ''}
+        </Text>
+        {glossOpen
+          ? <IconChevronUp size={16} color={colors.textFaint} />
+          : <IconChevronDown size={16} color={colors.textFaint} />}
+      </TouchableOpacity>
+      {glossOpen && (
+        <View style={styles.chipRow}>
+          {glossOptions.map((g) => {
+            const selected = selectedGloss.includes(g);
+            return (
+              <TouchableOpacity
+                key={g}
+                style={[styles.chip, { backgroundColor: selected ? colors.primary : colors.chip }]}
+                onPress={() => toggleGloss(g)}
+              >
+                <Text style={[styles.chipText, { color: selected ? colors.onPrimary : colors.text }]}>{glossLabel(g)}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+      {!lockedPaintType && (
+        <TouchableOpacity style={styles.dropdown} onPress={() => setTypeOpen((o) => !o)}>
+          <Text style={styles.dropdownLabel}>
+            {t('paintType')}{selectedTypes.length ? ` (${selectedTypes.length})` : ''}
+          </Text>
+          {typeOpen
+            ? <IconChevronUp size={16} color={colors.textFaint} />
+            : <IconChevronDown size={16} color={colors.textFaint} />}
+        </TouchableOpacity>
+      )}
+      {!lockedPaintType && typeOpen && (
+        <View style={styles.chipRow}>
+          {typeOptions.map((p) => {
+            const selected = selectedTypes.includes(p);
+            return (
+              <TouchableOpacity
+                key={p}
+                style={[styles.chip, { backgroundColor: selected ? colors.primary : colors.chip }]}
+                onPress={() => toggleType(p)}
+              >
+                <Text style={[styles.chipText, { color: selected ? colors.onPrimary : colors.text }]}>{paintTypeLabel(p)}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
 
       {results.length > 0 && <Text style={styles.label}>{t('topMatches')}</Text>}
       <FlatList
+        style={{ flex: 1 }}
         data={results}
         {...closeProps}
+        contentContainerStyle={{ flexGrow: 1 }}
+        alwaysBounceVertical
         keyExtractor={(item) => String(item.id)}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
@@ -205,8 +232,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   btn: { backgroundColor: colors.primary, paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.sm, minHeight: touch.min, justifyContent: 'center' },
   btnDisabled: { backgroundColor: colors.primaryDisabled },
   btnText: { color: colors.onPrimary, fontSize: 13 },
-  glossSectionLabel: { fontSize: 12, color: colors.textFaint, marginBottom: spacing.sm },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.lg },
+  dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.md, borderTopWidth: 1, borderColor: colors.borderLight },
+  dropdownLabel: { fontSize: 14, color: colors.text },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.md, marginBottom: spacing.lg },
   chip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, marginRight: spacing.md, marginBottom: spacing.md },
   chipText: { fontSize: 13 },
   addBtn: { width: touch.min, height: touch.min, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },

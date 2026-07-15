@@ -7,6 +7,7 @@ export interface ActionSheetButton {
   text: string;
   onPress?: () => void;
   style?: 'default' | 'cancel' | 'destructive';
+  disabled?: boolean;
 }
 
 interface Props {
@@ -15,9 +16,12 @@ interface Props {
   message?: string;
   buttons: ActionSheetButton[];
   onClose: () => void;
+  // iOSのみ: モーダルが完全に閉じ終わった後に呼ばれる。閉じきる前に別のネイティブUI
+  // (カメラ/ギャラリー等)を起動すると出てこないことがあるため、そういう用途で使う。
+  onDismiss?: () => void;
 }
 
-export default function ActionSheet({ visible, title, message, buttons, onClose }: Props) {
+export default function ActionSheet({ visible, title, message, buttons, onClose, onDismiss }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const press = (btn: ActionSheetButton) => {
@@ -29,7 +33,7 @@ export default function ActionSheet({ visible, title, message, buttons, onClose 
   const hasHeader = !!(title || message);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
       <SafeAreaProvider>
         <Pressable style={styles.backdrop} onPress={onClose}>
           <SafeAreaView edges={['bottom']} style={styles.sheetWrap}>
@@ -44,8 +48,9 @@ export default function ActionSheet({ visible, title, message, buttons, onClose 
                 {mainButtons.map((b, i) => (
                   <TouchableOpacity
                     key={i}
-                    style={[styles.row, (i > 0 || hasHeader) && styles.rowBorder]}
+                    style={[styles.row, (i > 0 || hasHeader) && styles.rowBorder, b.disabled && styles.disabledRow]}
                     onPress={() => press(b)}
+                    disabled={b.disabled}
                   >
                     <Text style={[styles.rowText, b.style === 'destructive' && styles.destructiveText]}>{b.text}</Text>
                   </TouchableOpacity>
@@ -75,6 +80,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   // iOSでは効かず、文字が枠の上端に張り付いて見える)。
   cancelCard: { marginTop: spacing.sm, minHeight: touch.min, alignItems: 'center', justifyContent: 'center' },
   row: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
+  disabledRow: { opacity: 0.35 },
   rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   rowText: { fontSize: 17, color: colors.primary },
   destructiveText: { color: colors.danger },

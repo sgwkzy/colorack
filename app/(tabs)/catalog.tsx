@@ -5,7 +5,7 @@ import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconPalette } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
-import { getDB, getOwnedCountMap } from '../../lib/db';
+import { deletePaint, getDB, getOwnedCountMap } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { paintName, seriesLabel } from '../../lib/paintLabel';
@@ -98,10 +98,7 @@ export default function CatalogScreen() {
       {
         text: t('delete'), style: 'destructive',
         onPress: async () => {
-          const db = getDB();
-          await db.runAsync('DELETE FROM inventory WHERE paint_id = ?', [p.id]);
-          await db.runAsync('DELETE FROM lists WHERE paint_id = ?', [p.id]);
-          await db.runAsync('DELETE FROM catalog_paints WHERE id = ?', [p.id]);
+          await deletePaint(p.id);
           loadPaints(selectedBrand!, selectedSeries!);
         },
       },
@@ -218,7 +215,7 @@ const makeStyles = (colors: typeof lightColors, fabSide: FabSide, listFontSize: 
   const NAV_TEXT_SIZE: Record<ListFontSize, number> = { small: 14, medium: 16, large: 18 };
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginVertical: spacing.sm },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },
   navText: { flex: 1, fontSize: NAV_TEXT_SIZE[listFontSize], color: colors.text },

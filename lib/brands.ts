@@ -6,10 +6,11 @@ const BRAND_NAMES: Record<string, { ja: string; en: string }> = {
   gsi_creos: { ja: 'GSIクレオス', en: 'GSI Creos' },
   tamiya: { ja: 'タミヤ', en: 'Tamiya' },
   gaianotes: { ja: 'ガイアノーツ', en: 'Gaianotes' },
-  games_workshop: { ja: 'ゲームズワークショップ', en: 'Games Workshop' },
+  gamesworkshop: { ja: 'ゲームズワークショップ', en: 'Games Workshop' },
   finishers: { ja: 'フィニッシャーズ', en: 'Finishers' },
   vallejo: { ja: 'ファレホ', en: 'Vallejo' },
   bornpaint: { ja: 'ボーンペイント', en: 'Bornpaint' },
+  modelkasten: { ja: 'モデルカステン', en: 'Modelkasten' },
 };
 
 function prettify(slug: string): string {
