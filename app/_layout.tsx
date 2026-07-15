@@ -9,6 +9,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import { initAppMode } from '../lib/appMode';
 import { initDB } from '../lib/db';
+import { checkForCatalogUpdate, downloadAndApplyCatalogUpdate } from '../lib/catalogUpdate';
 import { initTheme, useTheme } from '../lib/theme';
 import { initLocale } from '../lib/i18n';
 import { initLastScreen } from '../lib/lastScreen';
@@ -34,6 +35,9 @@ export default function RootLayout() {
         if (mobileAds) await mobileAds().initialize().catch(console.warn);
         await initDB();
         await Promise.all([initTheme(), initLocale(), initUiPrefs(), initAppMode(), initLastScreen()]);
+        void checkForCatalogUpdate(true).then(({ available, manifest }) => {
+          if (available && manifest) return downloadAndApplyCatalogUpdate(manifest);
+        }).catch(console.warn);
       } catch (error) {
         console.error(error);
         setInitFailed(true);
