@@ -249,13 +249,17 @@ async function upsertCatalogFromSeed(db: SQLite.SQLiteDatabase): Promise<void> {
     }
     // 洗い替え: 新シードに無い旧カタログ行のうち、在庫/リストから参照されていない
     // ものを掃除する(参照中の行は id を壊さないため残す)。
-    const catalogCodes = seed.map((p) => catalogCode(p.brand, p.series, p.code));
-    const placeholders = catalogCodes.map(() => '?').join(',');
+    await db.execAsync('CREATE TEMP TABLE IF NOT EXISTS seed_catalog_codes (catalog_code TEXT PRIMARY KEY)');
+    await db.runAsync('DELETE FROM seed_catalog_codes');
+    for (const paint of seed) await db.runAsync(
+      'INSERT INTO seed_catalog_codes (catalog_code) VALUES (?)',
+      [catalogCode(paint.brand, paint.series, paint.code)]
+    );
     await db.runAsync(
-      `DELETE FROM catalog_paints WHERE catalog_code NOT IN (${placeholders})` +
+      'DELETE FROM catalog_paints WHERE catalog_code NOT IN (SELECT catalog_code FROM seed_catalog_codes)' +
       ' AND id NOT IN (SELECT paint_id FROM inventory)' +
-      ' AND id NOT IN (SELECT paint_id FROM lists)',
-      catalogCodes
+      ' AND id NOT IN (SELECT paint_id FROM lists)' +
+      ' AND id NOT IN (SELECT paint_id FROM kit_color_paints)',
     );
   });
 }
@@ -264,10 +268,49 @@ async function upsertCatalogFromSeed(db: SQLite.SQLiteDatabase): Promise<void> {
 // 公式カタログはシードの内容(未編集の状態)へ戻す。
 export async function resetCatalogToMaster(): Promise<void> {
   const db = getDB();
-  await db.runAsync("DELETE FROM inventory WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
-  await db.runAsync("DELETE FROM lists WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
-  await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
+  await db.withTransactionAsync(async () => {
+    await db.runAsync("DELETE FROM inventory WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await db.runAsync("DELETE FROM lists WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await db.runAsync("DELETE FROM kit_color_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await db.runAsync('DELETE FROM kit_colors WHERE id NOT IN (SELECT DISTINCT kit_color_id FROM kit_color_paints)');
+    await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
+  });
   await upsertCatalogFromSeed(db);
+}
+
+export async function getCatalogAppliedVersion(): Promise<number> {
+  return Number(await getSetting('catalog_applied_version')) || SEED_VERSION;
+}
+
+export async function applyCatalogUpdate(rows: SeedRow[], version: number): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    await db.execAsync('CREATE TEMP TABLE IF NOT EXISTS catalog_update_codes (catalog_code TEXT PRIMARY KEY)');
+    await db.runAsync('DELETE FROM catalog_update_codes');
+    for (const p of rows) {
+      const code = catalogCode(p.brand, p.series, p.code);
+      await db.runAsync(
+        'INSERT INTO catalog_paints (catalog_code,brand,series,series_en,code,name_ja,name_en,hex,r,g,b,l,a_star,b_star,barcode,gloss,paint_type,source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(catalog_code) DO UPDATE SET brand=excluded.brand,series=excluded.series,series_en=excluded.series_en,code=excluded.code,name_ja=excluded.name_ja,name_en=excluded.name_en,hex=excluded.hex,r=excluded.r,g=excluded.g,b=excluded.b,l=excluded.l,a_star=excluded.a_star,b_star=excluded.b_star,barcode=excluded.barcode,gloss=excluded.gloss,paint_type=excluded.paint_type,source=excluded.source',
+        [code, p.brand, p.series, p.series_en, p.code, p.name_ja, p.name_en, p.hex, p.rgb_r, p.rgb_g, p.rgb_b, p.lab_l, p.lab_a, p.lab_b, p.barcode, p.gloss, p.paint_type, 'catalog']
+      );
+      await db.runAsync('INSERT INTO catalog_update_codes (catalog_code) VALUES (?)', [code]);
+    }
+    await db.execAsync("DELETE FROM catalog_paints WHERE source = 'catalog' AND catalog_code NOT IN (SELECT catalog_code FROM catalog_update_codes) AND id NOT IN (SELECT paint_id FROM inventory) AND id NOT IN (SELECT paint_id FROM lists) AND id NOT IN (SELECT paint_id FROM kit_color_paints)");
+    await setSetting('catalog_applied_version', String(version));
+    await db.execAsync(`PRAGMA user_version = ${version}`);
+  });
+}
+
+// 塗料削除時は、在庫・リスト・混色レシピの参照を同時に消して孤児を作らない。
+export async function deletePaint(paintId: number): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM inventory WHERE paint_id = ?', [paintId]);
+    await db.runAsync('DELETE FROM lists WHERE paint_id = ?', [paintId]);
+    await db.runAsync('DELETE FROM kit_color_paints WHERE paint_id = ?', [paintId]);
+    await db.runAsync('DELETE FROM kit_colors WHERE id NOT IN (SELECT DISTINCT kit_color_id FROM kit_color_paints)');
+    await db.runAsync('DELETE FROM catalog_paints WHERE id = ?', [paintId]);
+  });
 }
 
 // --- 設定(キー値) ---

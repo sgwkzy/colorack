@@ -9,10 +9,12 @@ import * as SplashScreen from 'expo-splash-screen';
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import { initAppMode } from '../lib/appMode';
 import { initDB } from '../lib/db';
+import { checkForCatalogUpdate, downloadAndApplyCatalogUpdate } from '../lib/catalogUpdate';
 import { initTheme, useTheme } from '../lib/theme';
 import { initLocale } from '../lib/i18n';
 import { initLastScreen } from '../lib/lastScreen';
 import { initUiPrefs } from '../lib/uiPrefs';
+import mobileAds from '../lib/mobileAds';
 
 void SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({ duration: 200, fade: true });
@@ -30,8 +32,12 @@ export default function RootLayout() {
   useEffect(() => {
     const initialize = async () => {
       try {
+        if (mobileAds) await mobileAds().initialize().catch(console.warn);
         await initDB();
         await Promise.all([initTheme(), initLocale(), initUiPrefs(), initAppMode(), initLastScreen()]);
+        void checkForCatalogUpdate(true).then(({ available, manifest }) => {
+          if (available && manifest) return downloadAndApplyCatalogUpdate(manifest);
+        }).catch(console.warn);
       } catch (error) {
         console.error(error);
         setInitFailed(true);

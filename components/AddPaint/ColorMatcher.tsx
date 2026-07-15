@@ -126,7 +126,7 @@ export default function ColorMatcher({ onSelect, onSelectView, onRequestClose, l
         <TouchableOpacity
           style={styles.cameraBtn}
           onPress={() => setColorPickerVisible(true)}
-          accessibilityLabel="カメラで色を取得"
+          accessibilityLabel={t('pickColorWithCamera')}
         >
           <IconCamera color={colors.primary} size={22} />
         </TouchableOpacity>

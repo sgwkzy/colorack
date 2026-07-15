@@ -60,9 +60,7 @@ export default function BoxOptions() {
     router.navigate({ pathname: '/owned', params: { boxId: String(nextDefault.id), boxName: nextDefault.name } });
   };
 
-  const confirmDelete = () => Alert.alert(box.name, locale === 'ja'
-    ? 'このボックスを削除しますか？登録されている塗料もすべて削除され、この操作は元に戻せません。'
-    : 'Delete this box? All paints registered in it will also be deleted. This cannot be undone.', [
+  const confirmDelete = () => Alert.alert(box.name, t('deleteBoxConfirm'), [
     { text: t('cancel'), style: 'cancel' },
     { text: t('delete'), style: 'destructive', onPress: remove },
   ]);
