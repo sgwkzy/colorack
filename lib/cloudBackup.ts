@@ -1,9 +1,13 @@
 import { AppState, AppStateStatus } from 'react-native';
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
-import { catalogCode, getDB, getSetting, PaintStatus, setSetting } from './db';
+import { catalogCode, getDB, getSetting, KitStatus, PaintStatus, setSetting } from './db';
+import { deleteKitPhoto } from './kitPhoto';
 
-const BACKUP_SCHEMA_VERSION = 1;
+// v2: kit_boxes/kits/kit_colors/kit_color_paints(キット管理機能)を追加。
+// v1スナップショットにはこれらのフィールドが無いため、復元側は `?? []` で
+// optional に扱い、キット部分が空のまま復元されても壊れないようにする。
+const BACKUP_SCHEMA_VERSION = 2;
 const LAST_BACKUP_AT_KEY = 'last_backup_at';
 
 interface BoxRow {
@@ -57,6 +61,48 @@ interface ListRow {
   added_at: string | null;
 }
 
+interface KitBoxRow {
+  id: number;
+  name: string;
+  icon: string;
+  icon_color: string;
+  sort_order: number;
+}
+
+interface KitRow {
+  id: number;
+  box_id: number | null;
+  name: string;
+  maker: string;
+  series: string | null;
+  category: string | null;
+  scale: string | null;
+  note: string | null;
+  price: number | null;
+  status: KitStatus;
+  added_at: string | null;
+  status_changed_at: string | null;
+}
+
+interface KitColorRow {
+  id: number;
+  kit_id: number;
+  name: string | null;
+  note: string | null;
+  sort_order: number;
+  added_at: string | null;
+}
+
+interface KitColorPaintRow {
+  kit_color_id: number;
+  catalog_code: string | null;
+  brand: string;
+  series: string;
+  code: string;
+  ratio: number;
+  sort_order: number;
+}
+
 export interface BackupBox {
   localRef: string;
   name: string;
@@ -105,6 +151,45 @@ export interface BackupListItem {
   added_at: string | null;
 }
 
+export interface BackupKitBox {
+  localRef: string;
+  name: string;
+  icon: string;
+  icon_color: string;
+  sort_order: number;
+}
+
+export interface BackupKit {
+  localRef: string;
+  kitBoxLocalRef: string | null;
+  name: string;
+  maker: string;
+  series: string | null;
+  category: string | null;
+  scale: string | null;
+  note: string | null;
+  price: number | null;
+  status: KitStatus;
+  added_at: string | null;
+  status_changed_at: string | null;
+}
+
+export interface BackupKitColor {
+  localRef: string;
+  kitLocalRef: string;
+  name: string | null;
+  note: string | null;
+  sort_order: number;
+  added_at: string | null;
+}
+
+export interface BackupKitColorPaint {
+  kitColorLocalRef: string;
+  catalog_code: string;
+  ratio: number;
+  sort_order: number;
+}
+
 export interface BackupSnapshot {
   schemaVersion: number;
   updatedAt?: unknown;
@@ -115,6 +200,12 @@ export interface BackupSnapshot {
   favorites: BackupListItem[];
   wishlist: BackupListItem[];
   defaultBoxLocalRef: string | null;
+  // v2で追加。v1スナップショットには存在しないため optional。
+  kitBoxes?: BackupKitBox[];
+  kits?: BackupKit[];
+  kitColors?: BackupKitColor[];
+  kitColorPaints?: BackupKitColorPaint[];
+  defaultKitBoxLocalRef?: string | null;
 }
 
 function paintCatalogCode(row: { catalog_code: string | null; brand: string; series: string; code: string }): string {
@@ -123,6 +214,19 @@ function paintCatalogCode(row: { catalog_code: string | null; brand: string; ser
 
 function boxLocalRef(id: number): string {
   return `box_${id}`;
+}
+
+// 塗料ボックスの box_<id> と衝突しない接頭辞にする(別体系のため)。
+function kitBoxLocalRef(id: number): string {
+  return `kitbox_${id}`;
+}
+
+function kitLocalRef(id: number): string {
+  return `kit_${id}`;
+}
+
+function kitColorLocalRef(id: number): string {
+  return `kitcolor_${id}`;
 }
 
 async function resolvePaintId(catalog_code: string): Promise<number | null> {
@@ -135,7 +239,7 @@ async function resolvePaintId(catalog_code: string): Promise<number | null> {
 
 export async function isLocalDbEmpty(): Promise<boolean> {
   const row = await getDB().getFirstAsync<{ n: number }>(
-    "SELECT (SELECT COUNT(*) FROM inventory) + (SELECT COUNT(*) FROM lists) + (SELECT COUNT(*) FROM catalog_paints WHERE source = 'manual') AS n"
+    "SELECT (SELECT COUNT(*) FROM inventory) + (SELECT COUNT(*) FROM lists) + (SELECT COUNT(*) FROM catalog_paints WHERE source = 'manual') + (SELECT COUNT(*) FROM kits) AS n"
   );
   return (row?.n ?? 0) === 0;
 }
@@ -159,6 +263,18 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
   );
   const defaultBoxId = await getSetting('default_box_id');
   const defaultBoxExists = defaultBoxId ? boxes.some((b) => b.id === Number(defaultBoxId)) : false;
+
+  const kitBoxRows = await db.getAllAsync<KitBoxRow>('SELECT id, name, icon, icon_color, sort_order FROM kit_boxes ORDER BY sort_order, id');
+  const kitRows = await db.getAllAsync<KitRow>(
+    'SELECT id, box_id, name, maker, series, category, scale, note, price, status, added_at, status_changed_at FROM kits ORDER BY id'
+  );
+  const kitColorRows = await db.getAllAsync<KitColorRow>('SELECT id, kit_id, name, note, sort_order, added_at FROM kit_colors ORDER BY sort_order, id');
+  const kitColorPaintRows = await db.getAllAsync<KitColorPaintRow>(
+    'SELECT kcp.kit_color_id, c.catalog_code, c.brand, c.series, c.code, kcp.ratio, kcp.sort_order' +
+    ' FROM kit_color_paints kcp JOIN catalog_paints c ON kcp.paint_id = c.id ORDER BY kcp.sort_order, kcp.id'
+  );
+  const defaultKitBoxId = await getSetting('default_kit_box_id');
+  const defaultKitBoxExists = defaultKitBoxId ? kitBoxRows.some((b) => b.id === Number(defaultKitBoxId)) : false;
 
   return {
     schemaVersion: BACKUP_SCHEMA_VERSION,
@@ -199,6 +315,39 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
       .filter((l) => l.type === 'wishlist')
       .map((l) => ({ catalog_code: paintCatalogCode(l), note: l.note, added_at: l.added_at })),
     defaultBoxLocalRef: defaultBoxExists && defaultBoxId ? boxLocalRef(Number(defaultBoxId)) : null,
+    kitBoxes: kitBoxRows.map((b) => ({ localRef: kitBoxLocalRef(b.id), name: b.name, icon: b.icon, icon_color: b.icon_color, sort_order: b.sort_order })),
+    kits: kitRows.map((k) => ({
+      localRef: kitLocalRef(k.id),
+      kitBoxLocalRef: k.box_id ? kitBoxLocalRef(k.box_id) : null,
+      name: k.name,
+      maker: k.maker,
+      series: k.series,
+      category: k.category,
+      scale: k.scale,
+      note: k.note,
+      price: k.price,
+      status: k.status,
+      added_at: k.added_at,
+      status_changed_at: k.status_changed_at,
+    })),
+    kitColors: kitColorRows.map((c) => ({
+      localRef: kitColorLocalRef(c.id),
+      kitLocalRef: kitLocalRef(c.kit_id),
+      name: c.name,
+      note: c.note,
+      sort_order: c.sort_order,
+      added_at: c.added_at,
+    })),
+    // kit_photos(写真)はローカル端末のファイルパスであり、複数端末間の
+    // バックアップ/復元には対応できない(Firebase Storage連携は未実装)ため、
+    // 意図的にバックアップ対象から除外する。設定画面にもその旨の注記がある。
+    kitColorPaints: kitColorPaintRows.map((cp) => ({
+      kitColorLocalRef: kitColorLocalRef(cp.kit_color_id),
+      catalog_code: paintCatalogCode(cp),
+      ratio: cp.ratio,
+      sort_order: cp.sort_order,
+    })),
+    defaultKitBoxLocalRef: defaultKitBoxExists && defaultKitBoxId ? kitBoxLocalRef(Number(defaultKitBoxId)) : null,
   };
 }
 
@@ -226,6 +375,7 @@ export async function fetchBackupSnapshot(): Promise<BackupSnapshot | null> {
 
 export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<void> {
   const db = getDB();
+  let orphanedKitPhotoUris: string[] = [];
 
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM inventory');
@@ -314,7 +464,75 @@ export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<voi
         ['default_box_id', String(defaultBoxId)]
       );
     }
+
+    // キット関連は塗料ボックスと独立した体系のため、常に全消去して再構築する
+    // (settings.tsx の resetKits() と同じ完全リセット方式)。kit_photos は
+    // バックアップ対象外だが、古い写真ファイルが端末に残り続けないよう
+    // ここで削除する(実ファイル削除はトランザクション外で行う)。
+    orphanedKitPhotoUris = (await db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos')).map((r) => r.uri);
+    await db.runAsync('DELETE FROM kit_color_paints');
+    await db.runAsync('DELETE FROM kit_colors');
+    await db.runAsync('DELETE FROM kit_photos');
+    await db.runAsync('DELETE FROM kits');
+    await db.runAsync('DELETE FROM kit_boxes');
+
+    const kitBoxIdByLocalRef = new Map<string, number>();
+    for (const box of snapshot.kitBoxes ?? []) {
+      const result = await db.runAsync(
+        'INSERT INTO kit_boxes (name, icon, icon_color, sort_order) VALUES (?, ?, ?, ?)',
+        [box.name, box.icon, box.icon_color, box.sort_order]
+      );
+      kitBoxIdByLocalRef.set(box.localRef, result.lastInsertRowId);
+    }
+
+    const kitIdByLocalRef = new Map<string, number>();
+    for (const kit of snapshot.kits ?? []) {
+      const kitBoxId = kit.kitBoxLocalRef ? kitBoxIdByLocalRef.get(kit.kitBoxLocalRef) ?? null : null;
+      const result = await db.runAsync(
+        'INSERT INTO kits (box_id, name, maker, series, category, scale, note, price, status, added_at, status_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [kitBoxId, kit.name, kit.maker, kit.series, kit.category, kit.scale, kit.note, kit.price, kit.status, kit.added_at, kit.status_changed_at]
+      );
+      kitIdByLocalRef.set(kit.localRef, result.lastInsertRowId);
+    }
+
+    const kitColorIdByLocalRef = new Map<string, number>();
+    for (const color of snapshot.kitColors ?? []) {
+      const kitId = kitIdByLocalRef.get(color.kitLocalRef);
+      if (!kitId) {
+        console.warn('restoreFromSnapshot: skipping kit color for missing kit', color.kitLocalRef);
+        continue;
+      }
+      const result = await db.runAsync(
+        'INSERT INTO kit_colors (kit_id, name, note, sort_order, added_at) VALUES (?, ?, ?, ?, ?)',
+        [kitId, color.name, color.note, color.sort_order, color.added_at]
+      );
+      kitColorIdByLocalRef.set(color.localRef, result.lastInsertRowId);
+    }
+
+    for (const cp of snapshot.kitColorPaints ?? []) {
+      const kitColorId = kitColorIdByLocalRef.get(cp.kitColorLocalRef);
+      const paintId = await resolvePaintId(cp.catalog_code);
+      if (!kitColorId || !paintId) {
+        console.warn('restoreFromSnapshot: skipping kit color paint for missing kit color or catalog_code', cp.kitColorLocalRef, cp.catalog_code);
+        continue;
+      }
+      await db.runAsync(
+        'INSERT INTO kit_color_paints (kit_color_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
+        [kitColorId, paintId, cp.ratio, cp.sort_order]
+      );
+    }
+
+    const defaultKitBoxId = snapshot.defaultKitBoxLocalRef ? kitBoxIdByLocalRef.get(snapshot.defaultKitBoxLocalRef) ?? null : null;
+    if (defaultKitBoxId) {
+      await db.runAsync(
+        'INSERT INTO app_settings (key, value) VALUES (?, ?)' +
+        ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+        ['default_kit_box_id', String(defaultKitBoxId)]
+      );
+    }
   });
+
+  for (const uri of orphanedKitPhotoUris) await deleteKitPhoto(uri);
 }
 
 let autoBackupInitialized = false;
