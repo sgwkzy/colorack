@@ -2,6 +2,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import Constants from 'expo-constants';
 import { catalogCode, getDB, getSetting, KitStatus, PaintStatus, setSetting } from './db';
 import { deleteKitPhoto } from './kitPhoto';
+import { getEntitlements } from './subscription';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -379,6 +380,7 @@ let pushInFlight: Promise<void> | null = null;
 
 export async function pushBackupToFirestore(): Promise<void> {
   if (!auth || !firestore) return;
+  if (!getEntitlements().hasBackup) return;
   if (pushInFlight) return pushInFlight;
 
   const user = auth().currentUser;
@@ -597,6 +599,7 @@ export function initAutoBackup(): void {
 }
 
 export async function runRestoreDecision(): Promise<'restored' | 'conflict' | 'none'> {
+  if (!getEntitlements().hasBackup) return 'none';
   const snapshot = await fetchBackupSnapshot();
   if (!snapshot) return 'none';
   if (await isLocalDbEmpty()) {
