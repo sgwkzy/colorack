@@ -1,16 +1,18 @@
 // app/(tabs)/settings.tsx
 import { useCallback, useMemo, useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
-import { IconChevronDown, IconChevronUp } from '@tabler/icons-react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isAnalyticsEnabled, logEvent, setAnalyticsEnabled, useScreenView } from '../../lib/analytics';
-import { getDB, getDefaultBoxId, getSetting, resetCatalogToMaster, setSetting } from '../../lib/db';
+import { getDB, getSetting, resetCatalogToMaster, setSetting } from '../../lib/db';
+import { notifyBoxesChanged, setActiveBox } from '../../lib/activeBox';
+import { notifyKitBoxesChanged, setActiveKitBox } from '../../lib/activeKitBox';
+import { deleteKitPhoto } from '../../lib/kitPhoto';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
+import { useUiPrefs, setActionOrder, setListFontSize } from '../../lib/uiPrefs';
 import { signInWithGoogle, signOutUser, useAuthUser } from '../../lib/auth';
 import { fetchBackupSnapshot, pushBackupToFirestore, restoreFromSnapshot, runRestoreDecision } from '../../lib/cloudBackup';
-
-interface Box { id: number; name: string; }
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
   { value: 'light', labelKey: 'themeLight' },
@@ -21,39 +23,23 @@ const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
 export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
   const { colors, mode } = useTheme();
+  const { actionOrder, listFontSize } = useUiPrefs();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [analyticsOn, setAnalyticsOn] = useState(isAnalyticsEnabled());
-  const [boxes, setBoxes] = useState<Box[]>([]);
-  const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
-  const [boxPickerOpen, setBoxPickerOpen] = useState(false);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
   const authUser = useAuthUser();
 
   useScreenView('Settings');
 
-  const loadBoxes = useCallback(async () => {
-    const db = getDB();
-    setBoxes(await db.getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY id'));
-    setDefaultBoxId(await getDefaultBoxId());
-  }, []);
-
   const loadLastBackupAt = useCallback(async () => {
     setLastBackupAt(await getSetting('last_backup_at'));
   }, []);
 
   useFocusEffect(useCallback(() => {
-    loadBoxes();
     loadLastBackupAt();
-  }, [loadBoxes, loadLastBackupAt]));
-
-  const chooseDefaultBox = async (boxId: number) => {
-    setDefaultBoxId(boxId);
-    setBoxPickerOpen(false);
-    await setSetting('default_box_id', String(boxId));
-  };
-
-  const defaultBoxName = boxes.find((b) => b.id === defaultBoxId)?.name ?? '';
+  }, [loadLastBackupAt]));
 
   const toggleLang = (val: boolean) => {
     setIsJa(val);
@@ -77,9 +63,36 @@ export default function SettingsScreen() {
     await db.runAsync('DELETE FROM inventory');
     await db.runAsync('DELETE FROM boxes');
     const res = await db.runAsync('INSERT INTO boxes (name) VALUES (?)', ['Box']);
-    await setSetting('default_box_id', String(res.lastInsertRowId));
-    await loadBoxes();
+    const boxId = Number(res.lastInsertRowId);
+    await setSetting('default_box_id', String(boxId));
+    setActiveBox(boxId);
+    notifyBoxesChanged();
     logEvent('reset_data', { target: 'owned' });
+    router.navigate({ pathname: '/owned', params: { boxId: String(boxId), boxName: 'Box' } });
+  });
+
+  const resetKits = () => confirmReset(t('resetKits'), async () => {
+    const db = getDB();
+    const photos = await db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos');
+    let boxId = 0;
+    await db.withTransactionAsync(async () => {
+      await db.runAsync('DELETE FROM kit_color_paints');
+      await db.runAsync('DELETE FROM kit_colors');
+      await db.runAsync('DELETE FROM kit_photos');
+      await db.runAsync('DELETE FROM kits');
+      await db.runAsync('DELETE FROM kit_boxes');
+      const res = await db.runAsync('INSERT INTO kit_boxes (name) VALUES (?)', ['Box']);
+      boxId = Number(res.lastInsertRowId);
+      await db.runAsync(
+        'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+        ['default_kit_box_id', String(boxId)]
+      );
+    });
+    for (const { uri } of photos) await deleteKitPhoto(uri);
+    notifyKitBoxesChanged();
+    setActiveKitBox(boxId);
+    logEvent('reset_data', { target: 'kits' });
+    router.navigate({ pathname: '/kits', params: { boxId: String(boxId), boxName: 'Box' } });
   });
 
   const resetFavorites = () => confirmReset(t('resetFavorites'), async () => {
@@ -97,11 +110,20 @@ export default function SettingsScreen() {
     logEvent('reset_data', { target: 'catalog' });
   });
 
+  // クラウド復元は端末のボックス/キットボックスを丸ごと入れ替えるため、他画面が
+  // 参照しているリアクティブなボックス一覧・選択中ボックスを必ず更新し直す。
+  const refreshAfterRestore = () => {
+    setActiveBox('all');
+    setActiveKitBox('all');
+    notifyBoxesChanged();
+    notifyKitBoxesChanged();
+  };
+
   const restoreCloudBackup = async () => {
     const snapshot = await fetchBackupSnapshot();
     if (!snapshot) return;
     await restoreFromSnapshot(snapshot);
-    await loadBoxes();
+    refreshAfterRestore();
   };
 
   const showConflictAlert = () => {
@@ -118,7 +140,7 @@ export default function SettingsScreen() {
       await signInWithGoogle();
       const result = await runRestoreDecision();
       if (result === 'conflict') showConflictAlert();
-      await loadBoxes();
+      refreshAfterRestore();
       await loadLastBackupAt();
     } catch (e) {
       console.error('handleGoogleSignIn: failed', e);
@@ -153,9 +175,10 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('account')}</Text>
+        <Text style={styles.accountSubText}>{t('cloudBackupPhotosNote')}</Text>
         {authUser ? (
           <>
             <Text style={styles.accountText}>{authUser.displayName ?? authUser.email ?? authUser.uid}</Text>
@@ -185,7 +208,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{t('language')}</Text>
         <View style={styles.langRow}>
           <Text style={{ color: colors.text }}>EN</Text>
-          <Switch value={isJa} onValueChange={toggleLang} style={{ marginHorizontal: 8 }} />
+          <Switch value={isJa} onValueChange={toggleLang} style={{ marginHorizontal: 8 }} accessibilityLabel={t('language')} />
           <Text style={{ color: colors.text }}>JA</Text>
         </View>
       </View>
@@ -197,6 +220,8 @@ export default function SettingsScreen() {
               key={opt.value}
               style={[styles.themeBtn, mode === opt.value && styles.themeBtnOn]}
               onPress={() => setThemeMode(opt.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: mode === opt.value }}
             >
               <Text style={[styles.themeBtnText, mode === opt.value && styles.themeBtnTextOn]} numberOfLines={1}>{t(opt.labelKey)}</Text>
             </TouchableOpacity>
@@ -204,27 +229,37 @@ export default function SettingsScreen() {
         </View>
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('defaultBox')}</Text>
-        <TouchableOpacity style={styles.dropdown} onPress={() => setBoxPickerOpen((o) => !o)}>
-          <Text style={styles.dropdownLabel}>{defaultBoxName}</Text>
-          {boxPickerOpen
-            ? <IconChevronUp size={16} color={colors.textFaint} />
-            : <IconChevronDown size={16} color={colors.textFaint} />}
-        </TouchableOpacity>
-        {boxPickerOpen && (
-          <ScrollView style={styles.dropdownList} nestedScrollEnabled>
-            {boxes.map((b) => (
-              <TouchableOpacity key={b.id} style={styles.dropdownItem} onPress={() => chooseDefaultBox(b.id)}>
-                <Text style={[styles.dropdownItemText, defaultBoxId === b.id && styles.dropdownItemTextOn]}>{b.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
+        <Text style={styles.sectionTitle}>{t('actionOrder')}</Text>
+        <View style={styles.themeRow}>
+          <TouchableOpacity style={[styles.themeBtn, actionOrder === 'normal' && styles.themeBtnOn]} onPress={() => setActionOrder('normal')}>
+            <Text style={[styles.themeBtnText, actionOrder === 'normal' && styles.themeBtnTextOn]} numberOfLines={1}>{t('actionOrderNormal')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.themeBtn, actionOrder === 'reverse' && styles.themeBtnOn]} onPress={() => setActionOrder('reverse')}>
+            <Text style={[styles.themeBtnText, actionOrder === 'reverse' && styles.themeBtnTextOn]} numberOfLines={1}>{t('actionOrderReverse')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('listFontSize')}</Text>
+        <View style={styles.themeRow}>
+          <TouchableOpacity style={[styles.themeBtn, listFontSize === 'small' && styles.themeBtnOn]} onPress={() => setListFontSize('small')}>
+            <Text style={[styles.themeBtnText, listFontSize === 'small' && styles.themeBtnTextOn, { fontSize: 13 }]} numberOfLines={1}>{t('fontSizeSmall')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.themeBtn, listFontSize === 'medium' && styles.themeBtnOn]} onPress={() => setListFontSize('medium')}>
+            <Text style={[styles.themeBtnText, listFontSize === 'medium' && styles.themeBtnTextOn, { fontSize: 15 }]} numberOfLines={1}>{t('fontSizeMedium')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.themeBtn, listFontSize === 'large' && styles.themeBtnOn]} onPress={() => setListFontSize('large')}>
+            <Text style={[styles.themeBtnText, listFontSize === 'large' && styles.themeBtnTextOn, { fontSize: 17 }]} numberOfLines={1}>{t('fontSizeLarge')}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('reset')}</Text>
         <TouchableOpacity style={styles.resetBtn} onPress={resetOwned}>
           <Text style={styles.resetBtnText}>{t('resetOwned')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.resetBtn} onPress={resetKits}>
+          <Text style={styles.resetBtnText}>{t('resetKits')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.resetBtn} onPress={resetFavorites}>
           <Text style={styles.resetBtnText}>{t('resetFavorites')}</Text>
@@ -258,10 +293,4 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   accountBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
   accountBtnDisabled: { backgroundColor: colors.primaryDisabled },
   accountBtnText: { color: colors.onPrimary, fontWeight: 'bold', textAlign: 'center' },
-  dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg },
-  dropdownLabel: { fontSize: 16, color: colors.text },
-  dropdownList: { borderWidth: 1, borderColor: colors.border, borderTopWidth: 0, borderBottomLeftRadius: radius.sm, borderBottomRightRadius: radius.sm, maxHeight: 220 },
-  dropdownItem: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.borderLight },
-  dropdownItemText: { fontSize: 15, color: colors.text },
-  dropdownItemTextOn: { color: colors.primary, fontWeight: 'bold' },
 });

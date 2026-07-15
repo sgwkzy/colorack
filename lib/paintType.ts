@@ -7,6 +7,7 @@ const TYPE_EN: Record<string, string> = {
   '水性アクリル塗料': 'Water-based Acrylic',
   'エナメル塗料': 'Enamel',
   'エマルジョン塗料': 'Emulsion',
+  'エマルジョン系水性塗料': 'Water-based Emulsion',
 };
 
 // 種別バッジの2文字略号。La=ラッカー / Ac=水性アクリル / En=エナメル / Em=エマルジョン。

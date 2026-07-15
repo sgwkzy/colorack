@@ -7,6 +7,7 @@ import { getDB, getOwnedCountMap } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import PaintRow from '../PaintRow';
+import { swipeDownCloseProps } from '../SwipeDownScrollView';
 
 interface Paint {
   id: number;
@@ -22,11 +23,14 @@ interface Paint {
 interface Props {
   onSelect: (paint: Paint) => void;
   onSelectView: (paint: Paint) => void;
+  // 一覧を最上部からさらに引っ張って離した時に親モーダルを閉じる
+  onRequestClose?: () => void;
 }
 
-export default function TextSearch({ onSelect, onSelectView }: Props) {
+export default function TextSearch({ onSelect, onSelectView, onRequestClose }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const closeProps = onRequestClose ? swipeDownCloseProps(onRequestClose) : undefined;
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Paint[]>([]);
   const [ownedCounts, setOwnedCounts] = useState<Map<number, number>>(new Map());
@@ -58,7 +62,11 @@ export default function TextSearch({ onSelect, onSelectView }: Props) {
         onChangeText={search}
       />
       <FlatList
+        style={{ flex: 1 }}
         data={results}
+        {...closeProps}
+        contentContainerStyle={{ flexGrow: 1 }}
+        alwaysBounceVertical
         keyExtractor={(item) => String(item.id)}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"

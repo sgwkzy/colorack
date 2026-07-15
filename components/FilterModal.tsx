@@ -1,7 +1,7 @@
 // components/FilterModal.tsx
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet,
+  Modal, View, Text, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { IconChevronDown, IconChevronUp, IconSquare, IconSquareCheck } from '@tabler/icons-react-native';
 import ClearableInput from './ClearableInput';
@@ -12,7 +12,10 @@ import { glossLabel } from '../lib/gloss';
 import { seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
 import { useTheme, lightColors, radius, spacing, touch } from '../lib/theme';
+import { useUiPrefs, type ListFontSize } from '../lib/uiPrefs';
 import SwipeDownHeader from './SwipeDownHeader';
+import SwipeDownScrollView from './SwipeDownScrollView';
+import { useModalLock } from '../lib/modalLock';
 
 export interface PaintFilter {
   brands: string[];
@@ -32,8 +35,10 @@ interface Props {
 }
 
 export default function FilterModal({ visible, options, initial, onApply, onClose }: Props) {
+  useModalLock(visible);
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { listFontSize } = useUiPrefs();
+  const styles = useMemo(() => makeStyles(colors, listFontSize), [colors, listFontSize]);
   const [brands, setBrands] = useState<string[]>(initial.brands);
   const [series, setSeries] = useState<string[]>(initial.series);
   const [gloss, setGloss] = useState<string[]>(initial.gloss);
@@ -83,7 +88,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
   const clear = () => { setBrands([]); setSeries([]); setGloss([]); setTypes([]); setSearch(''); };
 
   const checkRow = (key: string, label: string, checked: boolean, onPress: () => void) => (
-    <TouchableOpacity key={key} style={styles.checkRow} onPress={onPress}>
+    <TouchableOpacity key={key} style={styles.checkRow} onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked }} accessibilityLabel={label}>
       {checked
         ? <IconSquareCheck size={20} color={colors.primary} style={styles.checkIcon} />
         : <IconSquare size={20} color={colors.textPlaceholder} style={styles.checkIcon} />}
@@ -107,7 +112,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
           </View>
         </SwipeDownHeader>
 
-        <ScrollView style={{ flex: 1 }}>
+        <SwipeDownScrollView onClose={onClose} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} alwaysBounceVertical>
           {/* 色名検索 */}
           <Text style={styles.sectionTitle}>{t('colorName')}</Text>
           <ClearableInput
@@ -184,7 +189,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
                 : typeOptions.map((p) => checkRow(p, paintTypeLabel(p), types.includes(p), () => toggle(types, p, setTypes)))}
             </View>
           )}
-        </ScrollView>
+        </SwipeDownScrollView>
 
         <TouchableOpacity
           style={styles.applyBtn}
@@ -202,21 +207,30 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
   );
 }
 
-const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface },
-  header: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  headerSide: { flex: 1 },
-  headerBtn: { color: colors.primary, fontSize: 16 },
-  title: { flex: 1, fontSize: 18, fontWeight: 'bold', textAlign: 'center', color: colors.text },
-  sectionTitle: { fontSize: 13, color: colors.textFaint, marginTop: spacing.xl, marginHorizontal: spacing.xl, marginBottom: spacing.sm },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginHorizontal: spacing.xl, color: colors.text },
-  dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.xl, marginTop: spacing.lg, borderTopWidth: 1, borderColor: colors.borderLight },
-  dropdownLabel: { fontSize: 16, color: colors.text },
-  checkList: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
-  checkRow: { flexDirection: 'row', alignItems: 'center', minHeight: touch.min },
-  checkIcon: { marginRight: 10 },
-  checkLabel: { fontSize: 15, color: colors.text },
-  emptyOpt: { color: colors.textPlaceholder, paddingVertical: spacing.md },
-  applyBtn: { backgroundColor: colors.primary, padding: spacing.xl, alignItems: 'center' },
-  applyText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
-});
+const FILTER_TEXT_SIZE: Record<ListFontSize, { dropdownLabel: number; checkLabel: number }> = {
+  small: { dropdownLabel: 14, checkLabel: 13 },
+  medium: { dropdownLabel: 16, checkLabel: 15 },
+  large: { dropdownLabel: 18, checkLabel: 17 },
+};
+
+const makeStyles = (colors: typeof lightColors, listFontSize: ListFontSize) => {
+  const sizes = FILTER_TEXT_SIZE[listFontSize];
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.surface },
+    header: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    headerSide: { flex: 1 },
+    headerBtn: { color: colors.primary, fontSize: 16 },
+    title: { flex: 1, fontSize: 18, fontWeight: 'bold', textAlign: 'center', color: colors.text },
+    sectionTitle: { fontSize: 13, color: colors.textFaint, marginTop: spacing.xl, marginHorizontal: spacing.xl, marginBottom: spacing.sm },
+    input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg, marginHorizontal: spacing.xl, color: colors.text },
+    dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.xl, marginTop: spacing.lg, borderTopWidth: 1, borderColor: colors.borderLight },
+    dropdownLabel: { fontSize: sizes.dropdownLabel, color: colors.text },
+    checkList: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
+    checkRow: { flexDirection: 'row', alignItems: 'center', minHeight: touch.min },
+    checkIcon: { marginRight: 10 },
+    checkLabel: { fontSize: sizes.checkLabel, color: colors.text },
+    emptyOpt: { color: colors.textPlaceholder, paddingVertical: spacing.md },
+    applyBtn: { backgroundColor: colors.primary, padding: spacing.xl, alignItems: 'center' },
+    applyText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
+  });
+};

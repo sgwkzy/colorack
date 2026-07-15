@@ -1,12 +1,13 @@
 // components/AddPaint/ManualEntry.tsx
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import ColorCameraPicker from '../ColorCameraPicker';
 import { catalogCode, getDB, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { validateManualPaint } from '../../lib/manualPaint';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import PaintFormFields, { optionChip } from '../PaintFormFields';
+import SwipeDownScrollView from '../SwipeDownScrollView';
 
 interface Paint {
   id: number;
@@ -21,6 +22,7 @@ interface Props {
   // 在庫コンテキスト(保管箱の＋)なら在庫ステータス/ボックスの選択欄を出す。
   showInventory?: boolean;
   defaultBoxId?: number | null;
+  onRequestClose?: () => void;
 }
 
 const STATUS_OPTIONS: { key: PaintStatus; label: string }[] = [
@@ -29,7 +31,7 @@ const STATUS_OPTIONS: { key: PaintStatus; label: string }[] = [
   { key: 'used_up', label: 'statusUsedUp' },
 ];
 
-export default function ManualEntry({ onSelect, showInventory = false, defaultBoxId = null }: Props) {
+export default function ManualEntry({ onSelect, showInventory = false, defaultBoxId = null, onRequestClose }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [nameJa, setNameJa] = useState('');
@@ -43,17 +45,20 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
   const [boxId, setBoxId] = useState<number | null>(defaultBoxId);
   const [boxes, setBoxes] = useState<{ id: number; name: string }[]>([]);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
   const canSave = nameJa.trim() !== '' && brand.trim() !== '' && series.trim() !== '';
 
   useEffect(() => {
     if (!showInventory) return;
-    getDB().getAllAsync<{ id: number; name: string }>('SELECT id, name FROM boxes ORDER BY id')
+    getDB().getAllAsync<{ id: number; name: string }>('SELECT id, name FROM boxes ORDER BY sort_order, id')
       .then(setBoxes);
   }, [showInventory]);
 
   const save = async () => {
+    if (busy) return;
     const normalized = validateManualPaint({ nameJa, brand, series, code, hex, gloss, paintType });
     if (!normalized) return;
+    setBusy(true);
     const db = getDB();
     try {
       const result = await db.runAsync(
@@ -68,15 +73,14 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
         { id: result.lastInsertRowId as number, name_ja: normalized.nameJa, name_en: '', brand: normalized.brand, hex: normalized.normalizedHex ?? '' },
         showInventory ? { status, boxId } : undefined
       );
-    } catch {
-      Alert.alert('入力エラー', '同じブランド内に同じ品番が既に登録されています。別の品番にしてください。');
-    }
+    } catch { Alert.alert(t('inputError'), t('duplicateCodeError')); }
+    finally { setBusy(false); }
   };
 
   const chip = optionChip;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+    <SwipeDownScrollView onClose={onRequestClose ?? (() => {})} style={styles.container} contentContainerStyle={{ padding: 16, flexGrow: 1 }} alwaysBounceVertical keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
       <PaintFormFields
         fields={[
           { label: t('name') + '*', value: nameJa, set: setNameJa },
@@ -112,7 +116,7 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
       <TouchableOpacity
         style={[styles.btn, !canSave && styles.btnDisabled]}
         onPress={save}
-        disabled={!canSave}
+        disabled={!canSave || busy}
       >
         <Text style={styles.btnText}>{t('save')}</Text>
       </TouchableOpacity>
@@ -121,7 +125,7 @@ export default function ManualEntry({ onSelect, showInventory = false, defaultBo
         onClose={() => setColorPickerVisible(false)}
         onPick={setHex}
       />
-    </ScrollView>
+    </SwipeDownScrollView>
   );
 }
 
@@ -133,7 +137,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   chipOn: { backgroundColor: colors.primary },
   chipText: { fontSize: 13, color: colors.textSecondary },
   chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
-  btn: { backgroundColor: colors.primary, padding: 14, borderRadius: radius.md, alignItems: 'center', marginTop: spacing.md },
+  btn: { backgroundColor: colors.primary, minHeight: 44, padding: spacing.lg, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', marginTop: spacing.md },
   btnDisabled: { backgroundColor: colors.primaryDisabled },
   btnText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
 });

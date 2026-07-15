@@ -61,3 +61,11 @@ export function hex_to_rgb(hex: string): { r: number; g: number; b: number } | n
     b: parseInt(h.slice(4, 6), 16),
   };
 }
+
+// 背景がhexの色の上に重ねる文字色として読みやすい方(#222/#fff)を返す。不正な値は#333。
+export function readableTextColor(hex: string | null): string {
+  const value = hex?.replace('#', '');
+  if (!value || !/^[0-9a-f]{6}$/i.test(value)) return '#333';
+  const [r, g, b] = [0, 2, 4].map((index) => parseInt(value.slice(index, index + 2), 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#222' : '#fff';
+}

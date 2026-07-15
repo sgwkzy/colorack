@@ -8,6 +8,7 @@ import { getDB, getListMembership, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, spacing } from '../../lib/theme';
+import AdBanner from '../AdBanner';
 import PaintDetailModal from '../PaintDetailModal';
 import SwipeDownHeader from '../SwipeDownHeader';
 import TextSearch from './TextSearch';
@@ -15,6 +16,7 @@ import HierarchyBrowser from './HierarchyBrowser';
 import ColorMatcher from './ColorMatcher';
 import ManualEntry from './ManualEntry';
 import Toast from '../Toast';
+import { useModalLock } from '../../lib/modalLock';
 
 interface Paint {
   id: number;
@@ -34,18 +36,23 @@ interface Props {
 const TABS = ['hierarchy', 'textSearch', 'colorMatch', 'manual'] as const;
 
 export default function AddPaintModal({ visible, onClose, defaultStatus, boxId = null }: Props) {
+  useModalLock(visible);
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [tab, setTab] = useState<typeof TABS[number]>('hierarchy');
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const isInventory = defaultStatus !== 'favorites' && defaultStatus !== 'wishlist';
 
   // 追加後はモーダルを閉じず、追加した旨を一時表示(連続登録できるように)。
   // opts は手動登録で在庫ステータス/ボックスを個別指定するとき使う。
   const addToInventory = async (paint: Paint, opts?: { status?: PaintStatus; boxId?: number | null }) => {
+    if (busy) return;
+    setBusy(true);
+    try {
     const db = getDB();
     if (!isInventory) {
       const membership = await getListMembership(paint.id);
@@ -56,20 +63,21 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
         return;
       }
       await db.runAsync(
-        'INSERT INTO lists (type, paint_id) VALUES (?, ?)',
+        'INSERT OR IGNORE INTO lists (type, paint_id) VALUES (?, ?)',
         [defaultStatus, paint.id]
       );
       logEvent('add_to_list', { list_type: defaultStatus, action: 'add' });
     } else {
       await db.runAsync(
         'INSERT INTO inventory (paint_id, status, box_id) VALUES (?, ?, ?)',
-        [paint.id, opts?.status ?? defaultStatus, opts?.boxId !== undefined ? opts.boxId : boxId]
+        [paint.id, opts?.status ?? defaultStatus, (opts?.status ?? defaultStatus) === 'used_up' ? null : (opts?.boxId !== undefined ? opts.boxId : boxId)]
       );
       logEvent('add_to_inventory', { source: tab, brand: paint.brand });
     }
     setToast(paintName(paint.name_ja, paint.name_en) + t('addedToast'));
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 1800);
+    } finally { setBusy(false); }
   };
 
   // このモーダルは開いたまま、色詳細を別モーダルとして重ねて表示する。
@@ -83,7 +91,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
           <SwipeDownHeader onClose={onClose}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('addPaint')}</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel={t('close')}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
@@ -94,6 +102,8 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
                 key={tabKey}
                 style={[styles.tabBtn, tab === tabKey && styles.tabBtnActive]}
                 onPress={() => setTab(tabKey)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: tab === tabKey }}
               >
                 <Text style={[styles.tabText, tab === tabKey && styles.tabTextActive]} numberOfLines={1}>
                   {t(tabKey)}
@@ -102,17 +112,19 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
             ))}
           </View>
           <View style={styles.content}>
-            {tab === 'hierarchy' && <HierarchyBrowser onSelect={addToInventory} onSelectView={viewPaintDetail} />}
-            {tab === 'textSearch' && <TextSearch onSelect={addToInventory} onSelectView={viewPaintDetail} />}
-            {tab === 'colorMatch' && <ColorMatcher onSelect={addToInventory} onSelectView={viewPaintDetail} />}
+            {tab === 'hierarchy' && <HierarchyBrowser onSelect={addToInventory} onSelectView={viewPaintDetail} onRequestClose={onClose} />}
+            {tab === 'textSearch' && <TextSearch onSelect={addToInventory} onSelectView={viewPaintDetail} onRequestClose={onClose} />}
+            {tab === 'colorMatch' && <ColorMatcher onSelect={addToInventory} onSelectView={viewPaintDetail} onRequestClose={onClose} />}
             {tab === 'manual' && (
               <ManualEntry
                 onSelect={addToInventory}
                 showInventory={isInventory}
                 defaultBoxId={boxId}
+                onRequestClose={onClose}
               />
             )}
           </View>
+          <View style={styles.adBar}><AdBanner /></View>
           <Toast message={toast} />
           <PaintDetailModal
             visible={detailPaintId != null}
@@ -135,4 +147,5 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   tabText: { fontSize: 13, color: colors.textPlaceholder },
   tabTextActive: { color: colors.primary, fontWeight: 'bold' },
   content: { flex: 1 },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
 });

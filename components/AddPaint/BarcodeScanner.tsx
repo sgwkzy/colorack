@@ -1,6 +1,6 @@
 // components/AddPaint/BarcodeScanner.tsx
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { getDB } from '../../lib/db';
 import { t } from '../../lib/i18n';
@@ -9,9 +9,9 @@ import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 interface Paint {
   id: number;
   name_ja: string;
-  name_en: string;
+  name_en: string | null;
   brand: string;
-  hex: string;
+  hex: string | null;
 }
 
 interface Props {
@@ -30,7 +30,7 @@ export default function BarcodeScanner({ onSelect }: Props) {
     return (
       <View style={styles.center}>
         <Text style={styles.msg}>{t('scanBarcode')}</Text>
-        <Text style={styles.link} onPress={requestPermission}>カメラを許可</Text>
+        <TouchableOpacity onPress={requestPermission} accessibilityRole="button" accessibilityLabel={t('allowCamera')}><Text style={styles.link}>{t('allowCamera')}</Text></TouchableOpacity>
       </View>
     );
   }

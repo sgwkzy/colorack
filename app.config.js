@@ -7,22 +7,23 @@ module.exports = ({ config }) => ({
   ...config,
   name: 'Colorack',
   slug: 'colorack',
-  version: '1.0.0',
+  version: '1.1.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
   ios: {
     ...config.ios,
-    supportsTablet: true,
+    supportsTablet: false,
     bundleIdentifier: process.env.EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER || 'com.example.colorack',
     infoPlist: {
       NSCameraUsageDescription: '塗料の色の読み取りやバーコードスキャンのためにカメラを使用します',
+      ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
     ...config.android,
     package: process.env.EXPO_PUBLIC_ANDROID_PACKAGE || 'com.example.colorack',
-    versionCode: 4,
+    versionCode: 8,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/android-icon-foreground.png',
@@ -39,7 +40,25 @@ module.exports = ({ config }) => ({
     'expo-sqlite',
     'expo-router',
     'expo-localization',
-    'expo-camera',
+    [
+      'expo-splash-screen',
+      {
+        backgroundColor: '#000000',
+        image: './assets/splash-icon.png',
+        imageWidth: 120,
+        resizeMode: 'contain',
+      },
+    ],
+    [
+      'expo-camera',
+      { recordAudioAndroid: false },
+    ],
+    [
+      'expo-tracking-transparency',
+      {
+        userTrackingPermission: 'パーソナライズ広告の表示のために使用されます',
+      },
+    ],
     '@react-native-firebase/app',
     '@react-native-google-signin/google-signin',
     [

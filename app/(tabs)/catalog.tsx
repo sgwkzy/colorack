@@ -3,16 +3,18 @@
 // 編集/削除でき、公式カタログは読み取り専用。右下FABで新規追加。
 import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash } from '@tabler/icons-react-native';
+import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconPalette } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { useScreenView } from '../../lib/analytics';
-import { getDB, getOwnedCountMap } from '../../lib/db';
+import { deletePaint, getDB, getOwnedCountMap } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { paintName, seriesLabel } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
+import { useUiPrefs, type FabSide, type ListFontSize } from '../../lib/uiPrefs';
 import AdBanner from '../../components/AdBanner';
 import ClearableInput from '../../components/ClearableInput';
+import EmptyState from '../../components/EmptyState';
 import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintFormModal, { EditablePaint } from '../../components/PaintFormModal';
 import SwipeBack from '../../components/SwipeBack';
@@ -25,7 +27,8 @@ const ALL = 'ALL';
 
 export default function CatalogScreen() {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { fabSide, listFontSize } = useUiPrefs();
+  const styles = useMemo(() => makeStyles(colors, fabSide, listFontSize), [colors, fabSide, listFontSize]);
   useLocale();
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -98,10 +101,7 @@ export default function CatalogScreen() {
       {
         text: t('delete'), style: 'destructive',
         onPress: async () => {
-          const db = getDB();
-          await db.runAsync('DELETE FROM inventory WHERE paint_id = ?', [p.id]);
-          await db.runAsync('DELETE FROM lists WHERE paint_id = ?', [p.id]);
-          await db.runAsync('DELETE FROM catalog_paints WHERE id = ?', [p.id]);
+          await deletePaint(p.id);
           loadPaints(selectedBrand!, selectedSeries!);
         },
       },
@@ -110,9 +110,11 @@ export default function CatalogScreen() {
 
   const fab = (
     <>
-      <TouchableOpacity style={styles.fab} onPress={openNew}>
-        <IconPlus color={colors.onPrimary} size={28} />
-      </TouchableOpacity>
+      <View style={styles.fabContainer} pointerEvents="box-none">
+        <TouchableOpacity style={styles.fab} onPress={openNew} accessibilityRole="button" accessibilityLabel={t('addPaint')}>
+          <IconPlus color={colors.onPrimary} size={28} />
+        </TouchableOpacity>
+      </View>
       <PaintFormModal visible={showForm} paint={editing} onClose={() => setShowForm(false)} onSaved={reload} />
       <PaintDetailModal
         visible={detailPaintId != null}
@@ -127,6 +129,7 @@ export default function CatalogScreen() {
   if (!selectedBrand) {
     return (
       <View style={styles.container}>
+        <View style={styles.adBar}><AdBanner /></View>
         <FlatList
           data={[ALL, ...brands]}
           keyExtractor={(b) => b || '(none)'}
@@ -136,8 +139,7 @@ export default function CatalogScreen() {
               <IconChevronRight color={colors.textPlaceholder} size={18} />
             </TouchableOpacity>
           )}
-          ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
-          ListFooterComponent={<AdBanner />}
+          ListEmptyComponent={<EmptyState icon={IconPalette} title={t('noResults')} />}
         />
         {fab}
       </View>
@@ -153,6 +155,7 @@ export default function CatalogScreen() {
             <IconChevronLeft color={colors.primary} size={18} />
             <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
           </TouchableOpacity>
+          <View style={styles.adBar}><AdBanner /></View>
           <FlatList
             data={[{ series: ALL, series_en: null }, ...seriesList]}
             keyExtractor={(s) => s.series || '(none)'}
@@ -162,7 +165,6 @@ export default function CatalogScreen() {
                 <IconChevronRight color={colors.textPlaceholder} size={18} />
               </TouchableOpacity>
             )}
-            ListFooterComponent={<AdBanner />}
           />
           {fab}
         </View>
@@ -182,6 +184,7 @@ export default function CatalogScreen() {
         <Text style={styles.backText}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries || '—', currentSeries?.series_en)}</Text>
       </TouchableOpacity>
       <ClearableInput style={styles.filterInput} placeholder={t('colorName')} value={nameFilter} onChangeText={setNameFilter} />
+      <View style={styles.adBar}><AdBanner /></View>
       <FlatList
         data={shown}
         keyExtractor={(p) => String(p.id)}
@@ -203,8 +206,7 @@ export default function CatalogScreen() {
             </TouchableOpacity>
           );
         }}
-        ListEmptyComponent={<Text style={styles.empty}>{t('noResults')}</Text>}
-        ListFooterComponent={<AdBanner />}
+        ListEmptyComponent={<EmptyState icon={IconPalette} title={t('noResults')} />}
       />
       {fab}
     </View>
@@ -212,16 +214,22 @@ export default function CatalogScreen() {
   );
 }
 
-const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
+const makeStyles = (colors: typeof lightColors, fabSide: FabSide, listFontSize: ListFontSize) => {
+  const NAV_TEXT_SIZE: Record<ListFontSize, number> = { small: 14, medium: 16, large: 18 };
+  return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
+  adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },
-  navText: { flex: 1, fontSize: 16, color: colors.text },
+  navText: { flex: 1, fontSize: NAV_TEXT_SIZE[listFontSize], color: colors.text },
   allText: { color: colors.primary, fontWeight: 'bold' },
   back: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.md, backgroundColor: colors.surfaceAlt },
   backText: { fontSize: 15, color: colors.primary },
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
   delBtn: { padding: spacing.md, marginLeft: spacing.md },
-  empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
-  fab: { position: 'absolute', right: spacing.xxl, bottom: spacing.xxl, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  fabContainer: fabSide === 'bottom' ? { position: 'absolute', left: 0, right: 0, bottom: spacing.xxl, alignItems: 'center' } : {},
+  fab: fabSide === 'bottom'
+    ? { width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }
+    : { position: 'absolute', ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }), bottom: spacing.xxl, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 });
+};
