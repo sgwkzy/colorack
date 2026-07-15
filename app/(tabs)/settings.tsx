@@ -3,10 +3,13 @@ import { useMemo, useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
 import { getDB, resetCatalogToMaster, setSetting } from '../../lib/db';
 import { notifyBoxesChanged, setActiveBox } from '../../lib/activeBox';
+import { notifyKitBoxesChanged, setActiveKitBox } from '../../lib/activeKitBox';
+import { deleteKitPhoto } from '../../lib/kitPhoto';
 import { router } from 'expo-router';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
 import { useUiPrefs, setActionOrder, setListFontSize } from '../../lib/uiPrefs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
   { value: 'light', labelKey: 'themeLight' },
@@ -18,6 +21,7 @@ export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
   const { colors, mode } = useTheme();
   const { actionOrder, listFontSize } = useUiPrefs();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const toggleLang = (val: boolean) => {
     setIsJa(val);
@@ -43,6 +47,29 @@ export default function SettingsScreen() {
     router.navigate({ pathname: '/owned', params: { boxId: String(boxId), boxName: 'Box' } });
   });
 
+  const resetKits = () => confirmReset(t('resetKits'), async () => {
+    const db = getDB();
+    const photos = await db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos');
+    let boxId = 0;
+    await db.withTransactionAsync(async () => {
+      await db.runAsync('DELETE FROM kit_color_paints');
+      await db.runAsync('DELETE FROM kit_colors');
+      await db.runAsync('DELETE FROM kit_photos');
+      await db.runAsync('DELETE FROM kits');
+      await db.runAsync('DELETE FROM kit_boxes');
+      const res = await db.runAsync('INSERT INTO kit_boxes (name) VALUES (?)', ['Box']);
+      boxId = Number(res.lastInsertRowId);
+      await db.runAsync(
+        'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+        ['default_kit_box_id', String(boxId)]
+      );
+    });
+    for (const { uri } of photos) await deleteKitPhoto(uri);
+    notifyKitBoxesChanged();
+    setActiveKitBox(boxId);
+    router.navigate({ pathname: '/kits', params: { boxId: String(boxId), boxName: 'Box' } });
+  });
+
   const resetFavorites = () => confirmReset(t('resetFavorites'), async () => {
     await getDB().runAsync("DELETE FROM lists WHERE type = 'favorites'");
   });
@@ -54,12 +81,12 @@ export default function SettingsScreen() {
   const resetCatalog = () => confirmReset(t('resetCatalog'), resetCatalogToMaster);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('language')}</Text>
         <View style={styles.langRow}>
           <Text style={{ color: colors.text }}>EN</Text>
-          <Switch value={isJa} onValueChange={toggleLang} style={{ marginHorizontal: 8 }} />
+          <Switch value={isJa} onValueChange={toggleLang} style={{ marginHorizontal: 8 }} accessibilityLabel={t('language')} />
           <Text style={{ color: colors.text }}>JA</Text>
         </View>
       </View>
@@ -71,6 +98,8 @@ export default function SettingsScreen() {
               key={opt.value}
               style={[styles.themeBtn, mode === opt.value && styles.themeBtnOn]}
               onPress={() => setThemeMode(opt.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: mode === opt.value }}
             >
               <Text style={[styles.themeBtnText, mode === opt.value && styles.themeBtnTextOn]} numberOfLines={1}>{t(opt.labelKey)}</Text>
             </TouchableOpacity>
@@ -78,13 +107,13 @@ export default function SettingsScreen() {
         </View>
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{isJa ? 'メニューの並び順' : 'Action Order'}</Text>
+        <Text style={styles.sectionTitle}>{t('actionOrder')}</Text>
         <View style={styles.themeRow}>
           <TouchableOpacity style={[styles.themeBtn, actionOrder === 'normal' && styles.themeBtnOn]} onPress={() => setActionOrder('normal')}>
-            <Text style={[styles.themeBtnText, actionOrder === 'normal' && styles.themeBtnTextOn]} numberOfLines={1}>{isJa ? '正順' : 'Normal'}</Text>
+            <Text style={[styles.themeBtnText, actionOrder === 'normal' && styles.themeBtnTextOn]} numberOfLines={1}>{t('actionOrderNormal')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.themeBtn, actionOrder === 'reverse' && styles.themeBtnOn]} onPress={() => setActionOrder('reverse')}>
-            <Text style={[styles.themeBtnText, actionOrder === 'reverse' && styles.themeBtnTextOn]} numberOfLines={1}>{isJa ? '逆順' : 'Reverse'}</Text>
+            <Text style={[styles.themeBtnText, actionOrder === 'reverse' && styles.themeBtnTextOn]} numberOfLines={1}>{t('actionOrderReverse')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -106,6 +135,9 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{t('reset')}</Text>
         <TouchableOpacity style={styles.resetBtn} onPress={resetOwned}>
           <Text style={styles.resetBtnText}>{t('resetOwned')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.resetBtn} onPress={resetKits}>
+          <Text style={styles.resetBtnText}>{t('resetKits')}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.resetBtn} onPress={resetFavorites}>
           <Text style={styles.resetBtnText}>{t('resetFavorites')}</Text>

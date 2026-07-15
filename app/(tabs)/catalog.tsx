@@ -5,7 +5,7 @@ import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconPalette } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
-import { getDB, getOwnedCountMap } from '../../lib/db';
+import { deletePaint, getDB, getOwnedCountMap } from '../../lib/db';
 import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { paintName, seriesLabel } from '../../lib/paintLabel';
@@ -98,10 +98,7 @@ export default function CatalogScreen() {
       {
         text: t('delete'), style: 'destructive',
         onPress: async () => {
-          const db = getDB();
-          await db.runAsync('DELETE FROM inventory WHERE paint_id = ?', [p.id]);
-          await db.runAsync('DELETE FROM lists WHERE paint_id = ?', [p.id]);
-          await db.runAsync('DELETE FROM catalog_paints WHERE id = ?', [p.id]);
+          await deletePaint(p.id);
           loadPaints(selectedBrand!, selectedSeries!);
         },
       },

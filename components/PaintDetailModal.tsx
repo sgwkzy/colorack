@@ -3,7 +3,7 @@
 // モーダル方式にしているのは、呼び出し元(一覧やAddPaintモーダル)を閉じずに
 // 「詳細を見る→戻る→別の色を見る」を繰り返せるようにするため。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconCamera, IconChevronDown, IconChevronLeft, IconHeart, IconPencil, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -11,6 +11,7 @@ import { brandLabel } from '../lib/brands';
 import { readableTextColor } from '../lib/color';
 import {
   CatalogPaintDetail,
+  deletePaint,
   getCatalogPaintDetail,
   getDB,
   getDefaultBoxId,
@@ -85,6 +86,8 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   const [showFullName, setShowFullName] = useState(false);
   const [membership, setMembership] = useState({ favorites: false, wishlist: false });
   const [stockStatus, setStockStatus] = useState<StockStatusRow[]>([]);
+  const loadVersionRef = useRef(0);
+  const [busy, setBusy] = useState(false);
 
   const master = detail?.source === 'catalog' ? getMasterCatalogPaint(detail.catalog_code) : null;
   const isManual = detail?.source === 'manual';
@@ -116,7 +119,9 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
 
   const load = useCallback(async () => {
     if (paintId == null) return;
+    const loadVersion = ++loadVersionRef.current;
     const row = await getCatalogPaintDetail(paintId);
+    if (loadVersion !== loadVersionRef.current) return;
     setDetail(row);
     if (row) syncFields(row);
     const [nextMembership, stockRows] = await Promise.all([
@@ -129,6 +134,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
         [paintId]
       ),
     ]);
+    if (loadVersion !== loadVersionRef.current) return;
     setMembership(nextMembership);
     setStockStatus(stockRows);
   }, [paintId, syncFields]);
@@ -157,17 +163,21 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   };
 
   const addToBox = async () => {
-    if (!detail) return;
-    await getDB().runAsync(
+    if (!detail || busy) return;
+    setBusy(true);
+    try { await getDB().runAsync(
       'INSERT INTO inventory (paint_id, status, box_id) VALUES (?, ?, ?)',
       [detail.id, 'owned', selectedBoxId]
     );
     showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
     onChanged?.();
+    } finally { setBusy(false); }
   };
 
   const toggleList = async (type: 'favorites' | 'wishlist') => {
-    if (!detail) return;
+    if (!detail || busy) return;
+    setBusy(true);
+    try {
     const isMember = membership[type];
     if (isMember) {
       await removeFromList(detail.id, type);
@@ -178,10 +188,12 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     }
     setMembership((m) => ({ ...m, [type]: !isMember }));
     onChanged?.();
+    } finally { setBusy(false); }
   };
 
   const save = async () => {
-    if (!detail) return;
+    if (!detail || busy) return;
+    setBusy(true);
     const pairedNameJa = nameJa.trim() || nameEn.trim();
     const pairedNameEn = nameEn.trim() || nameJa.trim();
     try {
@@ -194,9 +206,8 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       await load();
       setIsEditing(false);
       onChanged?.();
-    } catch {
-      Alert.alert('入力エラー', '同じブランド内に同じ品番が既に登録されています。別の品番にしてください。');
-    }
+    } catch { Alert.alert(t('inputError'), t('duplicateCodeError')); }
+    finally { setBusy(false); }
   };
 
   const resetToMaster = () => {
@@ -222,10 +233,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       {
         text: t('delete'), style: 'destructive',
         onPress: async () => {
-          const db = getDB();
-          await db.runAsync('DELETE FROM inventory WHERE paint_id = ?', [detail.id]);
-          await db.runAsync('DELETE FROM lists WHERE paint_id = ?', [detail.id]);
-          await db.runAsync('DELETE FROM catalog_paints WHERE id = ?', [detail.id]);
+          await deletePaint(detail.id);
           onChanged?.();
           onClose();
         },
@@ -298,7 +306,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 </TouchableOpacity>
               ) : null}
               <Text style={styles.title}>{isEditing ? t('editPaint') : t('paintDetailTitle')}</Text>
-              <TouchableOpacity style={[styles.headerAction, styles.headerClose]} onPress={requestClose} hitSlop={8}>
+              <TouchableOpacity style={[styles.headerAction, styles.headerClose]} onPress={requestClose} hitSlop={8} accessibilityLabel={t('close')}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
@@ -326,7 +334,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 <View style={styles.swatchLabel}>
                   <View style={styles.swatchBrandRow}>
                     <Text selectable style={[styles.swatchBrand, { color: swatchTextColor }]}>{brandLabel(detail.brand) || '—'}</Text>
-                    <TouchableOpacity style={styles.editBtn} onPress={() => setIsEditing(true)} hitSlop={8} accessibilityLabel={t('edit')}>
+                    <TouchableOpacity style={styles.editBtn} onPress={() => setIsEditing(true)} hitSlop={8} accessibilityLabel={t('editPaint')}>
                       <IconPencil color={swatchTextColor} size={20} />
                     </TouchableOpacity>
                   </View>
@@ -352,6 +360,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 <TouchableOpacity
                   style={[styles.button, styles.toggleButton, membership.favorites && styles.deleteButton]}
                   onPress={() => toggleList('favorites')}
+                  disabled={busy}
                 >
                   <IconHeart size={16} color={membership.favorites ? colors.danger : colors.text} style={styles.toggleIcon} />
                   <Text numberOfLines={1} style={[styles.buttonText, membership.favorites && styles.deleteButtonText]}>
@@ -361,6 +370,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 <TouchableOpacity
                   style={[styles.button, styles.toggleButton, membership.wishlist && styles.deleteButton]}
                   onPress={() => toggleList('wishlist')}
+                  disabled={busy}
                 >
                   <IconShoppingCartPlus size={16} color={membership.wishlist ? colors.danger : colors.text} style={styles.toggleIcon} />
                   <Text numberOfLines={1} style={[styles.buttonText, membership.wishlist && styles.deleteButtonText]}>
@@ -401,13 +411,13 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                   <Text numberOfLines={1} style={styles.boxPickerText}>{boxes.find((box) => box.id === selectedBoxId)?.name ?? t('unassigned')}</Text>
                   <IconChevronDown color={colors.textMuted} size={18} />
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.button, styles.primaryButton, styles.fullWidth]} onPress={addToBox}>
+                <TouchableOpacity style={[styles.button, styles.primaryButton, styles.fullWidth]} onPress={addToBox} disabled={busy}>
                   <Text style={styles.primaryButtonText}>{t('addToBox')}</Text>
                 </TouchableOpacity>
               </View>
             </SwipeDownScrollView>
           ) : (
-            <>
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <SwipeDownScrollView style={styles.scroll} onClose={returnToDetail} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <EditField label={locale === 'ja' ? '名前（和名）' : 'Name (Japanese)'} value={nameJa} onChangeText={setNameJa} styles={styles} />
               {masterLine(nameJa, master?.name_ja)}
@@ -433,7 +443,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                 <View style={styles.hexRow}>
                   <ClearableInput style={[styles.input, styles.hexInput]} value={hex} onChangeText={setHex} autoCapitalize="none" />
                   {isValidHex(hex) && <View style={[styles.previewSwatch, { backgroundColor: `#${hex.replace('#', '')}` }]} />}
-                  <TouchableOpacity style={styles.cameraBtn} onPress={() => setColorPickerVisible(true)} accessibilityLabel="カメラで色を取得">
+                  <TouchableOpacity style={styles.cameraBtn} onPress={() => setColorPickerVisible(true)} accessibilityLabel={t('pickColorWithCamera')}>
                     <IconCamera color={colors.primary} size={22} />
                   </TouchableOpacity>
                 </View>
@@ -480,12 +490,12 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
               <TouchableOpacity
                 style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
                 onPress={save}
-                disabled={!canSave}
+                disabled={!canSave || busy}
               >
                 <Text style={styles.saveBtnText}>{t('save')}</Text>
               </TouchableOpacity>
             </SafeAreaView>
-            </>
+            </KeyboardAvoidingView>
           )}
 
           <Toast message={toast} />
@@ -568,8 +578,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   stockStatusText: { fontSize: 14, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   field: { marginBottom: spacing.lg },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
-  readonly: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.sm, padding: 10, color: colors.textFaint, backgroundColor: colors.surfaceAlt },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg, color: colors.text },
+  readonly: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.sm, padding: spacing.lg, color: colors.textFaint, backgroundColor: colors.surfaceAlt },
   quote: { fontSize: 14, lineHeight: 20, color: colors.textSecondary },
   hexRow: { flexDirection: 'row', alignItems: 'center' },
   hexInput: { flex: 1 },

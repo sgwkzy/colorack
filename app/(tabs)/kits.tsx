@@ -92,7 +92,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
       return;
     }
     if (selected === 'all') {
-      const title = locale === 'ja' ? 'すべてのボックス' : 'All Boxes';
+      const title = t('allBoxes');
       navigation.setOptions({ title });
       router.setParams({ boxName: title });
       return;
@@ -165,8 +165,8 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   const statusDefault = statuses.length === 2 && statuses.includes('not_started') && statuses.includes('building');
   const trulyEmpty = completedScreen ? items.length === 0 : !filterActive && statusDefault && kitTotal === 0;
   const emptyMessage = trulyEmpty ? t('emptyKits') : t('noResults');
-  const statusLabel = statusDefault ? (locale === 'ja' ? 'すべてのステータス' : 'All statuses') : statuses.length === 1 ? t(statuses[0] === 'not_started' ? 'statusNotStarted' : 'statusBuilding') : t('statusAll');
-  const statusColor = statusDefault ? '#2e7d32' : statuses[0] === 'not_started' ? colors.primary : colors.inUse;
+  const statusLabel = statusDefault ? t('allStatuses') : statuses.length === 1 ? t(statuses[0] === 'not_started' ? 'statusNotStarted' : 'statusBuilding') : t('statusAll');
+  const statusColor = statusDefault ? colors.success : statuses[0] === 'not_started' ? colors.primary : colors.inUse;
 
   const openSort = () => {
     const opts: { key: KitSort; label: string }[] = [
@@ -183,9 +183,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   return (
     <View style={styles.container}>
       <View style={styles.statusBarWrap}>
-        <Text style={styles.statusCount}>{locale === 'ja'
-          ? `キット数 ${completedScreen ? items.length : kitTotal} ・ 表示数 ${items.length}`
-          : `Kits ${completedScreen ? items.length : kitTotal} · Showing ${items.length}`}</Text>
+        <Text style={styles.statusCount}>{t('kitCount', { total: completedScreen ? items.length : kitTotal, shown: items.length })}</Text>
         {!completedScreen ? <TouchableOpacity style={styles.statusSelect} onPress={() => setShowStatusPicker(true)} accessibilityRole="button" accessibilityLabel={statusLabel}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={styles.statusSelectText}>{statusLabel}</Text><IconChevronDown color={colors.textMuted} size={18} />

@@ -51,5 +51,5 @@ const makeStyles = (colors: typeof lightColors, isDark: boolean) => StyleSheet.c
   },
   toastText: { flexShrink: 1, color: isDark ? colors.text : colors.onPrimary, fontSize: 14 },
   actionBtn: { flexShrink: 0, marginLeft: spacing.md },
-  actionText: { color: isDark ? colors.primary : '#8ecbff', fontSize: 14, fontWeight: 'bold' },
+  actionText: { color: isDark ? colors.primary : colors.primarySoft, fontSize: 14, fontWeight: 'bold' },
 });

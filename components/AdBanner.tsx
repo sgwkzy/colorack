@@ -7,7 +7,7 @@ const productionAdUnitId = Platform.select({
 });
 
 // ponytail: Expo Go has no native AdMob module; skip the import there, load it when running in a dev/production build.
-const isExpoGo = Constants.appOwnership === 'expo';
+const isExpoGo = Constants.appOwnership === 'expo' || Platform.OS === 'web';
 const Ads = isExpoGo ? null : (require('react-native-google-mobile-ads') as typeof import('react-native-google-mobile-ads'));
 
 export default function AdBanner() {

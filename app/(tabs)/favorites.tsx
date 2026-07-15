@@ -150,7 +150,7 @@ export default function FavoritesScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.statusBarWrap}>
-        <Text style={styles.statusCount}>{locale === 'ja' ? `塗料数 ${totalCount} ・ 表示数 ${items.length}` : `Paints ${totalCount} · Showing ${items.length}`}</Text>
+        <Text style={styles.statusCount}>{t('paintCount', { total: totalCount, shown: items.length })}</Text>
       </View>
       <View style={styles.adBar}><AdBanner /></View>
       <FlatList

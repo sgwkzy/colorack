@@ -307,7 +307,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 <Text style={styles.title}>{t('kitDetailTitle')}</Text>
               )}
               {!editMode ? (
-                <TouchableOpacity onPress={closeAfterSavingFields} hitSlop={8}>
+                <TouchableOpacity onPress={closeAfterSavingFields} hitSlop={8} accessibilityLabel={t('close')}>
                   <IconX color={colors.text} size={24} />
                 </TouchableOpacity>
               ) : null}
@@ -317,7 +317,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           {!detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
-            <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingFields} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+            <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingFields} closeEnabled={!viewerOpen} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <View style={styles.titleBlock}>
                 {editMode ? (
                   <>

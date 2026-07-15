@@ -88,7 +88,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
   const clear = () => { setBrands([]); setSeries([]); setGloss([]); setTypes([]); setSearch(''); };
 
   const checkRow = (key: string, label: string, checked: boolean, onPress: () => void) => (
-    <TouchableOpacity key={key} style={styles.checkRow} onPress={onPress}>
+    <TouchableOpacity key={key} style={styles.checkRow} onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked }} accessibilityLabel={label}>
       {checked
         ? <IconSquareCheck size={20} color={colors.primary} style={styles.checkIcon} />
         : <IconSquare size={20} color={colors.textPlaceholder} style={styles.checkIcon} />}
@@ -222,7 +222,7 @@ const makeStyles = (colors: typeof lightColors, listFontSize: ListFontSize) => {
     headerBtn: { color: colors.primary, fontSize: 16 },
     title: { flex: 1, fontSize: 18, fontWeight: 'bold', textAlign: 'center', color: colors.text },
     sectionTitle: { fontSize: 13, color: colors.textFaint, marginTop: spacing.xl, marginHorizontal: spacing.xl, marginBottom: spacing.sm },
-    input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 10, marginHorizontal: spacing.xl, color: colors.text },
+    input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg, marginHorizontal: spacing.xl, color: colors.text },
     dropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.xl, marginTop: spacing.lg, borderTopWidth: 1, borderColor: colors.borderLight },
     dropdownLabel: { fontSize: sizes.dropdownLabel, color: colors.text },
     checkList: { paddingHorizontal: spacing.xl, paddingBottom: spacing.md },

@@ -7,7 +7,7 @@ import { IconX } from '@tabler/icons-react-native';
 import { catalogCode, getDB, updateManualPaint } from '../lib/db';
 import { t, useLocale } from '../lib/i18n';
 import { validateManualPaint } from '../lib/manualPaint';
-import { useTheme, lightColors, spacing } from '../lib/theme';
+import { useTheme, lightColors, spacing, touch } from '../lib/theme';
 import ColorCameraPicker from './ColorCameraPicker';
 import PaintFormFields, { isValidHex } from './PaintFormFields';
 import SwipeDownHeader from './SwipeDownHeader';
@@ -82,9 +82,7 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
       }
       onSaved();
       onClose();
-    } catch {
-      Alert.alert('入力エラー', '同じブランド内に同じ品番が既に登録されています。別の品番にしてください。');
-    }
+    } catch { Alert.alert(t('inputError'), t('duplicateCodeError')); }
   };
 
   return (
@@ -94,7 +92,7 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
           <SwipeDownHeader onClose={onClose}>
             <View style={styles.header}>
               <Text style={styles.title}>{paint ? t('editPaint') : t('newPaint')}</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={8}>
+              <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel={t('close')}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
@@ -144,7 +142,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   preview: { height: 40, borderRadius: 6, marginTop: spacing.lg },
-  btn: { backgroundColor: colors.primary, padding: spacing.xl, alignItems: 'center' },
+  btn: { backgroundColor: colors.primary, minHeight: touch.min, padding: spacing.xl, alignItems: 'center', justifyContent: 'center' },
   btnDisabled: { backgroundColor: colors.primaryDisabled },
   btnText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
 });

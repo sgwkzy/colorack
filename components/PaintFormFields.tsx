@@ -36,7 +36,7 @@ type ChipStyles = { chip: object; chipOn: object; chipText: object; chipTextOn: 
 
 export function optionChip(value: string, selected: boolean, label: string, onPress: () => void, chipStyles: ChipStyles) {
   return (
-    <TouchableOpacity key={value} style={[chipStyles.chip, selected && chipStyles.chipOn]} onPress={onPress}>
+    <TouchableOpacity key={value} style={[chipStyles.chip, selected && chipStyles.chipOn]} onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked: selected }} accessibilityLabel={label}>
       <Text style={[chipStyles.chipText, selected && chipStyles.chipTextOn]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -66,7 +66,7 @@ export default function PaintFormFields({
           <TouchableOpacity
             style={styles.cameraBtn}
             onPress={onOpenCamera}
-            accessibilityLabel="カメラで色を取得"
+            accessibilityLabel={t('pickColorWithCamera')}
           >
             <IconCamera color={colors.primary} size={22} />
           </TouchableOpacity>
@@ -91,7 +91,7 @@ export default function PaintFormFields({
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   field: { marginBottom: spacing.lg },
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
+  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg, color: colors.text },
   hexRow: { flexDirection: 'row', alignItems: 'center' },
   hexInput: { flex: 1 },
   previewSwatch: { marginLeft: spacing.md, width: touch.min, height: touch.min, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },

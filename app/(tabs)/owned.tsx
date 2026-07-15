@@ -102,7 +102,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
   useEffect(() => {
     if (isUsedScreen) return;
     if (selected === 'all') {
-      const title = locale === 'ja' ? 'すべてのボックス' : 'All Boxes';
+      const title = t('allBoxes');
       navigation.setOptions({ title });
       router.setParams({ boxName: title });
       return;
@@ -209,8 +209,8 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
   const statusDefault = statuses.length === 2 && statuses.includes('owned') && statuses.includes('in_use');
   const trulyEmpty = isUsedScreen ? items.length === 0 : !filterActive && statusDefault && inventoryTotal === 0;
   const emptyMessage = trulyEmpty ? t('emptyOwned') : t('noResults');
-  const statusLabel = statusDefault ? (locale === 'ja' ? 'すべてのステータス' : 'All statuses') : statuses.length === 1 ? t(statuses[0] === 'owned' ? 'statusOwned' : 'statusInUse') : t('statusAll');
-  const statusColor = statusDefault ? '#2e7d32' : statuses[0] === 'owned' ? colors.primary : colors.inUse;
+  const statusLabel = statusDefault ? t('allStatuses') : statuses.length === 1 ? t(statuses[0] === 'owned' ? 'statusOwned' : 'statusInUse') : t('statusAll');
+  const statusColor = statusDefault ? colors.success : statuses[0] === 'owned' ? colors.primary : colors.inUse;
 
   const showToast = (message: string, actionLabel?: string, onAction?: () => void) => {
     setToast(message);
@@ -302,9 +302,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
     <View style={styles.container}>
       {/* 総数と状態フィルタ */}
       <View style={styles.statusBarWrap}>
-        <Text style={styles.statusCount}>{locale === 'ja'
-          ? `塗料数 ${isUsedScreen ? items.length : inventoryTotal} ・ 表示数 ${items.length}`
-          : `Paints ${isUsedScreen ? items.length : inventoryTotal} · Showing ${items.length}`}</Text>
+        <Text style={styles.statusCount}>{t('paintCount', { total: isUsedScreen ? items.length : inventoryTotal, shown: items.length })}</Text>
         {!isUsedScreen ? <TouchableOpacity style={styles.statusSelect} onPress={() => setShowStatusPicker(true)} accessibilityRole="button" accessibilityLabel={statusLabel}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={styles.statusSelectText}>{statusLabel}</Text><IconChevronDown color={colors.textMuted} size={18} />

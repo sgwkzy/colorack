@@ -10,6 +10,7 @@ import { NativeScrollEvent, NativeSyntheticEvent, NativeTouchEvent, ScrollView, 
 
 interface Props extends ScrollViewProps {
   onClose: () => void;
+  closeEnabled?: boolean;
 }
 
 // 指を離した時点でこれより深く引っ張っていたら閉じる。ラバーバンドにより
@@ -26,13 +27,13 @@ export function swipeDownCloseProps(onClose: () => void): Pick<ScrollViewProps, 
   };
 }
 
-export default function SwipeDownScrollView({ onClose, onScroll, onScrollEndDrag, onTouchEnd, onTouchStart, ...rest }: Props) {
+export default function SwipeDownScrollView({ onClose, closeEnabled = true, onScroll, onScrollEndDrag, onTouchEnd, onTouchStart, ...rest }: Props) {
   const startY = useRef<number | null>(null);
   const startOffsetY = useRef(0);
   const offsetY = useRef(0);
   const closedInGesture = useRef(false);
   const close = () => {
-    if (closedInGesture.current) return;
+    if (!closeEnabled || closedInGesture.current) return;
     closedInGesture.current = true;
     onClose();
   };
@@ -41,7 +42,7 @@ export default function SwipeDownScrollView({ onClose, onScroll, onScrollEndDrag
     onScroll?.(e);
   };
   const handleScrollEndDrag = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (e.nativeEvent.contentOffset.y < CLOSE_OFFSET) close();
+    if (closeEnabled && e.nativeEvent.contentOffset.y < CLOSE_OFFSET) close();
     onScrollEndDrag?.(e);
   };
   const handleTouchStart = (e: NativeSyntheticEvent<NativeTouchEvent>) => {
@@ -51,7 +52,7 @@ export default function SwipeDownScrollView({ onClose, onScroll, onScrollEndDrag
     onTouchStart?.(e);
   };
   const handleTouchEnd = (e: NativeSyntheticEvent<NativeTouchEvent>) => {
-    if (startY.current !== null && startOffsetY.current <= 0 && e.nativeEvent.pageY - startY.current > 90 && offsetY.current <= 0) close();
+    if (closeEnabled && startY.current !== null && startOffsetY.current <= 0 && e.nativeEvent.pageY - startY.current > 90 && offsetY.current <= 0) close();
     startY.current = null;
     onTouchEnd?.(e);
   };
