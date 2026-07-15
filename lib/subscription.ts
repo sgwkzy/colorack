@@ -63,18 +63,18 @@ export async function initSubscription(): Promise<void> {
   }
 }
 
-// Googleサインイン/サインアウトに合わせてRevenueCat側のユーザーIDを紐付け直す。
-// uid=nullでサインアウト相当(匿名IDに戻す)。configure前(Expo Go含む)は何もしない。
+// Googleサインインに合わせてRevenueCat側のユーザーIDを紐付ける。
+// uid=null(Googleサインアウト)時は何もしない。configure前(Expo Go含む)も何もしない。
 export async function linkSubscriptionUser(uid: string | null): Promise<void> {
   if (!Purchases || !configured) return;
+  // uid=null(Googleサインアウト)時は何もしない。購読はストアアカウント(Apple ID/
+  // Google Play)に紐づき、バックアップ専用のGoogleサインインとは独立のため、
+  // ここでPurchases.logOut()すると課金継続中のユーザーの広告非表示/バックアップ
+  // 権限まで一時的に失われてしまう(「購入を復元」を押すまで復帰しない)。
+  if (!uid) return;
   try {
-    if (uid) {
-      const { customerInfo } = await Purchases.logIn(uid);
-      entitlements = toEntitlements(customerInfo.entitlements.active);
-    } else {
-      const customerInfo = await Purchases.logOut();
-      entitlements = toEntitlements(customerInfo.entitlements.active);
-    }
+    const { customerInfo } = await Purchases.logIn(uid);
+    entitlements = toEntitlements(customerInfo.entitlements.active);
     notify();
   } catch (e) {
     console.error('linkSubscriptionUser: failed', e);
