@@ -1,9 +1,10 @@
 // app/(tabs)/kits.tsx
-import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Image, LayoutAnimation, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, FlatList, Image, LayoutAnimation, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { IconBox, IconChevronDown } from '@tabler/icons-react-native';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
-import { getDB, getDefaultKitBoxId, KitStatus, setKitStatus } from '../../lib/db';
+import { deleteKit, getDB, getDefaultKitBoxId, getKitPhotos, KitStatus, setKitStatus } from '../../lib/db';
 import { setActiveKitBox } from '../../lib/activeKitBox';
 import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
@@ -16,6 +17,7 @@ import EmptyState from '../../components/EmptyState';
 import KitDetailModal from '../../components/KitDetailModal';
 import KitFilterModal, { KitFilter } from '../../components/KitFilterModal';
 import ListActionBar from '../../components/ListActionBar';
+import { deleteKitPhoto } from '../../lib/kitPhoto';
 
 interface CountRow { n: number; }
 
@@ -71,6 +73,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   const [detailKitId, setDetailKitId] = useState<number | null>(null);
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
+  const swipeRefs = useRef(new Map<number, Swipeable>());
 
   useEffect(() => {
     if (completedScreen) return;
@@ -161,6 +164,33 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
     reload();
   };
 
+  const completeKit = async (item: KitListItem) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    swipeRefs.current.get(item.id)?.close();
+    await setKitStatus(item.id, 'completed');
+    reload();
+  };
+
+  const deleteKitItem = (item: KitListItem) => {
+    swipeRefs.current.get(item.id)?.close();
+    Alert.alert(item.name, t('deleteKitConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'), style: 'destructive',
+        onPress: async () => {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          const photos = await getKitPhotos(item.id);
+          await deleteKit(item.id);
+          await Promise.all(photos.map((photo) => deleteKitPhoto(photo.uri)));
+          reload();
+        },
+      },
+    ]);
+  };
+
+  const renderDeleteAction = () => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>;
+  const renderCompleteAction = () => <View style={styles.completeAction}><Text style={styles.swipeActionText}>{t('statusCompleted')}</Text></View>;
+
   const filterActive = filter.makers.length > 0 || filter.series.length > 0 || filter.categories.length > 0 || filter.scales.length > 0 || filter.search.trim() !== '';
   const statusDefault = statuses.length === 2 && statuses.includes('not_started') && statuses.includes('building');
   const trulyEmpty = completedScreen ? items.length === 0 : !filterActive && statusDefault && kitTotal === 0;
@@ -199,6 +229,17 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
+          <Swipeable
+            ref={(ref) => { if (ref) swipeRefs.current.set(item.id, ref); else swipeRefs.current.delete(item.id); }}
+            renderRightActions={renderDeleteAction}
+            renderLeftActions={completedScreen ? undefined : renderCompleteAction}
+            onSwipeableOpen={(direction) => {
+              if (direction === 'left') deleteKitItem(item);
+              else completeKit(item);
+            }}
+            overshootRight={false}
+            overshootLeft={false}
+          >
           <TouchableOpacity style={styles.row} onPress={() => setDetailKitId(item.id)}>
             {item.thumb_uri ? (
               <Image source={{ uri: item.thumb_uri }} style={styles.thumb} resizeMode="cover" />
@@ -220,6 +261,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
               <Text style={styles.iconBtnText}>{t(STATUS_LABEL_KEYS[item.status])}</Text>
             </TouchableOpacity>
           </TouchableOpacity>
+          </Swipeable>
         )}
         ListEmptyComponent={(
           <EmptyState
@@ -309,4 +351,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   iconBtn: { width: 64, borderRadius: 12, minHeight: touch.min, alignItems: 'center', justifyContent: 'center' },
   iconBtnText: { color: colors.onPrimary, fontSize: 12, fontWeight: 'bold' },
+  deleteAction: { width: 88, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
+  completeAction: { width: 88, backgroundColor: colors.darkAction, alignItems: 'center', justifyContent: 'center' },
+  swipeActionText: { color: colors.onPrimary, fontWeight: 'bold' },
 });

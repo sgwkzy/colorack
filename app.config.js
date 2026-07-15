@@ -9,7 +9,8 @@ module.exports = ({ config }) => ({
   slug: 'colorack',
   version: '1.0.0',
   orientation: 'portrait',
-  icon: './assets/icon.png',
+  backgroundColor: '#172033',
+  icon: './assets/icon-ios.png',
   userInterfaceStyle: 'automatic',
   ios: {
     ...config.ios,
@@ -50,6 +51,13 @@ module.exports = ({ config }) => ({
       },
     ],
     'expo-camera',
+    [
+      'expo-media-library',
+      {
+        savePhotosPermission: 'キット写真を写真ライブラリに保存するために使用します',
+        granularPermissions: ['photo'],
+      },
+    ],
     [
       'expo-tracking-transparency',
       {
