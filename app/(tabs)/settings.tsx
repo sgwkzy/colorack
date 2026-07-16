@@ -31,7 +31,7 @@ export default function SettingsScreen() {
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
   const authUser = useAuthUser();
-  const { hasBackup } = useEntitlements();
+  const { hasBackup, hasPhotoBackup } = useEntitlements();
   const [purchaseBusy, setPurchaseBusy] = useState(false);
 
   useScreenView('Settings');
@@ -211,11 +211,11 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('account')}</Text>
         <Text style={styles.accountSubText}>
-          {t('currentPlan')}: {hasBackup ? t('planStandard') : t('planFree')}
+          {t('currentPlan')}: {hasPhotoBackup ? t('planStandard') : hasBackup ? t('planLight') : t('planFree')}
         </Text>
         {hasBackup ? (
           <>
-            <Text style={styles.accountSubText}>{t('cloudBackupPhotosNote')}</Text>
+            <Text style={styles.accountSubText}>{hasPhotoBackup ? t('cloudBackupPhotosIncluded') : t('cloudBackupPhotosNote')}</Text>
             {authUser ? (
               <>
                 <Text style={styles.accountText}>{authUser.displayName ?? authUser.email ?? authUser.uid}</Text>
