@@ -278,6 +278,29 @@ export async function resetCatalogToMaster(): Promise<void> {
   await upsertCatalogFromSeed(db);
 }
 
+export async function getCatalogAppliedVersion(): Promise<number> {
+  return Number(await getSetting('catalog_applied_version')) || SEED_VERSION;
+}
+
+export async function applyCatalogUpdate(rows: SeedRow[], version: number): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    await db.execAsync('CREATE TEMP TABLE IF NOT EXISTS catalog_update_codes (catalog_code TEXT PRIMARY KEY)');
+    await db.runAsync('DELETE FROM catalog_update_codes');
+    for (const p of rows) {
+      const code = catalogCode(p.brand, p.series, p.code);
+      await db.runAsync(
+        'INSERT INTO catalog_paints (catalog_code,brand,series,series_en,code,name_ja,name_en,hex,r,g,b,l,a_star,b_star,barcode,gloss,paint_type,source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(catalog_code) DO UPDATE SET brand=excluded.brand,series=excluded.series,series_en=excluded.series_en,code=excluded.code,name_ja=excluded.name_ja,name_en=excluded.name_en,hex=excluded.hex,r=excluded.r,g=excluded.g,b=excluded.b,l=excluded.l,a_star=excluded.a_star,b_star=excluded.b_star,barcode=excluded.barcode,gloss=excluded.gloss,paint_type=excluded.paint_type,source=excluded.source',
+        [code, p.brand, p.series, p.series_en, p.code, p.name_ja, p.name_en, p.hex, p.rgb_r, p.rgb_g, p.rgb_b, p.lab_l, p.lab_a, p.lab_b, p.barcode, p.gloss, p.paint_type, 'catalog']
+      );
+      await db.runAsync('INSERT INTO catalog_update_codes (catalog_code) VALUES (?)', [code]);
+    }
+    await db.execAsync("DELETE FROM catalog_paints WHERE source = 'catalog' AND catalog_code NOT IN (SELECT catalog_code FROM catalog_update_codes) AND id NOT IN (SELECT paint_id FROM inventory) AND id NOT IN (SELECT paint_id FROM lists) AND id NOT IN (SELECT paint_id FROM kit_color_paints)");
+    await setSetting('catalog_applied_version', String(version));
+    await db.execAsync(`PRAGMA user_version = ${version}`);
+  });
+}
+
 // 塗料削除時は、在庫・リスト・混色レシピの参照を同時に消して孤児を作らない。
 export async function deletePaint(paintId: number): Promise<void> {
   const db = getDB();

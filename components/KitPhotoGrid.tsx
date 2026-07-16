@@ -148,7 +148,7 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable
         onClose={() => setPickerOpen(false)}
         onDismiss={handleSheetDismiss}
       />
-      <PhotoViewerModal visible={viewerUri != null} uri={viewerUri} onClose={closeViewer} />
+      {viewerUri ? <PhotoViewerModal uri={viewerUri} uris={photos.map((photo) => photo.uri)} visible onClose={closeViewer} /> : null}
     </View>
   );
 }

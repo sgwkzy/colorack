@@ -3,6 +3,7 @@
 // 消える可能性があるため、documentDirectory配下にコピーしてから保存する。
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
 
 const KIT_PHOTO_DIR = `${FileSystem.documentDirectory}kit-photos/`;
 
@@ -49,4 +50,12 @@ export async function pickKitPhotosFromLibrary(maxCount: number): Promise<string
 export async function deleteKitPhoto(photoUri: string | null): Promise<void> {
   if (!photoUri || !photoUri.startsWith(KIT_PHOTO_DIR)) return;
   await FileSystem.deleteAsync(photoUri, { idempotent: true });
+}
+
+export async function saveKitPhotoToLibrary(uri: string): Promise<boolean> {
+  if (!await MediaLibrary.isAvailableAsync()) return false;
+  const permission = await MediaLibrary.requestPermissionsAsync(true);
+  if (!permission.granted) return false;
+  await MediaLibrary.saveToLibraryAsync(uri);
+  return true;
 }
