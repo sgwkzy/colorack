@@ -70,6 +70,7 @@ export async function uploadPendingKitPhotos(): Promise<void> {
 
 export async function downloadKitPhotosForRestore(photos: BackupKitPhoto[]): Promise<Map<string, string>> {
   const localUriByStoragePath = new Map<string, string>();
+  if (!getEntitlements().hasPhotoBackup) return localUriByStoragePath;
   if (!storage || photos.length === 0) return localUriByStoragePath;
 
   const info = await FileSystem.getInfoAsync(KIT_PHOTO_DIR);

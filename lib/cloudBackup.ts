@@ -443,6 +443,7 @@ export async function fetchBackupSnapshot(): Promise<BackupSnapshot | null> {
 }
 
 export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<void> {
+  if (!getEntitlements().hasBackup) return;
   const db = getDB();
   let orphanedKitPhotoUris: string[] = [];
   const kitIdByLocalRef = new Map<string, number>();
