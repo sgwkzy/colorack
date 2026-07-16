@@ -2,6 +2,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import Constants from 'expo-constants';
 import { catalogCode, getDB, getSetting, KitStatus, PaintStatus, setSetting } from './db';
 import { deleteKitPhoto } from './kitPhoto';
+import { BackupKitPhoto, downloadKitPhotosForRestore, kitPhotoStoragePath, uploadPendingKitPhotos } from './kitPhotoBackup';
 import { getEntitlements } from './subscription';
 
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -17,9 +18,10 @@ const firestore: typeof import('@react-native-firebase/firestore').default | nul
   : (require('@react-native-firebase/firestore').default as typeof import('@react-native-firebase/firestore').default);
 
 // v2: kit_boxes/kits/kit_colors/kit_color_paints(キット管理機能)を追加。
-// v1スナップショットにはこれらのフィールドが無いため、復元側は `?? []` で
-// optional に扱い、キット部分が空のまま復元されても壊れないようにする。
-const BACKUP_SCHEMA_VERSION = 2;
+// v3: kitPhotos(スタンダードプラン限定のキット写真)を追加。
+// v1/v2スナップショットにはこれらのフィールドが無いため、復元側は `?? []` で
+// optional に扱い、無い部分が空のまま復元されても壊れないようにする。
+const BACKUP_SCHEMA_VERSION = 3;
 const LAST_BACKUP_AT_KEY = 'last_backup_at';
 
 interface BoxRow {
@@ -218,6 +220,8 @@ export interface BackupSnapshot {
   kitColors?: BackupKitColor[];
   kitColorPaints?: BackupKitColorPaint[];
   defaultKitBoxLocalRef?: string | null;
+  // v3で追加。スタンダードプラン(hasPhotoBackup)加入者のみ書き込まれる。
+  kitPhotos?: BackupKitPhoto[];
 }
 
 function paintCatalogCode(row: { catalog_code: string | null; brand: string; series: string; code: string }): string {
@@ -298,6 +302,16 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
   const defaultKitBoxId = await getSetting('default_kit_box_id');
   const defaultKitBoxExists = defaultKitBoxId ? kitBoxRows.some((b) => b.id === Number(defaultKitBoxId)) : false;
 
+  // アップロード済み(synced_at確定済み)の写真だけをスナップショットに含める。
+  // アップロード前の行を含めるとStorage側に実体が無いパスを参照してしまい、
+  // 復元時のダウンロードが失敗する。
+  const uid = auth?.().currentUser?.uid ?? null;
+  const kitPhotoRows = uid && getEntitlements().hasPhotoBackup
+    ? await db.getAllAsync<{ kit_id: number; uri: string; sort_order: number }>(
+        'SELECT kit_id, uri, sort_order FROM kit_photos WHERE synced_at IS NOT NULL ORDER BY sort_order, id'
+      )
+    : [];
+
   return {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     boxes: boxes.map((b) => ({ localRef: boxLocalRef(b.id), name: b.name, location: b.location, note: b.note })),
@@ -360,9 +374,6 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
       sort_order: c.sort_order,
       added_at: c.added_at,
     })),
-    // kit_photos(写真)はローカル端末のファイルパスであり、複数端末間の
-    // バックアップ/復元には対応できない(Firebase Storage連携は未実装)ため、
-    // 意図的にバックアップ対象から除外する。設定画面にもその旨の注記がある。
     kitColorPaints: kitColorPaintRows.map((cp) => ({
       kitColorLocalRef: kitColorLocalRef(cp.kit_color_id),
       catalog_code: paintCatalogCode(cp),
@@ -370,6 +381,16 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
       sort_order: cp.sort_order,
     })),
     defaultKitBoxLocalRef: defaultKitBoxExists && defaultKitBoxId ? kitBoxLocalRef(Number(defaultKitBoxId)) : null,
+    // v3: hasPhotoBackup(スタンダードプラン)加入者のみ、アップロード済みの
+    // キット写真をStorageパス参照として含める。ライトプラン/未加入時は空配列。
+    kitPhotos: uid
+      ? kitPhotoRows
+          .map((p) => {
+            const storagePath = kitPhotoStoragePath(uid, p.uri);
+            return storagePath ? { kitLocalRef: kitLocalRef(p.kit_id), storagePath, sort_order: p.sort_order } : null;
+          })
+          .filter((p): p is BackupKitPhoto => p !== null)
+      : [],
   };
 }
 
@@ -387,6 +408,9 @@ export async function pushBackupToFirestore(): Promise<void> {
   if (!user) return;
 
   pushInFlight = (async () => {
+    if (getEntitlements().hasPhotoBackup) {
+      await uploadPendingKitPhotos().catch((e) => console.error('pushBackupToFirestore: failed to upload kit photos', e));
+    }
     const snapshot = await buildBackupSnapshot();
     const now = new Date().toISOString();
     await firestore!().collection('backups').doc(user.uid).set({
@@ -416,6 +440,7 @@ export async function fetchBackupSnapshot(): Promise<BackupSnapshot | null> {
 export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<void> {
   const db = getDB();
   let orphanedKitPhotoUris: string[] = [];
+  const kitIdByLocalRef = new Map<string, number>();
 
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM inventory');
@@ -525,7 +550,6 @@ export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<voi
       kitBoxIdByLocalRef.set(box.localRef, result.lastInsertRowId);
     }
 
-    const kitIdByLocalRef = new Map<string, number>();
     for (const kit of snapshot.kits ?? []) {
       const kitBoxId = kit.kitBoxLocalRef ? kitBoxIdByLocalRef.get(kit.kitBoxLocalRef) ?? null : null;
       const result = await db.runAsync(
@@ -579,6 +603,28 @@ export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<voi
       await deleteKitPhoto(uri);
     } catch (e) {
       console.error('restoreFromSnapshot: failed to delete orphaned kit photo', uri, e);
+    }
+  }
+
+  // キット写真のダウンロードはネットワークI/Oのため、SQLiteトランザクションの
+  // 外で行う。ダウンロード成功分だけkit_photos行を再構築する(ベストエフォート)。
+  if (getEntitlements().hasPhotoBackup && (snapshot.kitPhotos?.length ?? 0) > 0) {
+    const localUriByStoragePath = await downloadKitPhotosForRestore(snapshot.kitPhotos ?? []);
+    for (const photo of snapshot.kitPhotos ?? []) {
+      const kitId = kitIdByLocalRef.get(photo.kitLocalRef);
+      const localUri = localUriByStoragePath.get(photo.storagePath);
+      if (!kitId || !localUri) {
+        console.warn('restoreFromSnapshot: skipping kit photo for missing kit or failed download', photo.kitLocalRef, photo.storagePath);
+        continue;
+      }
+      try {
+        await db.runAsync(
+          "INSERT INTO kit_photos (kit_id, uri, sort_order, synced_at) VALUES (?, ?, ?, datetime('now'))",
+          [kitId, localUri, photo.sort_order]
+        );
+      } catch (e) {
+        console.error('restoreFromSnapshot: failed to insert restored kit photo', photo.storagePath, e);
+      }
     }
   }
 }
