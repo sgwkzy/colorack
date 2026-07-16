@@ -1,0 +1,9 @@
+{
+  "version": 18,
+  "sqlite_url": "https://github.com/sgwkzy/colorack/releases/download/catalog-v18/catalog.sqlite3",
+  "md5": "f6ac9d91bb85a9b78c84837dc4339bd1",
+  "size_bytes": 458752,
+  "row_count": 2441,
+  "released_at": "2026-07-11T00:00:00Z",
+  "notes": "初期リリース(アプリ同梱シードと同一内容)"
+}
