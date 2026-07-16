@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colorack — 模型塗料の在庫管理アプリ</title>
+<meta name="description" content="Colorackは模型塗料の在庫をかんたんに管理できるiOS/Androidアプリ。カタログ登録・バーコードスキャン・近似色検索に対応。">
+<link rel="icon" href="assets/favicon.png">
+<style>
+:root {
+  --primary: #4a90d9;
+  --primary-soft: #eef4fb;
+  --bg: #ffffff;
+  --text: #222;
+  --muted: #667;
+  --card: #f7f9fc;
+  --border: #dde5ef;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #5b9bdb;
+    --primary-soft: #1a2836;
+    --bg: #12181f;
+    --text: #e8ecf1;
+    --muted: #9aa7b5;
+    --card: #1a222c;
+    --border: #2b3644;
+  }
+}
+* { box-sizing: border-box; margin: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.7;
+}
+.wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+/* 言語切り替え: html[data-lang] で表示制御 */
+html[data-lang="ja"] [lang="en"] { display: none; }
+html[data-lang="en"] [lang="ja"] { display: none; }
+
+header {
+  display: flex; justify-content: flex-end; padding: 16px 20px;
+}
+#langToggle {
+  background: var(--card); color: var(--text); border: 1px solid var(--border);
+  border-radius: 20px; padding: 6px 16px; font-size: 14px; cursor: pointer;
+}
+#langToggle:hover { border-color: var(--primary); }
+
+.hero { text-align: center; padding: 24px 0 56px; background: linear-gradient(var(--primary-soft), var(--bg)); }
+.hero img.icon { width: 112px; height: 112px; border-radius: 24px; box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+.hero h1 { font-size: 40px; margin: 20px 0 8px; letter-spacing: .02em; }
+.hero .tagline { font-size: 19px; color: var(--muted); }
+.stores { display: flex; gap: 12px; justify-content: center; align-items: center; margin-top: 28px; flex-wrap: wrap; }
+.store-btn {
+  display: inline-block; background: #000; color: #fff; text-decoration: none;
+  border-radius: 10px; padding: 10px 22px; font-size: 15px; font-weight: 600;
+}
+.store-btn:hover { opacity: .85; }
+.store-badge {
+  display: inline-block; background: var(--card); color: var(--muted);
+  border: 1px dashed var(--border); border-radius: 10px; padding: 10px 22px; font-size: 15px;
+}
+
+section { padding: 56px 0; }
+section h2 { text-align: center; font-size: 28px; margin-bottom: 36px; }
+.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+.feature {
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px;
+}
+.feature .emoji { font-size: 30px; }
+.feature h3 { font-size: 17px; margin: 10px 0 6px; color: var(--primary); }
+.feature p { font-size: 14px; color: var(--muted); }
+
+.shots { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
+/* ponytail: スクショ未撮影のためダミー枠。画像が用意でき次第 <img> に差し替え */
+.shot {
+  width: 220px; aspect-ratio: 9 / 19.5; border-radius: 28px;
+  border: 6px solid var(--border); background: var(--primary-soft);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 13px; text-align: center; padding: 12px;
+}
+
+footer {
+  border-top: 1px solid var(--border); padding: 32px 0; text-align: center;
+  color: var(--muted); font-size: 14px;
+}
+footer a { color: var(--primary); text-decoration: none; margin: 0 10px; }
+footer a:hover { text-decoration: underline; }
+
+@media (max-width: 480px) {
+  .hero h1 { font-size: 32px; }
+  .shot { width: 180px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <button id="langToggle" aria-label="Switch language">
+    <span lang="ja">English</span><span lang="en">日本語</span>
+  </button>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <img class="icon" src="assets/icon.png" alt="Colorack アイコン">
+    <h1>Colorack</h1>
+    <p class="tagline">
+      <span lang="ja">模型塗料の在庫を、手のひらで管理。</span>
+      <span lang="en">Manage your hobby paint inventory, right in your pocket.</span>
+    </p>
+    <div class="stores">
+      <a class="store-btn" href="https://apps.apple.com/us/app/colorack/id6789651166">
+        <span lang="ja"> App Storeで入手</span><span lang="en"> Download on the App Store</span>
+      </a>
+      <span class="store-badge">
+        <span lang="ja">Android版はクローズドテスト中</span>
+        <span lang="en">Android version in closed testing</span>
+      </span>
+    </div>
+  </div>
+</div>
+
+<section>
+  <div class="wrap">
+    <h2><span lang="ja">主な機能</span><span lang="en">Features</span></h2>
+    <div class="features">
+      <div class="feature"><div class="emoji">🎨</div>
+        <h3><span lang="ja">豊富な塗料カタログ</span><span lang="en">Rich Paint Catalog</span></h3>
+        <p><span lang="ja">Mr.カラー・ガイアノーツ・タミヤ・ファレホなど主要ブランドのカタログから、タップするだけで在庫登録。</span>
+        <span lang="en">Register paints from catalogs of major brands like Mr. Color, Gaia Notes, Tamiya, and Vallejo with a single tap.</span></p>
+      </div>
+      <div class="feature"><div class="emoji">📦</div>
+        <h3><span lang="ja">保管箱ごとの在庫管理</span><span lang="en">Storage Box Management</span></h3>
+        <p><span lang="ja">塗料を保管箱ごとに整理。在庫・使用中・使用済のステータスでひと目で把握。</span>
+        <span lang="en">Organize paints by storage box and track their status — in stock, in use, or used up.</span></p>
+      </div>
+      <div class="feature"><div class="emoji">📷</div>
+        <h3><span lang="ja">バーコードスキャン</span><span lang="en">Barcode Scanning</span></h3>
+        <p><span lang="ja">塗料のバーコードを読み取ってすばやく登録。カメラで色を撮影してHEX値の取得も。</span>
+        <span lang="en">Scan paint barcodes for quick registration, or capture colors with your camera to get HEX values.</span></p>
+      </div>
+      <div class="feature"><div class="emoji">🔍</div>
+        <h3><span lang="ja">近似色検索</span><span lang="en">Similar Color Search</span></h3>
+        <p><span lang="ja">色差（ΔE）にもとづく近似色検索で、欲しい色に近い塗料をカタログから見つけられます。</span>
+        <span lang="en">Find paints close to your target color using ΔE-based color matching.</span></p>
+      </div>
+      <div class="feature"><div class="emoji">⭐</div>
+        <h3><span lang="ja">お気に入り＆買い物リスト</span><span lang="en">Favorites &amp; Shopping List</span></h3>
+        <p><span lang="ja">気になる塗料をお気に入りに登録。切らした塗料は買い物リストで買い忘れ防止。</span>
+        <span lang="en">Save paints to favorites and keep a shopping list so you never forget a restock.</span></p>
+      </div>
+      <div class="feature"><div class="emoji">🔒</div>
+        <h3><span lang="ja">データは端末内のみ</span><span lang="en">Your Data Stays Local</span></h3>
+        <p><span lang="ja">在庫データはすべて端末内にローカル保存。外部への送信はありません。</span>
+        <span lang="en">All inventory data is stored locally on your device — nothing is sent to external servers.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="background: var(--primary-soft);">
+  <div class="wrap">
+    <h2><span lang="ja">スクリーンショット</span><span lang="en">Screenshots</span></h2>
+    <div class="shots">
+      <div class="shot"><span lang="ja">スクリーンショット準備中</span><span lang="en">Coming soon</span></div>
+      <div class="shot"><span lang="ja">スクリーンショット準備中</span><span lang="en">Coming soon</span></div>
+      <div class="shot"><span lang="ja">スクリーンショット準備中</span><span lang="en">Coming soon</span></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <nav>
+      <a href="privacy.html"><span lang="ja">プライバシーポリシー</span><span lang="en">Privacy Policy</span></a>
+      <a href="support.html"><span lang="ja">サポート</span><span lang="en">Support</span></a>
+    </nav>
+    <p>© 2026 Colorack</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var saved = localStorage.getItem('colorack-lang');
+  var lang = saved || (navigator.language.startsWith('ja') ? 'ja' : 'en');
+  document.documentElement.setAttribute('data-lang', lang);
+  document.documentElement.lang = lang;
+  document.getElementById('langToggle').addEventListener('click', function () {
+    lang = lang === 'ja' ? 'en' : 'ja';
+    document.documentElement.setAttribute('data-lang', lang);
+    document.documentElement.lang = lang;
+    localStorage.setItem('colorack-lang', lang);
+  });
+})();
+</script>
+</body>
+</html>
