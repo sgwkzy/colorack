@@ -532,8 +532,9 @@ export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<voi
 
     // キット関連は塗料ボックスと独立した体系のため、常に全消去して再構築する
     // (settings.tsx の resetKits() と同じ完全リセット方式)。kit_photos は
-    // バックアップ対象外だが、古い写真ファイルが端末に残り続けないよう
-    // ここで削除する(実ファイル削除はトランザクション外で行う)。
+    // 復元後にhasPhotoBackup加入者のみダウンロードして再構築する(後述)ため、
+    // 古い写真ファイルが端末に残り続けないよう一旦削除する
+    // (実ファイル削除はトランザクション外で行う)。
     orphanedKitPhotoUris = (await db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos')).map((r) => r.uri);
     await db.runAsync('DELETE FROM kit_color_paints');
     await db.runAsync('DELETE FROM kit_colors');
