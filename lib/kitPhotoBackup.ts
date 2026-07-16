@@ -27,18 +27,18 @@ export interface BackupKitPhoto {
   sort_order: number;
 }
 
-function filenameFromUri(uri: string): string | null {
-  const name = uri.split('/').pop();
-  return name && name.length > 0 ? name : null;
+// アップロード時・復元時のダウンロード先ファイル名生成に共通で使う。
+// lib/kitPhoto.tsのpersist()と同じ命名方式(衝突しにくい)。
+function generatePhotoFilename(): string {
+  return `${Date.now()}-${Math.floor(Math.random() * 1e6)}.jpg`;
 }
 
-// ローカルURIのファイル名(persist()が生成する `${Date.now()}-${random}.jpg`)を
-// そのままStorageキーに流用する。kit_photos.idは端末ごとの自動採番で衝突しうるが、
-// このファイル名は端末をまたいでも衝突しにくいため安全(cloudBackup.tsのレビューで
-// 同じ理由からkit_boxes等のlocalRefにもidではなくこの方式を検討した経緯がある)。
-export function kitPhotoStoragePath(uid: string, localUri: string): string | null {
-  const filename = filenameFromUri(localUri);
-  return filename ? `users/${uid}/kit-photos/${filename}` : null;
+// filenameはStorage上の識別子(persist()由来のローカルファイル名ではなく、
+// アップロード時に生成される専用の識別子)。ローカルファイル名から都度導出しないのは、
+// 復元先の端末が同じファイル名を再利用すると別端末と同一Storageオブジェクトを
+// 指してしまう事故につながるため(kit_photos.storage_path列に永続化して回避する)。
+export function kitPhotoStoragePath(uid: string, filename: string): string {
+  return `users/${uid}/kit-photos/${filename}`;
 }
 
 interface PendingPhotoRow {
@@ -58,11 +58,10 @@ export async function uploadPendingKitPhotos(): Promise<void> {
   const db = getDB();
   const pending = await db.getAllAsync<PendingPhotoRow>('SELECT id, uri FROM kit_photos WHERE synced_at IS NULL');
   for (const photo of pending) {
-    const path = kitPhotoStoragePath(user.uid, photo.uri);
-    if (!path) continue;
+    const path = kitPhotoStoragePath(user.uid, generatePhotoFilename());
     try {
       await storage().ref(path).putFile(photo.uri);
-      await db.runAsync("UPDATE kit_photos SET synced_at = datetime('now') WHERE id = ?", [photo.id]);
+      await db.runAsync("UPDATE kit_photos SET synced_at = datetime('now'), storage_path = ? WHERE id = ?", [path, photo.id]);
     } catch (e) {
       console.error('uploadPendingKitPhotos: failed to upload', photo.uri, e);
     }
@@ -77,9 +76,9 @@ export async function downloadKitPhotosForRestore(photos: BackupKitPhoto[]): Pro
   if (!info.exists) await FileSystem.makeDirectoryAsync(KIT_PHOTO_DIR, { intermediates: true });
 
   for (const photo of photos) {
-    const filename = photo.storagePath.split('/').pop();
-    if (!filename) continue;
-    const dest = `${KIT_PHOTO_DIR}${filename}`;
+    // ダウンロード先のローカルファイル名はStorageパスのベースネームを流用せず、
+    // この端末専用に新規生成する(端末間でのファイル名の偶然の一致を避けるため)。
+    const dest = `${KIT_PHOTO_DIR}${generatePhotoFilename()}`;
     try {
       const url = await storage().ref(photo.storagePath).getDownloadURL();
       await FileSystem.downloadAsync(url, dest);
@@ -96,15 +95,14 @@ export async function downloadKitPhotosForRestore(photos: BackupKitPhoto[]): Pro
 // ユーザーが個々の写真を明示的に削除する操作(KitDetailModalの単体削除)からのみ呼ぶ。
 // 一括削除経路で生じるStorage上の孤児オブジェクトは、解約時クリーンアップと同じ
 // Cloud Functionsの定期整理(本リポジトリのスコープ外)で回収する想定。
-export async function deleteUploadedKitPhoto(localUri: string): Promise<void> {
+export async function deleteUploadedKitPhoto(storagePath: string | null): Promise<void> {
   if (!auth || !storage) return;
   if (!getEntitlements().hasPhotoBackup) return;
+  if (!storagePath) return;
   const user = auth().currentUser;
   if (!user) return;
-  const path = kitPhotoStoragePath(user.uid, localUri);
-  if (!path) return;
   try {
-    await storage().ref(path).delete();
+    await storage().ref(storagePath).delete();
   } catch (e) {
     // アップロード前に削除された場合はStorage側に存在せず失敗するのが正常系。
     console.warn('deleteUploadedKitPhoto: delete failed (may not exist)', e);
