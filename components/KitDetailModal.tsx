@@ -236,10 +236,10 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     onChanged?.();
   };
 
-  const removePhoto = async (photoId: number, uri: string) => {
+  const removePhoto = async (photoId: number, uri: string, storagePath: string | null) => {
     await removeKitPhoto(photoId);
     await deleteKitPhoto(uri);
-    deleteUploadedKitPhoto(uri).catch((e) => console.error('removePhoto: failed to delete uploaded copy', e));
+    deleteUploadedKitPhoto(storagePath).catch((e) => console.error('removePhoto: failed to delete uploaded copy', e));
     await load();
     onChanged?.();
   };
@@ -353,7 +353,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 onAdd={addPhoto}
                 onRemove={(key) => {
                   const photo = photos.find((p) => p.id === key);
-                  if (photo) removePhoto(photo.id, photo.uri);
+                  if (photo) removePhoto(photo.id, photo.uri, photo.storage_path);
                 }}
                 onMove={(key, direction) => movePhoto(key as number, direction)}
               />

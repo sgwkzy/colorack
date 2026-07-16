@@ -2,7 +2,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import Constants from 'expo-constants';
 import { catalogCode, getDB, getSetting, KitStatus, PaintStatus, setSetting } from './db';
 import { deleteKitPhoto } from './kitPhoto';
-import { BackupKitPhoto, downloadKitPhotosForRestore, kitPhotoStoragePath, uploadPendingKitPhotos } from './kitPhotoBackup';
+import { BackupKitPhoto, downloadKitPhotosForRestore, uploadPendingKitPhotos } from './kitPhotoBackup';
 import { getEntitlements } from './subscription';
 
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -302,13 +302,13 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
   const defaultKitBoxId = await getSetting('default_kit_box_id');
   const defaultKitBoxExists = defaultKitBoxId ? kitBoxRows.some((b) => b.id === Number(defaultKitBoxId)) : false;
 
-  // アップロード済み(synced_at確定済み)の写真だけをスナップショットに含める。
-  // アップロード前の行を含めるとStorage側に実体が無いパスを参照してしまい、
-  // 復元時のダウンロードが失敗する。
+  // アップロード済み(synced_at確定済み・storage_path確定済み)の写真だけを
+  // スナップショットに含める。アップロード前の行を含めるとStorage側に実体が
+  // 無いパスを参照してしまい、復元時のダウンロードが失敗する。
   const uid = auth?.().currentUser?.uid ?? null;
   const kitPhotoRows = uid && getEntitlements().hasPhotoBackup
-    ? await db.getAllAsync<{ kit_id: number; uri: string; sort_order: number }>(
-        'SELECT kit_id, uri, sort_order FROM kit_photos WHERE synced_at IS NOT NULL ORDER BY sort_order, id'
+    ? await db.getAllAsync<{ kit_id: number; storage_path: string; sort_order: number }>(
+        'SELECT kit_id, storage_path, sort_order FROM kit_photos WHERE synced_at IS NOT NULL AND storage_path IS NOT NULL ORDER BY sort_order, id'
       )
     : [];
 
@@ -386,12 +386,11 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
     // (Firestore側の既存kitPhotosを保護するため、merge: trueと併用)
     ...(uid && getEntitlements().hasPhotoBackup
       ? {
-          kitPhotos: kitPhotoRows
-            .map((p) => {
-              const storagePath = kitPhotoStoragePath(uid, p.uri);
-              return storagePath ? { kitLocalRef: kitLocalRef(p.kit_id), storagePath, sort_order: p.sort_order } : null;
-            })
-            .filter((p): p is BackupKitPhoto => p !== null),
+          kitPhotos: kitPhotoRows.map((p) => ({
+            kitLocalRef: kitLocalRef(p.kit_id),
+            storagePath: p.storage_path,
+            sort_order: p.sort_order,
+          })),
         }
       : {}),
   };
@@ -626,8 +625,8 @@ export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<voi
       }
       try {
         await db.runAsync(
-          "INSERT INTO kit_photos (kit_id, uri, sort_order, synced_at) VALUES (?, ?, ?, datetime('now'))",
-          [kitId, localUri, photo.sort_order]
+          "INSERT INTO kit_photos (kit_id, uri, sort_order, synced_at, storage_path) VALUES (?, ?, ?, datetime('now'), ?)",
+          [kitId, localUri, photo.sort_order, photo.storagePath]
         );
       } catch (e) {
         console.error('restoreFromSnapshot: failed to insert restored kit photo', photo.storagePath, e);
