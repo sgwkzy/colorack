@@ -79,12 +79,19 @@ export async function downloadKitPhotosForRestore(photos: BackupKitPhoto[]): Pro
     // ダウンロード先のローカルファイル名はStorageパスのベースネームを流用せず、
     // この端末専用に新規生成する(端末間でのファイル名の偶然の一致を避けるため)。
     const dest = `${KIT_PHOTO_DIR}${generatePhotoFilename()}`;
-    try {
-      const url = await storage().ref(photo.storagePath).getDownloadURL();
-      await FileSystem.downloadAsync(url, dest);
-      localUriByStoragePath.set(photo.storagePath, dest);
-    } catch (e) {
-      console.error('downloadKitPhotosForRestore: failed to download', photo.storagePath, e);
+    let succeeded = false;
+    // 一時的なネットワーク障害を緩和するため最大2回試行する。恒久的な失敗
+    // (長時間オフライン等)はリトライしても解決しないため、その場合は
+    // 既存通りスキップし、次回ユーザーが「クラウドから復元」を再実行すれば拾える。
+    for (let attempt = 0; attempt < 2 && !succeeded; attempt++) {
+      try {
+        const url = await storage().ref(photo.storagePath).getDownloadURL();
+        await FileSystem.downloadAsync(url, dest);
+        localUriByStoragePath.set(photo.storagePath, dest);
+        succeeded = true;
+      } catch (e) {
+        if (attempt === 1) console.error('downloadKitPhotosForRestore: failed to download after retry', photo.storagePath, e);
+      }
     }
   }
   return localUriByStoragePath;
