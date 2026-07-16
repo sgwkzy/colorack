@@ -382,15 +382,18 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
     })),
     defaultKitBoxLocalRef: defaultKitBoxExists && defaultKitBoxId ? kitBoxLocalRef(Number(defaultKitBoxId)) : null,
     // v3: hasPhotoBackup(スタンダードプラン)加入者のみ、アップロード済みの
-    // キット写真をStorageパス参照として含める。ライトプラン/未加入時は空配列。
-    kitPhotos: uid
-      ? kitPhotoRows
-          .map((p) => {
-            const storagePath = kitPhotoStoragePath(uid, p.uri);
-            return storagePath ? { kitLocalRef: kitLocalRef(p.kit_id), storagePath, sort_order: p.sort_order } : null;
-          })
-          .filter((p): p is BackupKitPhoto => p !== null)
-      : [],
+    // キット写真をStorageパス参照として含める。ライトプラン/未加入時は含めない。
+    // (Firestore側の既存kitPhotosを保護するため、merge: trueと併用)
+    ...(uid && getEntitlements().hasPhotoBackup
+      ? {
+          kitPhotos: kitPhotoRows
+            .map((p) => {
+              const storagePath = kitPhotoStoragePath(uid, p.uri);
+              return storagePath ? { kitLocalRef: kitLocalRef(p.kit_id), storagePath, sort_order: p.sort_order } : null;
+            })
+            .filter((p): p is BackupKitPhoto => p !== null),
+        }
+      : {}),
   };
 }
 
@@ -413,10 +416,13 @@ export async function pushBackupToFirestore(): Promise<void> {
     }
     const snapshot = await buildBackupSnapshot();
     const now = new Date().toISOString();
+    // merge: true を指定して、既存フィールド(特にプラン降格時の kitPhotos 参照)を保護する。
+    // buildBackupSnapshot() が hasPhotoBackup=false 時に kitPhotos を含めないため、
+    // set({...snapshot}, {merge: true}) により、Firestore上の既存 kitPhotos は上書きされない。
     await firestore!().collection('backups').doc(user.uid).set({
       ...snapshot,
       updatedAt: firestore!.FieldValue.serverTimestamp(),
-    });
+    }, { merge: true });
     await setSetting(LAST_BACKUP_AT_KEY, now);
   })();
 
