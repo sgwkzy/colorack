@@ -37,7 +37,19 @@ export default function RootLayout() {
       try {
         if (mobileAds) await mobileAds().initialize().catch(console.warn);
         await initDB();
-        await Promise.all([initTheme(), initLocale(), initUiPrefs(), initAppMode(), initLastScreen(), initAuth(), initAnalytics()]);
+        await Promise.all([
+          initTheme(),
+          initLocale(),
+          initUiPrefs(),
+          initAppMode(),
+          initLastScreen(),
+          // Firebase/RevenueCat/Google Play Servicesのネイティブ呼び出しに依存するため、
+          // 実機で失敗する可能性がある。失敗してもカタログ閲覧・在庫管理といった
+          // 認証と無関係なコア機能まで巻き込んでアプリ全体を起動不能にしないよう、
+          // ここで握りつぶす(ready状態には遷移させる)。
+          initAuth().catch((e) => console.error('initAuth: failed, continuing without auth', e)),
+          initAnalytics().catch((e) => console.error('initAnalytics: failed, continuing without analytics', e)),
+        ]);
         initAutoBackup();
         void checkForCatalogUpdate(true).then(({ available, manifest }) => {
           if (available && manifest) return downloadAndApplyCatalogUpdate(manifest);
