@@ -32,7 +32,7 @@ module.exports = ({ config }) => ({
   android: {
     ...config.android,
     package: env('EXPO_PUBLIC_ANDROID_PACKAGE', 'com.example.colorack'),
-    versionCode: 9,
+    versionCode: 11,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/android-icon-foreground.png',
