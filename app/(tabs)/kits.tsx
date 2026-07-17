@@ -74,6 +74,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
+  const loadVersionRef = useRef(0);
 
   useEffect(() => {
     if (completedScreen) return;
@@ -90,6 +91,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   }, [completedScreen]));
 
   useEffect(() => {
+    let cancelled = false;
     if (completedScreen) {
       navigation.setOptions({ title: t('completedKits') });
       return;
@@ -101,13 +103,15 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
       return;
     }
     getDB().getFirstAsync<{ name: string }>('SELECT name FROM kit_boxes WHERE id = ?', [selected]).then((box) => {
-      if (box) { navigation.setOptions({ title: box.name }); router.setParams({ boxName: box.name }); }
+      if (!cancelled && box) { navigation.setOptions({ title: box.name }); router.setParams({ boxName: box.name }); }
     });
+    return () => { cancelled = true; };
   }, [completedScreen, locale, navigation, selected]);
 
   useEffect(() => { getDefaultKitBoxId().then(setDefaultBoxId); }, []);
 
   const load = useCallback(async (sel: Selected, sf: KitStatus[], f: KitFilter, sortBy: KitSort) => {
+    const loadVersion = ++loadVersionRef.current;
     const db = getDB();
     const totalWhere = completedScreen || sel === 'all' ? '' : ' AND box_id = ?';
     const totalArgs = completedScreen || sel === 'all' ? [] : [sel];
@@ -142,6 +146,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
       ),
       db.getAllAsync<KitListItem>(sql, args),
     ]);
+    if (loadVersion !== loadVersionRef.current) return;
     setKitTotal(totalRow?.n ?? 0);
     setFilterOptions(nextFilterOptions);
     setItems(nextItems);

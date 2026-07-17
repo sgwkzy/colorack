@@ -44,6 +44,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
   const [tab, setTab] = useState<typeof TABS[number]>('hierarchy');
   const [selectedPaints, setSelectedPaints] = useState<SelectedPaint[]>([]);
   const [accordionOpen, setAccordionOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
   const canSave = selectedPaints.length > 0;
 
   useEffect(() => {
@@ -97,14 +98,17 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
   };
 
   const save = async () => {
-    if (!canSave) return;
+    if (!canSave || busy) return;
+    setBusy(true);
     const total = selectedPaints.reduce((sum, p) => sum + p.ratio, 0);
     const normalized = total > 0
       ? selectedPaints.map((p) => ({ paintId: p.paintId, ratio: p.ratio / total }))
       : selectedPaints.map((p) => ({ paintId: p.paintId, ratio: 1 / selectedPaints.length }));
-    await addKitColor(kitId, name.trim() || null, null, normalized);
-    onAdded();
-    onClose();
+    try {
+      await addKitColor(kitId, name.trim() || null, null, normalized);
+      onAdded();
+      onClose();
+    } finally { setBusy(false); }
   };
 
   return (
@@ -220,7 +224,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
                 )}
               </View>
 
-              <TouchableOpacity style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]} onPress={save} disabled={!canSave}>
+              <TouchableOpacity style={[styles.saveBtn, (!canSave || busy) && styles.saveBtnDisabled]} onPress={save} disabled={!canSave || busy}>
                 <Text style={styles.saveBtnText}>{t('save')}</Text>
               </TouchableOpacity>
             </KeyboardAvoidingView>

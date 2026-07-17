@@ -100,6 +100,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
   }, [isUsedScreen]));
 
   useEffect(() => {
+    let cancelled = false;
     if (isUsedScreen) return;
     if (selected === 'all') {
       const title = t('allBoxes');
@@ -108,8 +109,9 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
       return;
     }
     getDB().getFirstAsync<{ name: string }>('SELECT name FROM boxes WHERE id = ?', [selected]).then((box) => {
-      if (box) { navigation.setOptions({ title: box.name }); router.setParams({ boxName: box.name }); }
+      if (!cancelled && box) { navigation.setOptions({ title: box.name }); router.setParams({ boxName: box.name }); }
     });
+    return () => { cancelled = true; };
   }, [isUsedScreen, locale, navigation, selected]);
 
   const load = useCallback(async (sel: Selected, sf: PaintStatus[], f: PaintFilter, sortBy: Sort) => {

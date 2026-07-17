@@ -17,8 +17,9 @@ export interface MixInput {
 export function mixHexColors(paints: MixInput[]): string | null {
   const valid = paints.filter((p) => /^#?[0-9a-fA-F]{6}$/.test(p.hex.replace(/^#/, '')));
   if (valid.length === 0) return null;
+  const total = valid.reduce((sum, p) => sum + p.ratio, 0);
   const colors: [InstanceType<typeof spectral.Color>, number][] = valid.map(
-    (p) => [new spectral.Color(p.hex), p.ratio]
+    (p) => [new spectral.Color(p.hex), total > 0 ? p.ratio : 1 / valid.length]
   );
   return spectral.mix(...colors).toString();
 }

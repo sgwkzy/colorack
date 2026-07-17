@@ -59,17 +59,11 @@ export default function FavoritesScreen() {
   const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
+  const loadVersionRef = useRef(0);
 
   const load = useCallback(async (f: PaintFilter, sortBy: Sort) => {
+    const loadVersion = ++loadVersionRef.current;
     const db = getDB();
-    const totalRow = await db.getFirstAsync<CountRow>('SELECT COUNT(*) AS n FROM lists WHERE type = ?', ['favorites']);
-    setTotalCount(totalRow?.n ?? 0);
-    setFilterOptions(await db.getAllAsync<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }>(
-      'SELECT DISTINCT c.brand, c.series, c.series_en, c.gloss, c.paint_type FROM lists l'
-      + ' JOIN catalog_paints c ON l.paint_id = c.id'
-      + ' WHERE l.type = ?',
-      ['favorites']
-    ));
 
     const where: string[] = ['l.type = ?'];
     const args: string[] = ['favorites'];
@@ -96,13 +90,25 @@ export default function FavoritesScreen() {
       args.push(like, like);
     }
 
-    const rows = await db.getAllAsync<ListItem>(
-      'SELECT l.id, l.paint_id, c.name_ja, c.name_en, c.code, c.brand, c.hex, c.gloss, c.paint_type'
-      + ' FROM lists l JOIN catalog_paints c ON l.paint_id = c.id'
-      + ' WHERE ' + where.join(' AND ')
-      + ' ORDER BY ' + SORT_ORDER[sortBy],
-      args
-    );
+    const [totalRow, nextFilterOptions, rows] = await Promise.all([
+      db.getFirstAsync<CountRow>('SELECT COUNT(*) AS n FROM lists WHERE type = ?', ['favorites']),
+      db.getAllAsync<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }>(
+        'SELECT DISTINCT c.brand, c.series, c.series_en, c.gloss, c.paint_type FROM lists l'
+        + ' JOIN catalog_paints c ON l.paint_id = c.id'
+        + ' WHERE l.type = ?',
+        ['favorites']
+      ),
+      db.getAllAsync<ListItem>(
+        'SELECT l.id, l.paint_id, c.name_ja, c.name_en, c.code, c.brand, c.hex, c.gloss, c.paint_type'
+        + ' FROM lists l JOIN catalog_paints c ON l.paint_id = c.id'
+        + ' WHERE ' + where.join(' AND ')
+        + ' ORDER BY ' + SORT_ORDER[sortBy],
+        args
+      ),
+    ]);
+    if (loadVersion !== loadVersionRef.current) return;
+    setTotalCount(totalRow?.n ?? 0);
+    setFilterOptions(nextFilterOptions);
     setItems(rows);
   }, []);
 

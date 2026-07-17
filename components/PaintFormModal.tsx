@@ -45,6 +45,7 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
   const [paintType, setPaintType] = useState<string | null>(null);
   const [gloss, setGloss] = useState<string | null>(null);
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
   const canSave = (nameJa.trim() !== '' || nameEn.trim() !== '') && brand.trim() !== '' && series.trim() !== '';
 
   // 開くたびに対象塗料(または空)へ同期。
@@ -61,10 +62,12 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
   }, [visible, paint]);
 
   const save = async () => {
+    if (busy) return;
     const pairedNameJa = nameJa.trim() || nameEn.trim();
     const pairedNameEn = nameEn.trim() || nameJa.trim();
     const normalized = validateManualPaint({ nameJa: pairedNameJa, brand, series, code, hex, gloss, paintType });
     if (!normalized) return;
+    setBusy(true);
     const db = getDB();
     try {
       const catCode = catalogCode(normalized.brand, normalized.series, normalized.code);
@@ -83,6 +86,7 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
       onSaved();
       onClose();
     } catch { Alert.alert(t('inputError'), t('duplicateCodeError')); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -120,9 +124,9 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
             )}
           </SwipeDownScrollView>
           <TouchableOpacity
-            style={[styles.btn, !canSave && styles.btnDisabled]}
+            style={[styles.btn, (!canSave || busy) && styles.btnDisabled]}
             onPress={save}
-            disabled={!canSave}
+            disabled={!canSave || busy}
           >
             <Text style={styles.btnText}>{t('save')}</Text>
           </TouchableOpacity>
