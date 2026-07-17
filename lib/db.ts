@@ -1,6 +1,7 @@
 // lib/db.ts
 import * as SQLite from 'expo-sqlite';
 import seedData from '../assets/seed_catalog.json';
+import { migrateKitPhotoUris } from './kitPhoto';
 import { validateManualPaint } from './manualPaint';
 
 export type PaintStatus = 'owned' | 'in_use' | 'used_up';
@@ -110,6 +111,7 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN category TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN price INTEGER'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kit_colors ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0'); } catch { /* 既にある */ }
+  await migrateKitPhotoUris(db);
   await db.runAsync(
     'UPDATE inventory SET status_changed_at = added_at WHERE status_changed_at IS NULL OR status_changed_at < added_at'
   );
