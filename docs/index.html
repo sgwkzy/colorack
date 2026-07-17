@@ -72,13 +72,12 @@ section h2 { text-align: center; font-size: 28px; margin-bottom: 36px; }
 .feature p { font-size: 14px; color: var(--muted); }
 
 .shots { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
-/* ponytail: スクショ未撮影のためダミー枠。画像が用意でき次第 <img> に差し替え */
 .shot {
-  width: 220px; aspect-ratio: 9 / 19.5; border-radius: 28px;
+  width: 220px; border-radius: 28px; overflow: hidden;
   border: 6px solid var(--border); background: var(--primary-soft);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--muted); font-size: 13px; text-align: center; padding: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
 }
+.shot img { display: block; width: 100%; height: auto; }
 
 footer {
   border-top: 1px solid var(--border); padding: 32px 0; text-align: center;
@@ -162,9 +161,17 @@ footer a:hover { text-decoration: underline; }
   <div class="wrap">
     <h2><span lang="ja">スクリーンショット</span><span lang="en">Screenshots</span></h2>
     <div class="shots">
-      <div class="shot"><span lang="ja">スクリーンショット準備中</span><span lang="en">Coming soon</span></div>
-      <div class="shot"><span lang="ja">スクリーンショット準備中</span><span lang="en">Coming soon</span></div>
-      <div class="shot"><span lang="ja">スクリーンショット準備中</span><span lang="en">Coming soon</span></div>
+      <div class="shot">
+        <img lang="ja" src="assets/screenshots/box-ja.png" alt="保管箱の在庫一覧画面" loading="lazy">
+        <img lang="en" src="assets/screenshots/box-en.png" alt="Storage box inventory screen" loading="lazy">
+      </div>
+      <div class="shot">
+        <img src="assets/screenshots/color-search-ja.png" alt="近似色検索画面 / Similar color search screen" loading="lazy">
+      </div>
+      <div class="shot">
+        <img lang="ja" src="assets/screenshots/catalog-ja.png" alt="塗料カタログのブランド一覧画面" loading="lazy">
+        <img lang="en" src="assets/screenshots/catalog-en.png" alt="Paint catalog brand list screen" loading="lazy">
+      </div>
     </div>
   </div>
 </section>
