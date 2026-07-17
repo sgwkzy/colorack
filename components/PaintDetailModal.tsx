@@ -4,7 +4,7 @@
 // 「詳細を見る→戻る→別の色を見る」を繰り返せるようにするため。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconCamera, IconChevronDown, IconChevronLeft, IconHeart, IconPencil, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
+import { IconCamera, IconChevronDown, IconChevronLeft, IconHeart, IconPencil, IconShare, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { brandLabel } from '../lib/brands';
@@ -37,6 +37,7 @@ import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
 import Toast from './Toast';
 import { useModalLock } from '../lib/modalLock';
+import ShareCard, { shareCardAsImage } from './ShareCard';
 
 interface Box { id: number; name: string; }
 interface StockStatusRow { box_name: string | null; status: string; n: number; }
@@ -88,6 +89,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   const [stockStatus, setStockStatus] = useState<StockStatusRow[]>([]);
   const loadVersionRef = useRef(0);
   const [busy, setBusy] = useState(false);
+  const shareCardRef = useRef<View>(null);
 
   const master = detail?.source === 'catalog' ? getMasterCatalogPaint(detail.catalog_code) : null;
   const isManual = detail?.source === 'manual';
@@ -172,6 +174,13 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
     onChanged?.();
     } finally { setBusy(false); }
+  };
+
+  const share = async () => {
+    if (!detail || busy) return;
+    setBusy(true);
+    try { await shareCardAsImage(shareCardRef); }
+    finally { setBusy(false); }
   };
 
   const toggleList = async (type: 'favorites' | 'wishlist') => {
@@ -377,6 +386,10 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
                     {membership.wishlist ? t('removeFromWishlist') : t('wishlist')}
                   </Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={[styles.button, styles.toggleButton]} onPress={share} disabled={busy} accessibilityLabel={t('share')}>
+                  <IconShare size={16} color={colors.text} style={styles.toggleIcon} />
+                  <Text numberOfLines={1} style={styles.buttonText}>{t('share')}</Text>
+                </TouchableOpacity>
               </View>
 
               <View style={styles.detailCard}>
@@ -509,6 +522,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
             onClose={() => setBoxPickerVisible(false)}
           />
           <ColorCameraPicker visible={colorPickerVisible} onClose={() => setColorPickerVisible(false)} onPick={setHex} />
+          {detail ? <ShareCard ref={shareCardRef} title={paintName(detail.name_ja, detail.name_en)} colors={[{ hex: detail.hex || lightColors.surfaceAlt, label: paintName(detail.name_ja, detail.name_en), sublabel: [brandLabel(detail.brand), detail.code].filter(Boolean).join(' · ') }]} /> : null}
         </SafeAreaView>
         </SwipeBack>
       </SafeAreaProvider>
@@ -597,8 +611,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   boxPicker: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.lg },
   boxPickerText: { flex: 1, color: colors.text, fontSize: 14 },
   fullWidth: { alignSelf: 'stretch' },
-  toggleRow: { flexDirection: 'row', gap: spacing.md },
-  toggleButton: { flex: 1, flexDirection: 'row' },
+  toggleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  toggleButton: { width: '48%', flexDirection: 'row' },
   toggleIcon: { marginRight: spacing.xs },
   button: { minHeight: touch.min, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, alignItems: 'center', justifyContent: 'center' },
   primaryButton: { backgroundColor: colors.primary, borderColor: colors.primary },

@@ -1,7 +1,7 @@
 // components/KitDetailModal.tsx
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconChevronDown, IconChevronLeft, IconEdit, IconX } from '@tabler/icons-react-native';
+import { IconChevronDown, IconChevronLeft, IconEdit, IconShare, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   addKitPhoto,
@@ -35,6 +35,8 @@ import { maybeRequestStoreReview } from '../lib/reviewPrompt';
 import { t } from '../lib/i18n';
 import { useModalLock } from '../lib/modalLock';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
+import { mixHexColors } from '../lib/colorMix';
+import { paintName } from '../lib/paintLabel';
 import ActionSheet from './ActionSheet';
 import ClearableInput from './ClearableInput';
 import KitColorComposerModal from './KitColorComposerModal';
@@ -43,6 +45,7 @@ import KitPhotoGrid from './KitPhotoGrid';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
+import ShareCard, { shareCardAsImage } from './ShareCard';
 
 interface Box { id: number; name: string; }
 
@@ -84,6 +87,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const toggleTooltip = (key: string) => setOpenTooltipKey((current) => (current === key ? null : key));
   const [editMode, setEditMode] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const shareCardRef = useRef<View>(null);
 
   const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
 
@@ -291,6 +296,20 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     ]);
   };
 
+  const share = async () => {
+    if (!detail || busy) return;
+    setBusy(true);
+    try { await shareCardAsImage(shareCardRef); }
+    finally { setBusy(false); }
+  };
+
+  const shareColors = kitColors.map((color) => {
+    const paints = color.paints.filter((paint) => paint.hex);
+    const hex = mixHexColors(paints.map((paint) => ({ hex: paint.hex as string, ratio: paint.ratio }))) ?? lightColors.surfaceAlt;
+    const labels = paints.map((paint) => paintName(paint.name_ja, paint.name_en));
+    return { hex, label: color.name || labels[0] || t('colorNameLabel'), sublabel: labels.join(' · ') || undefined };
+  });
+
   const boxName = boxes.find((b) => b.id === detail?.box_id)?.name ?? t('unassigned');
 
   return (
@@ -337,9 +356,14 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                   <>
                     <View style={styles.nameRow}>
                       <Text style={styles.name}>{detail.name}</Text>
-                      <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('enterEditMode')}>
-                        <IconEdit color={colors.textMuted} size={20} />
-                      </TouchableOpacity>
+                      <View style={styles.nameActions}>
+                        <TouchableOpacity onPress={share} disabled={busy} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('share')}>
+                          <IconShare color={colors.textMuted} size={20} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('enterEditMode')}>
+                          <IconEdit color={colors.textMuted} size={20} />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                     <Text style={styles.maker}>{detail.maker}{detail.scale ? ` · ${detail.scale}` : ''}</Text>
                   </>
@@ -516,6 +540,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
               onAdded={load}
             />
           ) : null}
+          {detail ? <ShareCard ref={shareCardRef} title={detail.name} colors={shareColors} /> : null}
         </SafeAreaView>
         </SwipeBack>
       </SafeAreaProvider>
@@ -532,6 +557,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.lg },
   titleBlock: { gap: spacing.xs },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  nameActions: { flexDirection: 'row', gap: spacing.md },
   name: { fontSize: 20, fontWeight: '700', color: colors.text },
   nameEditInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 20, fontWeight: '700' },
   maker: { fontSize: 14, color: colors.textMuted },
