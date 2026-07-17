@@ -15,7 +15,7 @@ module.exports = ({ config }) => ({
   ...config,
   name: 'Colorack',
   slug: 'colorack',
-  version: '1.1.0',
+  version: '1.1.2',
   orientation: 'portrait',
   backgroundColor: '#172033',
   icon: './assets/icon-ios.png',
@@ -32,7 +32,7 @@ module.exports = ({ config }) => ({
   android: {
     ...config.android,
     package: env('EXPO_PUBLIC_ANDROID_PACKAGE', 'com.example.colorack'),
-    versionCode: 8,
+    versionCode: 9,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/android-icon-foreground.png',

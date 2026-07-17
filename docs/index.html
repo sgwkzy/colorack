@@ -16,6 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@12/swiper-bundle.min.css">
 <style>
 :root {
   --primary: #4a90d9;
@@ -149,9 +150,11 @@ section { padding: 88px 0; }
 .shots-sec { background: var(--bg-deep); color: var(--text-on-deep); }
 .shots-sec .sec-head .eyebrow, .shots-sec .sec-head p { color: var(--muted-on-deep); }
 .shots {
-  display: flex; gap: 28px; overflow-x: auto; padding: 12px 4px 28px;
-  scroll-snap-type: x mandatory;
+  overflow: hidden; padding: 12px 4px 42px;
 }
+.shots .swiper-wrapper { align-items: flex-start; }
+.shots .swiper-button-next, .shots .swiper-button-prev { color: var(--primary); }
+.shots .swiper-pagination { bottom: 0; }
 .shot {
   border-radius: 30px; border: 7px solid #232d3a; background: #232d3a; overflow: hidden;
   box-shadow: 0 18px 40px rgba(0,0,0,.45);
@@ -161,7 +164,7 @@ section { padding: 88px 0; }
 .shot-item:nth-child(even) .shot { transform: rotate(1.2deg); }
 .shot:hover { transform: rotate(0) scale(1.03); }
 .shot img { display: block; width: 100%; height: auto; border-radius: 23px; }
-.shot-item { flex: 0 0 232px; scroll-snap-align: center; }
+.shot-item { width: 232px; }
 .shot-item figcaption { text-align: center; font-size: 13px; color: var(--muted-on-deep); margin-top: 14px; }
 .shots::-webkit-scrollbar { height: 8px; }
 .shots::-webkit-scrollbar-thumb { background: var(--border-on-deep); border-radius: 4px; }
@@ -312,31 +315,52 @@ a:focus-visible, button:focus-visible, .shots:focus-visible {
         <span lang="en">Light or dark, your call.</span>
       </h2>
     </div>
-    <div class="shots" tabindex="0">
-      <figure class="shot-item reveal">
+    <div class="shots swiper" aria-label="App screenshots">
+      <div class="swiper-wrapper">
+      <figure class="shot-item swiper-slide reveal">
         <div class="shot"><img src="assets/screenshots/box-ja.png" alt="保管箱の在庫一覧画面" width="1179" height="2556" loading="lazy"></div>
         <figcaption><span lang="ja">保管箱の在庫一覧</span><span lang="en">Storage box inventory</span></figcaption>
       </figure>
-      <figure class="shot-item reveal">
+      <figure class="shot-item swiper-slide reveal">
         <div class="shot"><img src="assets/screenshots/color-search-ja.png" alt="近似色検索画面" width="1179" height="2556" loading="lazy"></div>
         <figcaption><span lang="ja">近似色検索（ΔE）</span><span lang="en">Similar color search (ΔE)</span></figcaption>
       </figure>
-      <figure class="shot-item reveal">
+      <figure class="shot-item swiper-slide reveal">
         <div class="shot"><img src="assets/screenshots/catalog-ja.png" alt="塗料カタログのブランド一覧画面" width="1179" height="2556" loading="lazy"></div>
         <figcaption><span lang="ja">塗料カタログ</span><span lang="en">Paint catalog</span></figcaption>
       </figure>
-      <figure class="shot-item reveal">
+      <figure class="shot-item swiper-slide reveal">
         <div class="shot"><img src="assets/screenshots/filter-ja.png" alt="絞り込み画面" width="1179" height="2556" loading="lazy"></div>
         <figcaption><span lang="ja">条件で絞り込み</span><span lang="en">Filter your paints</span></figcaption>
       </figure>
-      <figure class="shot-item reveal">
+      <figure class="shot-item swiper-slide reveal">
         <div class="shot"><img src="assets/screenshots/sort-ja.png" alt="並び替え画面" width="1179" height="2556" loading="lazy"></div>
         <figcaption><span lang="ja">好きな順に並び替え</span><span lang="en">Sort your way</span></figcaption>
       </figure>
-      <figure class="shot-item reveal">
+      <figure class="shot-item swiper-slide reveal">
         <div class="shot"><img src="assets/screenshots/box-en.png" alt="保管箱の在庫一覧画面（ダークモード）" width="1179" height="2556" loading="lazy"></div>
         <figcaption><span lang="ja">ダークモード対応</span><span lang="en">Dark mode</span></figcaption>
       </figure>
+      <figure class="shot-item swiper-slide reveal">
+        <div class="shot"><img src="assets/screenshots/inventory-detail-ja.png" alt="塗料在庫の詳細画面" width="1179" height="2556" loading="lazy"></div>
+        <figcaption><span lang="ja">在庫の詳細をまとめて確認</span><span lang="en">Manage every item detail</span></figcaption>
+      </figure>
+      <figure class="shot-item swiper-slide reveal">
+        <div class="shot"><img src="assets/screenshots/paint-detail-ja.png" alt="塗料の詳細画面" width="1179" height="2556" loading="lazy"></div>
+        <figcaption><span lang="ja">色の情報をひと目で</span><span lang="en">See color details at a glance</span></figcaption>
+      </figure>
+      <figure class="shot-item swiper-slide reveal">
+        <div class="shot"><img src="assets/screenshots/inventory-detail-en.png" alt="塗料在庫の詳細画面（英語・ダークモード）" width="1179" height="2556" loading="lazy"></div>
+        <figcaption><span lang="ja">英語表示にも対応</span><span lang="en">English interface</span></figcaption>
+      </figure>
+      <figure class="shot-item swiper-slide reveal">
+        <div class="shot"><img src="assets/screenshots/paint-detail-en.png" alt="塗料の詳細画面（英語・ダークモード）" width="1179" height="2556" loading="lazy"></div>
+        <figcaption><span lang="ja">ダークモードでも見やすく</span><span lang="en">Dark mode, refined</span></figcaption>
+      </figure>
+      </div>
+      <div class="swiper-pagination"></div>
+      <div class="swiper-button-prev"></div>
+      <div class="swiper-button-next"></div>
     </div>
   </div>
 </section>
@@ -380,6 +404,7 @@ a:focus-visible, button:focus-visible, .shots:focus-visible {
   </div>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/swiper@12/swiper-bundle.min.js"></script>
 <script>
 (function () {
   var saved = null;
@@ -407,6 +432,22 @@ a:focus-visible, button:focus-visible, .shots:focus-visible {
   } else {
     reveals.forEach(function (el) { el.classList.add('in'); });
   }
+
+  var shots = document.querySelector('.shots');
+  var wrapper = shots.querySelector('.swiper-wrapper');
+  var slides = Array.prototype.slice.call(wrapper.children);
+  for (var i = slides.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = slides[i]; slides[i] = slides[j]; slides[j] = temp;
+  }
+  slides.forEach(function (slide) { wrapper.appendChild(slide); });
+  new Swiper(shots, {
+    slidesPerView: 'auto',
+    spaceBetween: 28,
+    grabCursor: true,
+    navigation: { nextEl: '.shots .swiper-button-next', prevEl: '.shots .swiper-button-prev' },
+    pagination: { el: '.shots .swiper-pagination', clickable: true },
+  });
 })();
 </script>
 </body>
