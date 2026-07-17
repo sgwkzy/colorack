@@ -16,6 +16,7 @@ import ColorMatcher from './ColorMatcher';
 import ManualEntry from './ManualEntry';
 import Toast from '../Toast';
 import { useModalLock } from '../../lib/modalLock';
+import { maybeRequestStoreReview } from '../../lib/reviewPrompt';
 
 interface Paint {
   id: number;
@@ -70,6 +71,8 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
         'INSERT INTO inventory (paint_id, status, box_id) VALUES (?, ?, ?)',
         [paint.id, opts?.status ?? defaultStatus, (opts?.status ?? defaultStatus) === 'used_up' ? null : (opts?.boxId !== undefined ? opts.boxId : boxId)]
       );
+      const inventoryCount = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM inventory');
+      if ((inventoryCount?.n ?? 0) >= 30) void maybeRequestStoreReview();
     }
     setToast(paintName(paint.name_ja, paint.name_en) + t('addedToast'));
     if (toastTimer.current) clearTimeout(toastTimer.current);

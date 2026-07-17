@@ -31,6 +31,7 @@ import {
   updateKitSeries,
 } from '../lib/db';
 import { deleteKitPhoto } from '../lib/kitPhoto';
+import { maybeRequestStoreReview } from '../lib/reviewPrompt';
 import { t } from '../lib/i18n';
 import { useModalLock } from '../lib/modalLock';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
@@ -224,6 +225,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     if (!detail || detail.status === status) return;
     setStatusPickerOpen(false);
     await setKitStatus(detail.id, status);
+    if (status === 'completed') void maybeRequestStoreReview();
     await load();
     onChanged?.();
   };

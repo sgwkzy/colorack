@@ -18,6 +18,7 @@ import KitDetailModal from '../../components/KitDetailModal';
 import KitFilterModal, { KitFilter } from '../../components/KitFilterModal';
 import ListActionBar from '../../components/ListActionBar';
 import { deleteKitPhoto } from '../../lib/kitPhoto';
+import { maybeRequestStoreReview } from '../../lib/reviewPrompt';
 
 interface CountRow { n: number; }
 
@@ -173,6 +174,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     swipeRefs.current.get(item.id)?.close();
     await setKitStatus(item.id, 'completed');
+    void maybeRequestStoreReview();
     reload();
   };
 
