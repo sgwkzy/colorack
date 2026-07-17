@@ -25,7 +25,7 @@ module.exports = ({ config }) => ({
     supportsTablet: false,
     bundleIdentifier: env('EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER', 'com.example.colorack'),
     infoPlist: {
-      NSCameraUsageDescription: '塗料の色の読み取りやバーコードスキャンのためにカメラを使用します',
+      NSCameraUsageDescription: '塗料の色を読み取るためにカメラを使用します',
       ITSAppUsesNonExemptEncryption: false,
     },
   },
