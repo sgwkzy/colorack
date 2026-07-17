@@ -33,14 +33,17 @@ export default function ListActionBar({ onFilter, onSort, onAdd, filterActive = 
     <Action key="add" label={t('add')} onPress={onAdd}><IconPlus color={colors.text} size={24} /></Action>,
   ];
   return (
-    <SafeAreaView edges={['bottom']} style={styles.safeArea}><View style={styles.bar}>
-      {actionOrder === 'reverse' ? actions.reverse() : actions}
-    </View></SafeAreaView>
+    <View collapsable={false} pointerEvents="box-none" style={styles.overlay}>
+      <SafeAreaView edges={['bottom']} style={styles.safeArea}><View style={styles.bar}>
+        {actionOrder === 'reverse' ? actions.reverse() : actions}
+      </View></SafeAreaView>
+    </View>
   );
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  safeArea: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 20, backgroundColor: 'transparent', paddingHorizontal: spacing.xl, paddingTop: spacing.md },
+  overlay: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20 },
+  safeArea: { backgroundColor: 'transparent', paddingHorizontal: spacing.xl, paddingTop: spacing.md },
   bar: { flexDirection: 'row', minHeight: 56, padding: spacing.xs, gap: spacing.xs, borderWidth: 1, borderColor: colors.border, borderRadius: radius.fab, backgroundColor: colors.surfaceAlt, boxShadow: '0 -2px 12px rgba(0, 0, 0, 0.12)' },
   action: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radius.fab },
 });
