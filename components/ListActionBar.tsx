@@ -34,7 +34,7 @@ export default function ListActionBar({ onFilter, onSort, onAdd, filterActive = 
   ];
   return (
     <View collapsable={false} pointerEvents="box-none" style={styles.overlay}>
-      <SafeAreaView edges={['bottom']} style={styles.safeArea}><View style={styles.bar}>
+      <SafeAreaView edges={['bottom']} pointerEvents="box-none" style={styles.safeArea}><View style={styles.bar}>
         {actionOrder === 'reverse' ? actions.reverse() : actions}
       </View></SafeAreaView>
     </View>
