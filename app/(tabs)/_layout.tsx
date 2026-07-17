@@ -60,6 +60,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="completed" options={{ title: t('completedKits') }} />
       <Tabs.Screen name="favorites" options={{ title: t('favorites') }} />
       <Tabs.Screen name="wishlist" options={{ title: t('wishlist') }} />
+      <Tabs.Screen name="kit-wishlist" options={{ title: t('wishlist') }} />
       <Tabs.Screen name="catalog" options={{ title: t('catalog') }} />
       <Tabs.Screen name="settings" options={{ title: t('settings') }} />
     </Tabs>

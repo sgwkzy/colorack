@@ -39,11 +39,12 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
   const [kitBoxes, setKitBoxes] = useState<Box[]>([]);
   const [kitCounts, setKitCounts] = useState<Map<number | null, number>>(new Map());
   const [completedCount, setCompletedCount] = useState(0);
+  const [kitWishlistCount, setKitWishlistCount] = useState(0);
   const [editingKitBox, setEditingKitBox] = useState<'new' | null>(null);
 
   const loadBoxes = useCallback(async () => {
     const db = getDB();
-    const [boxRows, countRows, favoriteRow, wishlistRow, usedRow, kitBoxRows, kitCountRows, completedRow] = await Promise.all([
+    const [boxRows, countRows, favoriteRow, wishlistRow, usedRow, kitBoxRows, kitCountRows, completedRow, kitWishlistRow] = await Promise.all([
       db.getAllAsync<Box>('SELECT id, name, icon, icon_color FROM boxes ORDER BY sort_order, id'),
       db.getAllAsync<CountRow>("SELECT box_id, COUNT(*) AS n FROM inventory WHERE status IN ('owned', 'in_use') GROUP BY box_id"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM lists WHERE type = 'favorites'"),
@@ -52,6 +53,7 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
       db.getAllAsync<Box>('SELECT id, name, icon, icon_color FROM kit_boxes ORDER BY sort_order, id'),
       db.getAllAsync<CountRow>("SELECT box_id, COUNT(*) AS n FROM kits WHERE status != 'completed' GROUP BY box_id"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM kits WHERE status = 'completed'"),
+      db.getFirstAsync<TotalRow>('SELECT COUNT(*) AS n FROM kit_wishlist'),
     ]);
     setBoxes(boxRows);
     setBoxCounts(new Map(countRows.map((row) => [row.box_id, row.n])));
@@ -61,6 +63,7 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     setKitBoxes(kitBoxRows);
     setKitCounts(new Map(kitCountRows.map((row) => [row.box_id, row.n])));
     setCompletedCount(completedRow?.n ?? 0);
+    setKitWishlistCount(kitWishlistRow?.n ?? 0);
   }, []);
   useEffect(() => { if (visible) loadBoxes(); }, [visible, loadBoxes]);
   const saveBox = async ({ name, icon, color }: BoxDraft) => {
@@ -75,7 +78,7 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     notifyKitBoxesChanged();
     await loadBoxes();
   };
-  const go = (pathname: '/owned' | '/used' | '/favorites' | '/wishlist' | '/catalog' | '/settings', boxId?: number | 'all') => {
+  const go = (pathname: '/owned' | '/used' | '/favorites' | '/wishlist' | '/kit-wishlist' | '/catalog' | '/settings', boxId?: number | 'all') => {
     if (pathname === '/owned' && boxId !== undefined) setActiveBox(boxId);
     onClose();
     if (boxId !== undefined) router.navigate({ pathname, params: { boxId: String(boxId) } });
@@ -139,6 +142,7 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
                 {kitBoxes.length < 8 ? item(t('addBox'), () => setEditingKitBox('new'), <IconPlus color={colors.primary} size={22} />) : null}
                 <View style={styles.divider} />
                 {item(t('completedKits'), goCompleted, <IconCircleCheck color={colors.textMuted} size={22} />, pathname.endsWith('/completed'), completedCount)}
+                {item(t('wishlist'), () => go('/kit-wishlist'), <IconShoppingCartPlus color={colors.textMuted} size={22} />, pathname.endsWith('/kit-wishlist'), kitWishlistCount)}
               </>
             )}
             <View style={styles.divider} />

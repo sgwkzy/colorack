@@ -79,6 +79,11 @@ export async function initDB(): Promise<void> {
     "  status TEXT NOT NULL DEFAULT 'not_started' CHECK(status IN ('not_started','building','completed'))," +
     "  added_at TEXT DEFAULT (datetime('now')), status_changed_at TEXT DEFAULT (datetime('now'))" +
     ');' +
+    'CREATE TABLE IF NOT EXISTS kit_wishlist (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name TEXT NOT NULL, maker TEXT NOT NULL, series TEXT, category TEXT, scale TEXT, note TEXT, price INTEGER,' +
+    "  added_at TEXT DEFAULT (datetime('now'))" +
+    ');' +
     'CREATE TABLE IF NOT EXISTS kit_colors (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     '  kit_id INTEGER NOT NULL, name TEXT, note TEXT, sort_order INTEGER NOT NULL DEFAULT 0,' +

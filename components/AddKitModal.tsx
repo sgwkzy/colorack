@@ -17,9 +17,10 @@ interface Props {
   visible: boolean;
   defaultBoxId: number | null;
   onClose: () => void;
+  saveTarget?: 'kits' | 'wishlist';
 }
 
-export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
+export default function AddKitModal({ visible, defaultBoxId, onClose, saveTarget = 'kits' }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -50,12 +51,18 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
       return;
     }
     const normalizedPrice = parsedPrice !== null && Number.isInteger(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
-    const result = await getDB().runAsync(
-      'INSERT INTO kits (box_id, name, maker, series, category, scale, price, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [defaultBoxId, name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, normalizedPrice, note.trim() || null, 'not_started']
-    );
-    const kitId = result.lastInsertRowId;
-    for (const uri of photos) await addKitPhoto(kitId, uri);
+    if (saveTarget === 'wishlist') {
+      await getDB().runAsync(
+        'INSERT INTO kit_wishlist (name, maker, series, category, scale, price, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, normalizedPrice, note.trim() || null]
+      );
+    } else {
+      const result = await getDB().runAsync(
+        'INSERT INTO kits (box_id, name, maker, series, category, scale, price, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [defaultBoxId, name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, normalizedPrice, note.trim() || null, 'not_started']
+      );
+      for (const uri of photos) await addKitPhoto(result.lastInsertRowId, uri);
+    }
     onClose();
     } finally { setBusy(false); }
   };
@@ -79,7 +86,7 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
           </SwipeDownHeader>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <SwipeDownScrollView onClose={cancelAndClose} closeEnabled={!viewerOpen} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-            <KitPhotoGrid
+            {saveTarget === 'kits' && <KitPhotoGrid
               photos={photos.map((uri) => ({ key: uri, uri }))}
               editable
               onViewerChange={setViewerOpen}
@@ -98,7 +105,7 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
                   return next;
                 });
               }}
-            />
+            />}
             <View style={styles.field}>
               <Text style={styles.label}>{t('name')}*</Text>
               <ClearableInput style={styles.input} value={name} onChangeText={setName} />
