@@ -5,6 +5,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { IconShoppingCartPlus } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { getDB, getDefaultBoxId } from '../../lib/db';
+import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
 import { useTheme, lightColors, spacing, touch } from '../../lib/theme';
@@ -105,7 +106,10 @@ export default function WishlistScreen() {
     setItems(rows);
   }, []);
 
-  useFocusEffect(useCallback(() => { load(filter, sort); }, [load, filter, sort]));
+  useFocusEffect(useCallback(() => {
+    setAppMode('colorack');
+    load(filter, sort);
+  }, [load, filter, sort]));
 
   const reload = () => load(filter, sort);
   const filterActive = filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';

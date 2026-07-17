@@ -32,10 +32,8 @@ export default function TabsLayout() {
       overlayColor="transparent"
       drawerBackgroundColor={colors.surface}
       drawerLockMode={modalOpen ? 'locked-closed' : 'unlocked'}
-      onDrawerStateChanged={(_state, willShow) => { if (willShow) setDrawerOpen(true); }}
-      onDrawerOpen={() => setDrawerOpen(true)}
-      onDrawerClose={() => setDrawerOpen(false)}
-      renderNavigationView={() => <NavigationDrawer visible={drawerOpen} onClose={() => drawerRef.current?.closeDrawer()} />}
+      onDrawerStateChanged={(_state, willShow) => setDrawerOpen(willShow)}
+      renderNavigationView={() => <NavigationDrawer key={drawerOpen ? 'open' : 'closed'} visible={drawerOpen} onClose={() => drawerRef.current?.closeDrawer()} />}
     >
     <Tabs
       initialRouteName={restoreTarget?.screen}
