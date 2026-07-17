@@ -58,3 +58,7 @@ __pycache__/
 
 # git worktrees
 .worktrees/
+
+# local Claude worktrees and settings
+.claude/worktrees/
+.claude/settings.local.json
