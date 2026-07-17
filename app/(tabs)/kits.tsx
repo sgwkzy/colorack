@@ -235,6 +235,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
               if (direction === 'left') deleteKitItem(item);
               else completeKit(item);
             }}
+            onSwipeableWillOpen={() => swipeRefs.current.forEach((swipeable, id) => { if (id !== item.id) swipeable.close(); })}
             overshootRight={false}
             overshootLeft={false}
           >

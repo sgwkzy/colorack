@@ -324,6 +324,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
                 if (direction === 'right') deleteItem(item);
                 else markUsedUp(item);
               }}
+              onSwipeableWillOpen={() => swipeRefs.current.forEach((swipeable, id) => { if (id !== item.id) swipeable.close(); })}
               overshootRight={false}
               overshootLeft={false}
             >

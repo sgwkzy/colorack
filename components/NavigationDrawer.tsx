@@ -24,9 +24,8 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
   const pathname = usePathname();
   const appMode = useAppMode();
   const [previewMode, setPreviewMode] = useState<AppMode>(appMode);
-  // ドロワーを開くたびに本当のモード(実際に表示中の画面)へ同期し直す。閉じている間に
-  // トグルだけして実際にはボックスへ移動しなかった場合、次に開いた時は元のモードに戻る。
-  useEffect(() => { if (visible) setPreviewMode(appMode); }, [visible, appMode]);
+  // レイアウト側がドロワーを開くたびにこのコンポーネントを再マウントするため、
+  // プレビューは常に「現在表示中の画面のモード」から始まる。
   const mode = previewMode;
   const activeBoxId = useActiveBox();
   const allBoxesLabel = locale === 'ja' ? 'すべてのボックス' : 'All Boxes';
