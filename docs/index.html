@@ -1,10 +1,17 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Colorack — 模型塗料の在庫管理アプリ</title>
-<meta name="description" content="Colorackは模型塗料の在庫をかんたんに管理できるiOS/Androidアプリ。カタログ登録・バーコードスキャン・近似色検索に対応。">
+<meta name="description" content="Colorackは模型塗料の在庫をかんたんに管理できるiOS/Androidアプリ。カタログ登録・近似色検索・保管箱管理に対応。">
+<link rel="canonical" href="https://sgwkzy.github.io/colorack/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Colorack — 模型塗料の在庫管理アプリ">
+<meta property="og:description" content="手持ちの模型塗料をまるごと記録。カタログ登録・近似色検索・保管箱管理に対応したiOS/Androidアプリ。">
+<meta property="og:url" content="https://sgwkzy.github.io/colorack/">
+<meta property="og:image" content="https://sgwkzy.github.io/colorack/assets/icon.png">
+<meta name="twitter:card" content="summary">
 <link rel="icon" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -49,7 +56,7 @@ html[data-lang="en"] [lang="ja"] { display: none; }
 :lang(en) { font-family: "Outfit", "Zen Kaku Gothic New", sans-serif; }
 
 /* ===== swatch rail (signature) ===== */
-.rail { display: flex; height: 8px; }
+.rail { display: flex; height: 14px; }
 .rail span { flex: 1; }
 
 /* ===== hero: dark workbench ===== */
@@ -78,8 +85,10 @@ header { display: flex; justify-content: space-between; align-items: center; pad
   font-size: clamp(44px, 7vw, 72px); font-weight: 800; letter-spacing: .01em; line-height: 1.05;
   margin: 14px 0 18px;
 }
-.hero h1 .stroke {
-  color: transparent; -webkit-text-stroke: 2px var(--primary); display: block;
+.hero h1 .hl {
+  display: inline-block; color: var(--primary);
+  background: linear-gradient(90deg, #c0392b 0 20%, #d4a017 0 40%, #27ae60 0 60%, #2980b9 0 80%, #8e44ad 0 100%) left bottom / 100% 6px no-repeat;
+  padding-bottom: 10px;
 }
 .hero .lead { font-size: 17px; color: var(--muted-on-deep); max-width: 30em; }
 .stores { display: flex; gap: 14px; align-items: center; margin-top: 34px; flex-wrap: wrap; }
@@ -92,20 +101,19 @@ header { display: flex; justify-content: space-between; align-items: center; pad
 }
 .store-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(74, 144, 217, .6); }
 .store-badge {
-  color: var(--muted-on-deep); border: 1px dashed var(--border-on-deep);
+  color: var(--muted-on-deep); border: 1px dashed #3d4c5e;
   border-radius: 12px; padding: 12px 20px; font-size: 13px;
 }
 
 /* phone mockup in hero */
 .hero-phone { justify-self: center; position: relative; }
 .hero-phone::before {
-  /* ぼかした色ダマ: 塗料皿のにじみ */
-  content: ""; position: absolute; inset: -60px -40px;
-  background:
-    radial-gradient(220px 220px at 20% 25%, rgba(192,57,43,.35), transparent 70%),
-    radial-gradient(260px 260px at 85% 20%, rgba(74,144,217,.4), transparent 70%),
-    radial-gradient(200px 200px at 70% 90%, rgba(39,174,96,.3), transparent 70%);
-  filter: blur(10px); z-index: 0;
+  /* 塗料スウォッチ帯: アプリのエッジストリップの拡大モチーフ */
+  content: ""; position: absolute; top: 8%; bottom: 8%; left: -36px; right: -36px;
+  background: linear-gradient(180deg,
+    #c0392b 0 12.5%, #e67e22 0 25%, #d4a017 0 37.5%, #27ae60 0 50%,
+    #2980b9 0 62.5%, #4a90d9 0 75%, #8e44ad 0 87.5%, #95a5a6 0 100%);
+  border-radius: 20px; opacity: .85; transform: rotate(-3deg); z-index: 0;
 }
 .phone {
   position: relative; z-index: 1; width: min(290px, 70vw);
@@ -145,16 +153,16 @@ section { padding: 88px 0; }
   scroll-snap-type: x mandatory;
 }
 .shot {
-  flex: 0 0 232px; scroll-snap-align: center;
   border-radius: 30px; border: 7px solid #232d3a; background: #232d3a; overflow: hidden;
   box-shadow: 0 18px 40px rgba(0,0,0,.45);
   transition: transform .2s ease;
 }
-.shot:nth-child(odd) { transform: rotate(-1.2deg); }
-.shot:nth-child(even) { transform: rotate(1.2deg); }
+.shot-item:nth-child(odd) .shot { transform: rotate(-1.2deg); }
+.shot-item:nth-child(even) .shot { transform: rotate(1.2deg); }
 .shot:hover { transform: rotate(0) scale(1.03); }
 .shot img { display: block; width: 100%; height: auto; border-radius: 23px; }
-.shot figcaption { display: none; }
+.shot-item { flex: 0 0 232px; scroll-snap-align: center; }
+.shot-item figcaption { text-align: center; font-size: 13px; color: var(--muted-on-deep); margin-top: 14px; }
 .shots::-webkit-scrollbar { height: 8px; }
 .shots::-webkit-scrollbar-thumb { background: var(--border-on-deep); border-radius: 4px; }
 
@@ -171,6 +179,10 @@ footer {
 }
 footer a { color: var(--primary); text-decoration: none; margin: 0 12px; }
 footer a:hover { text-decoration: underline; }
+
+a:focus-visible, button:focus-visible, .shots:focus-visible {
+  outline: 2px solid var(--primary); outline-offset: 3px;
+}
 
 /* ===== reveal on scroll ===== */
 .reveal { opacity: 0; transform: translateY(24px); transition: opacity .6s ease, transform .6s ease; }
@@ -197,7 +209,7 @@ footer a:hover { text-decoration: underline; }
 <div class="top">
   <header>
     <div class="brand"><img src="assets/icon.png" alt="">Colorack</div>
-    <button id="langToggle" aria-label="Switch language">
+    <button id="langToggle">
       <span lang="ja">English</span><span lang="en">日本語</span>
     </button>
   </header>
@@ -207,16 +219,16 @@ footer a:hover { text-decoration: underline; }
       <div>
         <span class="eyebrow"><span lang="ja">模型塗料の在庫管理アプリ</span><span lang="en">Hobby paint inventory app</span></span>
         <h1>
-          <span lang="ja">その色、<span class="stroke">持ってる？</span></span>
-          <span lang="en">Got that <span class="stroke">color?</span></span>
+          <span lang="ja">その色、<span class="hl">持ってる？</span></span>
+          <span lang="en">Got that <span class="hl">color?</span></span>
         </h1>
         <p class="lead">
           <span lang="ja">Colorackは、手持ちの模型塗料をまるごと記録するアプリ。店頭で「これ持ってたっけ？」と迷う時間を、もう終わりに。</span>
           <span lang="en">Colorack keeps track of every hobby paint you own. No more standing in the store wondering "do I already have this one?"</span>
         </p>
         <div class="stores">
-          <a class="store-btn" href="https://apps.apple.com/us/app/colorack/id6789651166">
-            <span lang="ja"> App Storeで入手</span><span lang="en"> Download on the App Store</span>
+          <a class="store-btn" href="https://apps.apple.com/app/colorack/id6789651166">
+            <span lang="ja">App Storeで無料入手</span><span lang="en">Free on the App Store</span>
           </a>
           <span class="store-badge">
             <span lang="ja">Android版はクローズドテスト中</span>
@@ -225,7 +237,7 @@ footer a:hover { text-decoration: underline; }
         </div>
       </div>
       <div class="hero-phone">
-        <div class="phone"><img src="assets/screenshots/box-ja.png" alt="Colorackの保管箱画面" fetchpriority="high"></div>
+        <div class="phone"><img src="assets/screenshots/box-ja.png" alt="Colorackの保管箱在庫一覧画面" width="1179" height="2556" fetchpriority="high"></div>
       </div>
     </div>
   </div>
@@ -297,12 +309,31 @@ footer a:hover { text-decoration: underline; }
         <span lang="en">Light or dark, your call.</span>
       </h2>
     </div>
-    <div class="shots">
-      <figure class="shot reveal"><img src="assets/screenshots/box-ja.png" alt="保管箱の在庫一覧画面" loading="lazy"></figure>
-      <figure class="shot reveal"><img src="assets/screenshots/color-search-ja.png" alt="近似色検索画面" loading="lazy"></figure>
-      <figure class="shot reveal"><img src="assets/screenshots/catalog-ja.png" alt="塗料カタログのブランド一覧画面" loading="lazy"></figure>
-      <figure class="shot reveal"><img src="assets/screenshots/box-en.png" alt="保管箱の在庫一覧画面（英語・ダークモード）" loading="lazy"></figure>
-      <figure class="shot reveal"><img src="assets/screenshots/catalog-en.png" alt="塗料カタログのブランド一覧画面（英語・ダークモード）" loading="lazy"></figure>
+    <div class="shots" tabindex="0">
+      <figure class="shot-item reveal">
+        <div class="shot"><img src="assets/screenshots/box-ja.png" alt="保管箱の在庫一覧画面" width="1179" height="2556" loading="lazy"></div>
+        <figcaption><span lang="ja">保管箱の在庫一覧</span><span lang="en">Storage box inventory</span></figcaption>
+      </figure>
+      <figure class="shot-item reveal">
+        <div class="shot"><img src="assets/screenshots/color-search-ja.png" alt="近似色検索画面" width="1179" height="2556" loading="lazy"></div>
+        <figcaption><span lang="ja">近似色検索（ΔE）</span><span lang="en">Similar color search (ΔE)</span></figcaption>
+      </figure>
+      <figure class="shot-item reveal">
+        <div class="shot"><img src="assets/screenshots/catalog-ja.png" alt="塗料カタログのブランド一覧画面" width="1179" height="2556" loading="lazy"></div>
+        <figcaption><span lang="ja">塗料カタログ</span><span lang="en">Paint catalog</span></figcaption>
+      </figure>
+      <figure class="shot-item reveal">
+        <div class="shot"><img src="assets/screenshots/filter-ja.png" alt="絞り込み画面" width="1179" height="2556" loading="lazy"></div>
+        <figcaption><span lang="ja">条件で絞り込み</span><span lang="en">Filter your paints</span></figcaption>
+      </figure>
+      <figure class="shot-item reveal">
+        <div class="shot"><img src="assets/screenshots/sort-ja.png" alt="並び替え画面" width="1179" height="2556" loading="lazy"></div>
+        <figcaption><span lang="ja">好きな順に並び替え</span><span lang="en">Sort your way</span></figcaption>
+      </figure>
+      <figure class="shot-item reveal">
+        <div class="shot"><img src="assets/screenshots/box-en.png" alt="保管箱の在庫一覧画面（ダークモード）" width="1179" height="2556" loading="lazy"></div>
+        <figcaption><span lang="ja">ダークモード対応</span><span lang="en">Dark mode</span></figcaption>
+      </figure>
     </div>
   </div>
 </section>
@@ -325,8 +356,8 @@ footer a:hover { text-decoration: underline; }
       <span lang="en">Start managing your paint inventory with Colorack today.</span>
     </p>
     <div class="stores">
-      <a class="store-btn" href="https://apps.apple.com/us/app/colorack/id6789651166">
-        <span lang="ja"> App Storeで入手</span><span lang="en"> Download on the App Store</span>
+      <a class="store-btn" href="https://apps.apple.com/app/colorack/id6789651166">
+        <span lang="ja">App Storeで無料入手</span><span lang="en">Free on the App Store</span>
       </a>
       <span class="store-badge">
         <span lang="ja">Android版はクローズドテスト中</span>
@@ -348,7 +379,8 @@ footer a:hover { text-decoration: underline; }
 
 <script>
 (function () {
-  var saved = localStorage.getItem('colorack-lang');
+  var saved = null;
+  try { saved = localStorage.getItem('colorack-lang'); } catch (e) {}
   var lang = saved || (navigator.language.startsWith('ja') ? 'ja' : 'en');
   function apply(l) {
     document.documentElement.setAttribute('data-lang', l);
@@ -358,15 +390,20 @@ footer a:hover { text-decoration: underline; }
   document.getElementById('langToggle').addEventListener('click', function () {
     lang = lang === 'ja' ? 'en' : 'ja';
     apply(lang);
-    localStorage.setItem('colorack-lang', lang);
+    try { localStorage.setItem('colorack-lang', lang); } catch (e) {}
   });
 
-  var io = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) {
-      if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
-    });
-  }, { threshold: 0.15 });
-  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+  var reveals = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.15 });
+    reveals.forEach(function (el) { io.observe(el); });
+  } else {
+    reveals.forEach(function (el) { el.classList.add('in'); });
+  }
 })();
 </script>
 </body>
