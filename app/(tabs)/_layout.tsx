@@ -1,5 +1,5 @@
 // app/(tabs)/_layout.tsx
-import { useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { TouchableOpacity, useWindowDimensions } from 'react-native';
 import DrawerLayout from 'react-native-gesture-handler/DrawerLayout';
 import { Tabs } from 'expo-router';
@@ -17,9 +17,10 @@ import { useModalOpen } from '../../lib/modalLock';
 export default function TabsLayout() {
   useLocale(); // ロケール変更でタブ名(ヘッダー/ラベル)を再計算
   const { colors, isDark } = useTheme();
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const modalOpen = useModalOpen();
   const drawerRef = useRef<DrawerLayout>(null);
+  const closeDrawer = useCallback(() => drawerRef.current?.closeDrawer(), []);
+  const renderNavigationView = useCallback(() => <NavigationDrawer onClose={closeDrawer} />, [closeDrawer]);
   const { width } = useWindowDimensions();
   const restoreTarget = getRestoreTarget();
   return (
@@ -32,8 +33,7 @@ export default function TabsLayout() {
       overlayColor="transparent"
       drawerBackgroundColor={colors.surface}
       drawerLockMode={modalOpen ? 'locked-closed' : 'unlocked'}
-      onDrawerStateChanged={(_state, willShow) => setDrawerOpen(willShow)}
-      renderNavigationView={() => <NavigationDrawer key={drawerOpen ? 'open' : 'closed'} visible={drawerOpen} onClose={() => drawerRef.current?.closeDrawer()} />}
+      renderNavigationView={renderNavigationView}
     >
     <Tabs
       initialRouteName={restoreTarget?.screen}
