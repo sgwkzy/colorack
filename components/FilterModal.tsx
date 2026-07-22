@@ -37,9 +37,10 @@ interface Props {
   initialStatuses?: PaintStatus[];
   onApplyStatuses?: (statuses: PaintStatus[]) => void;
   showSearch?: boolean;
+  showPaintType?: boolean;
 }
 
-export default function FilterModal({ visible, options, initial, onApply, onClose, statusOptions, initialStatuses, onApplyStatuses, showSearch = true }: Props) {
+export default function FilterModal({ visible, options, initial, onApply, onClose, statusOptions, initialStatuses, onApplyStatuses, showSearch = true, showPaintType = true }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
   const { listFontSize } = useUiPrefs();
@@ -192,7 +193,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
           )}
 
           {/* 塗料種別複数選択 */}
-          <TouchableOpacity style={styles.dropdown} onPress={() => setTypeOpen((o) => !o)}>
+          {showPaintType ? <><TouchableOpacity style={styles.dropdown} onPress={() => setTypeOpen((o) => !o)}>
             <Text style={styles.dropdownLabel}>
               {t('paintType')}{types.length ? ` (${types.length})` : ''}
             </Text>
@@ -206,7 +207,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
                 ? <Text style={styles.emptyOpt}>{t('noResults')}</Text>
                 : typeOptions.map((p) => checkRow(p, paintTypeLabel(p), types.includes(p), () => toggle(types, p, setTypes)))}
             </View>
-          )}
+          )}</> : null}
         </SwipeDownScrollView>
 
         <TouchableOpacity

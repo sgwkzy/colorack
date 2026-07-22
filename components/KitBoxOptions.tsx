@@ -51,6 +51,7 @@ export default function KitBoxOptions() {
       await db.runAsync('DELETE FROM kit_color_paints WHERE kit_color_id IN (SELECT id FROM kit_colors WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?))', [box.id]);
       await db.runAsync('DELETE FROM kit_colors WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?)', [box.id]);
       await db.runAsync('DELETE FROM kit_photos WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?)', [box.id]);
+      await db.runAsync('DELETE FROM kit_lists WHERE kit_id IN (SELECT id FROM kits WHERE box_id = ?)', [box.id]);
       await db.runAsync('DELETE FROM kits WHERE box_id = ?', [box.id]);
       await db.runAsync('DELETE FROM kit_boxes WHERE id = ?', [box.id]);
       if (currentDefaultId === box.id) {

@@ -16,10 +16,11 @@ import SwipeDownScrollView from './SwipeDownScrollView';
 interface Props {
   visible: boolean;
   defaultBoxId: number | null;
+  addToWishlist?: boolean;
   onClose: () => void;
 }
 
-export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
+export default function AddKitModal({ visible, defaultBoxId, addToWishlist = false, onClose }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -55,6 +56,7 @@ export default function AddKitModal({ visible, defaultBoxId, onClose }: Props) {
       [defaultBoxId, name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, normalizedPrice, note.trim() || null, 'not_started']
     );
     const kitId = result.lastInsertRowId;
+    if (addToWishlist) await getDB().runAsync('INSERT INTO kit_lists (kit_id) VALUES (?)', [kitId]);
     for (const uri of photos) await addKitPhoto(kitId, uri);
     onClose();
     } finally { setBusy(false); }

@@ -134,11 +134,14 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
     if (f.scales.length) { where.push(`scale IN (${f.scales.map(() => '?').join(',')})`); args.push(...f.scales); }
     if (f.search.trim()) { where.push('name LIKE ?'); args.push(`%${f.search.trim()}%`); }
 
+    const orderBy = wishlistScreen && sortBy === 'added'
+      ? '(SELECT added_at FROM kit_lists WHERE kit_id = kits.id) DESC'
+      : KIT_SORT_ORDER[sortBy];
     const sql =
       'SELECT id, name, maker, scale, status,'
       + ' (SELECT uri FROM kit_photos WHERE kit_id = kits.id ORDER BY sort_order, id LIMIT 1) AS thumb_uri'
       + ' FROM kits WHERE ' + where.join(' AND ')
-      + ' ORDER BY ' + KIT_SORT_ORDER[sortBy];
+      + ' ORDER BY ' + orderBy;
 
     const [totalRow, nextFilterOptions, nextItems] = await Promise.all([
       db.getFirstAsync<CountRow>(wishlistScreen ? 'SELECT COUNT(*) AS n FROM kit_lists' : "SELECT COUNT(*) AS n FROM kits WHERE status IN ('not_started','building')" + totalWhere, wishlistScreen ? [] : totalArgs),
@@ -189,6 +192,13 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
     ]);
   };
 
+  const removeWishlistItem = async (item: KitListItem) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    swipeRefs.current.get(item.id)?.close();
+    await getDB().runAsync('DELETE FROM kit_lists WHERE kit_id = ?', [item.id]);
+    reload();
+  };
+
   const renderDeleteAction = () => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>;
   const renderCompleteAction = () => <View style={styles.completeAction}><Text style={styles.swipeActionText}>{t('statusCompleted')}</Text></View>;
 
@@ -214,7 +224,7 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
   return (
     <View style={styles.container}>
       <View style={styles.statusBarWrap}>
-        <Text style={styles.statusCount}>{t('kitCount', { total: completedScreen || wishlistScreen ? items.length : kitTotal, shown: items.length })}</Text>
+        <Text style={styles.statusCount}>{t('kitCount', { total: completedScreen ? items.length : kitTotal, shown: items.length })}</Text>
         <ListToolbar onFilter={() => setShowFilter(true)} onSort={openSort} filterActive={filterActive} />
       </View>
 
@@ -230,8 +240,10 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
             renderRightActions={renderDeleteAction}
             renderLeftActions={completedScreen || wishlistScreen ? undefined : renderCompleteAction}
             onSwipeableOpen={(direction) => {
-              if (direction === 'left') deleteKitItem(item);
-              else completeKit(item);
+              if (direction === 'right') {
+                if (wishlistScreen) removeWishlistItem(item);
+                else deleteKitItem(item);
+              } else if (!wishlistScreen) completeKit(item);
             }}
             onSwipeableWillOpen={() => swipeRefs.current.forEach((swipeable, id) => { if (id !== item.id) swipeable.close(); })}
             overshootRight={false}
@@ -291,6 +303,7 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
       <AddKitModal
         visible={showAdd}
         defaultBoxId={completedScreen || wishlistScreen || selected === 'all' ? defaultBoxId : selected}
+        addToWishlist={wishlistScreen}
         onClose={() => { setShowAdd(false); reload(); }}
       />
       <KitDetailModal

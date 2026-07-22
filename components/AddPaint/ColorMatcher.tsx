@@ -95,7 +95,7 @@ export default function ColorMatcher({ onSelect, onSelectView, onRequestClose, l
     search(rgb.r, rgb.g, rgb.b);
   };
 
-  const filterCount = filter.brands.length + filter.series.length + filter.gloss.length + filter.types.length;
+  const filterCount = filter.brands.length + filter.series.length + filter.gloss.length + (lockedPaintType ? 0 : filter.types.length);
   const filterActive = filterCount > 0;
 
   return (
@@ -181,6 +181,7 @@ export default function ColorMatcher({ onSelect, onSelectView, onRequestClose, l
         options={filterOptions}
         initial={filter}
         showSearch={false}
+        showPaintType={!lockedPaintType}
         onClose={() => setShowFilter(false)}
         onApply={(next) => {
           const applied = lockedPaintType ? { ...next, types: [lockedPaintType] } : next;
