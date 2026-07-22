@@ -17,7 +17,7 @@ import FilterModal, { PaintFilter } from '../../components/FilterModal';
 import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintRow from '../../components/PaintRow';
 import Toast from '../../components/Toast';
-import ListActionBar from '../../components/ListActionBar';
+import ListActionBar, { ListToolbar } from '../../components/ListActionBar';
 
 interface ListItem {
   id: number;
@@ -161,6 +161,7 @@ export default function FavoritesScreen() {
     <View style={styles.container}>
       <View style={styles.statusBarWrap}>
         <Text style={styles.statusCount}>{t('paintCount', { total: totalCount, shown: items.length })}</Text>
+        <ListToolbar onFilter={() => setShowFilter(true)} onSort={openSort} filterActive={filterActive} />
       </View>
       <View style={styles.adBar}><AdBanner /></View>
       <FlatList
@@ -194,7 +195,7 @@ export default function FavoritesScreen() {
         )}
         contentContainerStyle={{ paddingBottom: 104 }}
       />
-      <ListActionBar onFilter={() => setShowFilter(true)} onSort={openSort} onAdd={() => setShowAdd(true)} filterActive={filterActive} />
+      <ListActionBar onAdd={() => setShowAdd(true)} />
       <FilterModal
         visible={showFilter}
         options={filterOptions}
@@ -227,7 +228,7 @@ export default function FavoritesScreen() {
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  statusBarWrap: { minHeight: touch.min, justifyContent: 'center', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
+  statusBarWrap: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
   statusCount: { color: colors.text, fontSize: 15, fontVariant: ['tabular-nums'] },
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },

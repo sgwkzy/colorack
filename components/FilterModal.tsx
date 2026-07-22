@@ -16,6 +16,7 @@ import { useUiPrefs, type ListFontSize } from '../lib/uiPrefs';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
 import { useModalLock } from '../lib/modalLock';
+import type { PaintStatus } from '../lib/db';
 
 export interface PaintFilter {
   brands: string[];
@@ -32,9 +33,14 @@ interface Props {
   initial: PaintFilter;
   onApply: (f: PaintFilter) => void;
   onClose: () => void;
+  statusOptions?: { value: PaintStatus; label: string }[];
+  initialStatuses?: PaintStatus[];
+  onApplyStatuses?: (statuses: PaintStatus[]) => void;
+  showSearch?: boolean;
+  showPaintType?: boolean;
 }
 
-export default function FilterModal({ visible, options, initial, onApply, onClose }: Props) {
+export default function FilterModal({ visible, options, initial, onApply, onClose, statusOptions, initialStatuses, onApplyStatuses, showSearch = true, showPaintType = true }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
   const { listFontSize } = useUiPrefs();
@@ -44,6 +50,8 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
   const [gloss, setGloss] = useState<string[]>(initial.gloss);
   const [types, setTypes] = useState<string[]>(initial.types);
   const [search, setSearch] = useState(initial.search);
+  const [statuses, setStatuses] = useState<PaintStatus[]>(initialStatuses ?? []);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
   const [seriesOpen, setSeriesOpen] = useState(false);
   const [glossOpen, setGlossOpen] = useState(false);
@@ -54,7 +62,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
   useEffect(() => {
     if (!visible) return;
     setBrands(initial.brands); setSeries(initial.series);
-    setGloss(initial.gloss); setTypes(initial.types); setSearch(initial.search);
+    setGloss(initial.gloss); setTypes(initial.types); setSearch(initial.search); setStatuses(initialStatuses ?? []);
   }, [visible]);
 
   const allBrands = useMemo(
@@ -82,10 +90,10 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
     [options]
   );
 
-  const toggle = (arr: string[], v: string, set: (x: string[]) => void) =>
+  const toggle = <T extends string>(arr: T[], v: T, set: (x: T[]) => void) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
-  const clear = () => { setBrands([]); setSeries([]); setGloss([]); setTypes([]); setSearch(''); };
+  const clear = () => { setBrands([]); setSeries([]); setGloss([]); setTypes([]); setSearch(''); setStatuses(statusOptions?.map((option) => option.value) ?? []); };
 
   const checkRow = (key: string, label: string, checked: boolean, onPress: () => void) => (
     <TouchableOpacity key={key} style={styles.checkRow} onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked }} accessibilityLabel={label}>
@@ -113,14 +121,25 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
         </SwipeDownHeader>
 
         <SwipeDownScrollView onClose={onClose} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} alwaysBounceVertical>
-          {/* 色名検索 */}
-          <Text style={styles.sectionTitle}>{t('colorName')}</Text>
-          <ClearableInput
-            style={styles.input}
-            placeholder={t('searchPlaceholder')}
-            value={search}
-            onChangeText={setSearch}
-          />
+          {showSearch ? <>
+            <Text style={styles.sectionTitle}>{t('colorName')}</Text>
+            <ClearableInput
+              style={styles.input}
+              placeholder={t('searchPlaceholder')}
+              value={search}
+              onChangeText={setSearch}
+            />
+          </> : null}
+
+          {statusOptions ? <>
+            <TouchableOpacity style={styles.dropdown} onPress={() => setStatusOpen((open) => !open)}>
+              <Text style={styles.dropdownLabel}>{t('status')}{statuses.length !== statusOptions.length ? ` (${statuses.length})` : ''}</Text>
+              {statusOpen ? <IconChevronUp size={16} color={colors.textFaint} /> : <IconChevronDown size={16} color={colors.textFaint} />}
+            </TouchableOpacity>
+            {statusOpen ? <View style={styles.checkList}>
+              {statusOptions.map((option) => checkRow(option.value, option.label, statuses.includes(option.value), () => toggle(statuses, option.value, setStatuses)))}
+            </View> : null}
+          </> : null}
 
           {/* ブランド複数選択 */}
           <TouchableOpacity style={styles.dropdown} onPress={() => setBrandOpen((o) => !o)}>
@@ -174,7 +193,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
           )}
 
           {/* 塗料種別複数選択 */}
-          <TouchableOpacity style={styles.dropdown} onPress={() => setTypeOpen((o) => !o)}>
+          {showPaintType ? <><TouchableOpacity style={styles.dropdown} onPress={() => setTypeOpen((o) => !o)}>
             <Text style={styles.dropdownLabel}>
               {t('paintType')}{types.length ? ` (${types.length})` : ''}
             </Text>
@@ -188,7 +207,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
                 ? <Text style={styles.emptyOpt}>{t('noResults')}</Text>
                 : typeOptions.map((p) => checkRow(p, paintTypeLabel(p), types.includes(p), () => toggle(types, p, setTypes)))}
             </View>
-          )}
+          )}</> : null}
         </SwipeDownScrollView>
 
         <TouchableOpacity
@@ -197,6 +216,7 @@ export default function FilterModal({ visible, options, initial, onApply, onClos
             // 選択ブランド外のシリーズ選択は落とす
             const validSeries = series.filter((s) => seriesOptions.includes(s));
             onApply({ brands, series: validSeries, gloss, types, search: search.trim() });
+            onApplyStatuses?.(statuses);
           }}
         >
           <Text style={styles.applyText}>{t('apply')}</Text>
@@ -219,7 +239,7 @@ const makeStyles = (colors: typeof lightColors, listFontSize: ListFontSize) => {
     container: { flex: 1, backgroundColor: colors.surface },
     header: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     headerSide: { flex: 1 },
-    headerBtn: { color: colors.primary, fontSize: 16 },
+    headerBtn: { color: colors.primaryText, fontSize: 16 },
     title: { flex: 1, fontSize: 18, fontWeight: 'bold', textAlign: 'center', color: colors.text },
     sectionTitle: { fontSize: 13, color: colors.textFaint, marginTop: spacing.xl, marginHorizontal: spacing.xl, marginBottom: spacing.sm },
     input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg, marginHorizontal: spacing.xl, color: colors.text },

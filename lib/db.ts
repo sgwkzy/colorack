@@ -80,6 +80,11 @@ export async function initDB(): Promise<void> {
     "  status TEXT NOT NULL DEFAULT 'not_started' CHECK(status IN ('not_started','building','completed'))," +
     "  added_at TEXT DEFAULT (datetime('now')), status_changed_at TEXT DEFAULT (datetime('now'))" +
     ');' +
+    'CREATE TABLE IF NOT EXISTS kit_lists (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  kit_id INTEGER NOT NULL,' +
+    "  added_at TEXT DEFAULT (datetime('now'))" +
+    ');' +
     'CREATE TABLE IF NOT EXISTS kit_colors (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     '  kit_id INTEGER NOT NULL, name TEXT, note TEXT, sort_order INTEGER NOT NULL DEFAULT 0,' +
@@ -97,7 +102,9 @@ export async function initDB(): Promise<void> {
   );
   await db.execAsync(
     'DELETE FROM lists WHERE id NOT IN (SELECT MIN(id) FROM lists GROUP BY type, paint_id);' +
-    'CREATE UNIQUE INDEX IF NOT EXISTS idx_lists_type_paint ON lists(type, paint_id);'
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_lists_type_paint ON lists(type, paint_id);' +
+    'DELETE FROM kit_lists WHERE id NOT IN (SELECT MIN(id) FROM kit_lists GROUP BY kit_id);' +
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_kit_lists_kit ON kit_lists(kit_id);'
   );
 
   // 既存DBに gloss 列が無ければ追加(SQLiteは IF NOT EXISTS 非対応なので try/catch)
@@ -606,6 +613,7 @@ export async function deleteKit(kitId: number): Promise<void> {
     await db.runAsync('DELETE FROM kit_color_paints WHERE kit_color_id IN (SELECT id FROM kit_colors WHERE kit_id = ?)', [kitId]);
     await db.runAsync('DELETE FROM kit_colors WHERE kit_id = ?', [kitId]);
     await db.runAsync('DELETE FROM kit_photos WHERE kit_id = ?', [kitId]);
+    await db.runAsync('DELETE FROM kit_lists WHERE kit_id = ?', [kitId]);
     await db.runAsync('DELETE FROM kits WHERE id = ?', [kitId]);
   });
 }

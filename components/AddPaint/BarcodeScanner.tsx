@@ -71,7 +71,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
   msg: { fontSize: 15, marginBottom: spacing.xl, textAlign: 'center', color: colors.text },
-  link: { color: colors.primary, fontSize: 15 },
+  link: { color: colors.primaryText, fontSize: 15 },
   overlay: { position: 'absolute', bottom: 40, left: 0, right: 0, alignItems: 'center' },
   hint: { color: colors.onPrimary, fontSize: 14, backgroundColor: 'rgba(0,0,0,0.5)', padding: spacing.md, borderRadius: radius.sm },
 });

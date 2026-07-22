@@ -18,7 +18,7 @@ export default function KitBoxTitlePicker() {
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [open, setOpen] = useState(false);
   useEffect(() => { getDB().getAllAsync<Box>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id').then(setBoxes); }, [open, boxesVersion]);
-  const allLabel = locale === 'ja' ? 'すべてのキットボックス' : 'All Kit Boxes';
+  const allLabel = locale === 'ja' ? 'すべてのボックス' : 'All Boxes';
   const label = activeBox === 'all' ? allLabel : boxes.find((box) => box.id === activeBox)?.name ?? '';
   const choose = (boxId: number | 'all') => {
     setActiveKitBox(boxId);

@@ -1,6 +1,6 @@
 // components/AddPaint/HierarchyBrowser.tsx
 import { useEffect, useState, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
 import { getDB, getOwnedCountMap } from '../../lib/db';
@@ -10,6 +10,7 @@ import { seriesLabel } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import { useUiPrefs, type ListFontSize } from '../../lib/uiPrefs';
 import PaintRow from '../PaintRow';
+import ActionSheet, { ActionSheetButton } from '../ActionSheet';
 import SwipeBack from '../SwipeBack';
 import { swipeDownCloseProps } from '../SwipeDownScrollView';
 
@@ -37,6 +38,7 @@ interface Props {
 
 // 階層を横断して「すべて」を表す番兵。実データと衝突しない値。
 const ALL = 'ALL';
+type Sort = 'name' | 'code';
 
 export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClose, paintType }: Props) {
   const { colors } = useTheme();
@@ -50,6 +52,8 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
   const [paints, setPaints] = useState<Paint[]>([]);
   const [ownedCounts, setOwnedCounts] = useState<Map<number, number>>(new Map());
   const [nameFilter, setNameFilter] = useState('');
+  const [sort, setSort] = useState<Sort>('code');
+  const [actionSheet, setActionSheet] = useState<{ title: string; buttons: ActionSheetButton[] } | null>(null);
 
   useEffect(() => {
     const where = paintType ? ' WHERE paint_type = ?' : '';
@@ -60,7 +64,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
   }, [paintType]);
 
   // brand/series が ALL のときはその条件を外して階層下を全件取得。
-  const loadPaints = async (brand: string, series: string) => {
+  const loadPaints = async (brand: string, series: string, sortBy: Sort = sort) => {
     const where: string[] = [];
     const args: string[] = [];
     if (brand !== ALL) { where.push('brand = ?'); args.push(brand); }
@@ -68,7 +72,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
     if (paintType) { where.push('paint_type = ?'); args.push(paintType); }
     const sql = 'SELECT id, name_ja, name_en, code, brand, series, series_en, hex, gloss, paint_type FROM catalog_paints'
       + (where.length ? ' WHERE ' + where.join(' AND ') : '')
-      + ' ORDER BY code COLLATE NOCASE';
+      + ' ORDER BY ' + (sortBy === 'code' ? 'code COLLATE NOCASE' : 'name_ja COLLATE NOCASE');
     const [rows, ownedMap] = await Promise.all([
       getDB().getAllAsync<Paint>(sql, args),
       getOwnedCountMap(),
@@ -98,6 +102,22 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
     loadPaints(selectedBrand!, series);
   };
 
+  const chooseSort = (next: Sort) => {
+    setSort(next);
+    if (selectedBrand && selectedSeries) loadPaints(selectedBrand, selectedSeries, next);
+  };
+
+  const openSort = () => setActionSheet({
+    title: t('sort'),
+    buttons: [
+      ...(['name', 'code'] as const).map((key): ActionSheetButton => ({
+        text: `${sort === key ? '✓ ' : ''}${t(key === 'name' ? 'sortName' : 'sortCode')}`,
+        onPress: () => chooseSort(key),
+      })),
+      { text: t('cancel'), style: 'cancel' },
+    ],
+  });
+
   // 塗料一覧の戻り先: brand=ALL のときはブランド一覧へ、それ以外はシリーズ一覧へ。
   const backFromPaints = () => {
     if (selectedBrand === ALL) { setSelectedBrand(null); setSelectedSeries(null); }
@@ -114,46 +134,44 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
 
   if (!selectedBrand) {
     return (
-      <FlatList
-        style={{ flex: 1 }}
-        data={[ALL, ...brands]}
-        {...closeProps}
-        contentContainerStyle={{ flexGrow: 1 }}
-        alwaysBounceVertical
-        keyExtractor={(b) => b}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={[styles.item, item === ALL && styles.allItem]} onPress={() => selectBrand(item)}>
-            <Text style={[styles.itemText, item === ALL && styles.allText]}>{item === ALL ? t('all') : brandLabel(item)}</Text>
-            <IconChevronRight color={colors.textPlaceholder} size={18} />
-          </TouchableOpacity>
-        )}
-      />
+      <View style={styles.container}>
+        <ScrollView
+          style={{ flex: 1 }}
+          {...closeProps}
+          alwaysBounceVertical
+        >
+          {[ALL, ...brands].map((item) => (
+            <TouchableOpacity key={item} style={[styles.item, item === ALL && styles.allItem]} onPress={() => selectBrand(item)}>
+              <Text style={[styles.itemText, item === ALL && styles.allText]}>{item === ALL ? t('all') : brandLabel(item)}</Text>
+              <IconChevronRight color={colors.textPlaceholder} size={18} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
     );
   }
 
   if (!selectedSeries) {
     return (
       <SwipeBack enabled onBack={() => setSelectedBrand(null)}>
-        <View style={styles.container}>
-          <TouchableOpacity style={styles.back} onPress={() => setSelectedBrand(null)}>
-            <IconChevronLeft color={colors.primary} size={18} />
-            <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
-          </TouchableOpacity>
-          <FlatList
-            style={{ flex: 1 }}
-            data={[{ series: ALL, series_en: null }, ...seriesList]}
-            {...closeProps}
-            contentContainerStyle={{ flexGrow: 1 }}
-            alwaysBounceVertical
-            keyExtractor={(s) => s.series}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={[styles.item, item.series === ALL && styles.allItem]} onPress={() => selectSeries(item.series)}>
-                <Text style={[styles.itemText, item.series === ALL && styles.allText]}>{item.series === ALL ? t('all') : seriesLabel(item.series, item.series_en)}</Text>
-                <IconChevronRight color={colors.textPlaceholder} size={18} />
-              </TouchableOpacity>
-            )}
-          />
-        </View>
+      <View style={styles.container}>
+        <TouchableOpacity style={styles.back} onPress={() => setSelectedBrand(null)}>
+          <IconChevronLeft color={colors.primary} size={18} />
+          <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
+        </TouchableOpacity>
+        <ScrollView
+          style={{ flex: 1 }}
+          {...closeProps}
+          alwaysBounceVertical
+        >
+          {[{ series: ALL, series_en: null }, ...seriesList].map((item) => (
+            <TouchableOpacity key={item.series} style={[styles.item, item.series === ALL && styles.allItem]} onPress={() => selectSeries(item.series)}>
+              <Text style={[styles.itemText, item.series === ALL && styles.allText]}>{item.series === ALL ? t('all') : seriesLabel(item.series, item.series_en)}</Text>
+              <IconChevronRight color={colors.textPlaceholder} size={18} />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
       </SwipeBack>
     );
   }
@@ -161,10 +179,15 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
   return (
     <SwipeBack enabled onBack={backFromPaints}>
     <View style={styles.container}>
-      <TouchableOpacity style={styles.back} onPress={backFromPaints}>
-        <IconChevronLeft color={colors.primary} size={18} />
-        <Text style={styles.backText}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries, paints.find((p) => p.series === selectedSeries)?.series_en)}</Text>
-      </TouchableOpacity>
+      <View style={styles.listHeader}>
+        <TouchableOpacity style={[styles.back, styles.listHeaderBack]} onPress={backFromPaints}>
+          <IconChevronLeft color={colors.primary} size={18} />
+          <Text style={styles.backText} numberOfLines={1}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries, paints.find((p) => p.series === selectedSeries)?.series_en)}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.sortButton} onPress={openSort} accessibilityRole="button">
+          <Text style={styles.sortText}>{t('sort')}</Text>
+        </TouchableOpacity>
+      </View>
       <ClearableInput
         style={styles.filterInput}
         placeholder={t('colorName')}
@@ -172,23 +195,29 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
         onChangeText={setNameFilter}
       />
       <FlatList
+        key="paints"
         style={{ flex: 1 }}
         data={shownPaints}
         {...closeProps}
-        contentContainerStyle={{ flexGrow: 1 }}
         alwaysBounceVertical
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         keyExtractor={(p) => String(p.id)}
         renderItem={({ item }) => (
           <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)}>
-            <PaintRow paint={item} style={styles.itemPaint} ownedCount={ownedCounts.get(item.id) ?? 0}>
-              <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)}>
-                <IconPlus color={colors.onPrimary} size={22} />
+            <PaintRow paint={item} style={styles.itemPaint} ownedCount={ownedCounts.get(item.id) ?? 0} quietOwnedBadge>
+              <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)} accessibilityLabel={t('add')}>
+                <IconPlus color={colors.primary} size={20} />
               </TouchableOpacity>
             </PaintRow>
           </TouchableOpacity>
         )}
+      />
+      <ActionSheet
+        visible={actionSheet != null}
+        title={actionSheet?.title}
+        buttons={actionSheet?.buttons ?? []}
+        onClose={() => setActionSheet(null)}
       />
     </View>
     </SwipeBack>
@@ -198,15 +227,19 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
 const makeStyles = (colors: typeof lightColors, listFontSize: ListFontSize) => {
   const ITEM_TEXT_SIZE: Record<ListFontSize, number> = { small: 14, medium: 15, large: 17 };
   return StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, justifyContent: 'flex-start' },
   item: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   itemPaint: { padding: 14 },
   allItem: { backgroundColor: colors.primarySoft },
   itemText: { flex: 1, fontSize: ITEM_TEXT_SIZE[listFontSize], color: colors.text },
-  allText: { color: colors.primary, fontWeight: 'bold' },
-  addBtn: { width: touch.min, height: touch.min, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
+  allText: { color: colors.primaryText, fontWeight: 'bold' },
+  addBtn: { width: touch.min, height: touch.min, borderRadius: radius.md, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
-  back: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg, backgroundColor: colors.surfaceAlt },
-  backText: { fontSize: 15, color: colors.primary },
+  listHeader: { flexDirection: 'row', backgroundColor: colors.surfaceAlt },
+  back: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg },
+  listHeaderBack: { flex: 1 },
+  backText: { flexShrink: 1, fontSize: 15, color: colors.primaryText },
+  sortButton: { minHeight: touch.min, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center' },
+  sortText: { fontSize: 14, color: colors.primaryText, fontWeight: 'bold' },
 });
 };
