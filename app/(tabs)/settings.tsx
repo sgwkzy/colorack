@@ -8,7 +8,7 @@ import { deleteKitPhoto } from '../../lib/kitPhoto';
 import { router } from 'expo-router';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
-import { useUiPrefs, setActionOrder, setListFontSize } from '../../lib/uiPrefs';
+import { useUiPrefs, setFabSide, setListFontSize } from '../../lib/uiPrefs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
@@ -20,7 +20,7 @@ const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
 export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
   const { colors, mode } = useTheme();
-  const { actionOrder, listFontSize } = useUiPrefs();
+  const { fabSide, listFontSize } = useUiPrefs();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const toggleLang = (val: boolean) => {
@@ -55,6 +55,7 @@ export default function SettingsScreen() {
       await db.runAsync('DELETE FROM kit_color_paints');
       await db.runAsync('DELETE FROM kit_colors');
       await db.runAsync('DELETE FROM kit_photos');
+      await db.runAsync('DELETE FROM kit_lists');
       await db.runAsync('DELETE FROM kits');
       await db.runAsync('DELETE FROM kit_boxes');
       const res = await db.runAsync('INSERT INTO kit_boxes (name) VALUES (?)', ['Box']);
@@ -76,6 +77,10 @@ export default function SettingsScreen() {
 
   const resetWishlist = () => confirmReset(t('resetWishlist'), async () => {
     await getDB().runAsync("DELETE FROM lists WHERE type = 'wishlist'");
+  });
+
+  const resetKitWishlist = () => confirmReset(t('resetKitWishlist'), async () => {
+    await getDB().runAsync('DELETE FROM kit_lists');
   });
 
   const resetCatalog = () => confirmReset(t('resetCatalog'), resetCatalogToMaster);
@@ -107,13 +112,13 @@ export default function SettingsScreen() {
         </View>
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('actionOrder')}</Text>
+        <Text style={styles.sectionTitle}>{t('fabPosition')}</Text>
         <View style={styles.themeRow}>
-          <TouchableOpacity style={[styles.themeBtn, actionOrder === 'normal' && styles.themeBtnOn]} onPress={() => setActionOrder('normal')}>
-            <Text style={[styles.themeBtnText, actionOrder === 'normal' && styles.themeBtnTextOn]} numberOfLines={1}>{t('actionOrderNormal')}</Text>
+          <TouchableOpacity style={[styles.themeBtn, fabSide === 'left' && styles.themeBtnOn]} onPress={() => setFabSide('left')} accessibilityRole="radio" accessibilityState={{ selected: fabSide === 'left' }}>
+            <Text style={[styles.themeBtnText, fabSide === 'left' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionLeft')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.themeBtn, actionOrder === 'reverse' && styles.themeBtnOn]} onPress={() => setActionOrder('reverse')}>
-            <Text style={[styles.themeBtnText, actionOrder === 'reverse' && styles.themeBtnTextOn]} numberOfLines={1}>{t('actionOrderReverse')}</Text>
+          <TouchableOpacity style={[styles.themeBtn, fabSide === 'right' && styles.themeBtnOn]} onPress={() => setFabSide('right')} accessibilityRole="radio" accessibilityState={{ selected: fabSide === 'right' }}>
+            <Text style={[styles.themeBtnText, fabSide === 'right' && styles.themeBtnTextOn]} numberOfLines={1}>{t('fabPositionRight')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -145,6 +150,9 @@ export default function SettingsScreen() {
         <TouchableOpacity style={styles.resetBtn} onPress={resetWishlist}>
           <Text style={styles.resetBtnText}>{t('resetWishlist')}</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.resetBtn} onPress={resetKitWishlist}>
+          <Text style={styles.resetBtnText}>{t('resetKitWishlist')}</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.resetBtn} onPress={resetCatalog}>
           <Text style={styles.resetBtnText}>{t('resetCatalog')}</Text>
         </TouchableOpacity>
@@ -165,5 +173,5 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   themeBtnText: { color: colors.textSecondary },
   themeBtnTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   resetBtn: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
-  resetBtnText: { color: colors.danger, fontWeight: 'bold', textAlign: 'center' },
+  resetBtnText: { color: colors.dangerText, fontWeight: 'bold', textAlign: 'center' },
 });

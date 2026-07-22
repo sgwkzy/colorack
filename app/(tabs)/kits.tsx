@@ -1,8 +1,8 @@
 // app/(tabs)/kits.tsx
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, Image, LayoutAnimation, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Image, LayoutAnimation, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-import { IconBox, IconChevronDown } from '@tabler/icons-react-native';
+import { IconBox } from '@tabler/icons-react-native';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { deleteKit, getDB, getDefaultKitBoxId, getKitPhotos, KitStatus, setKitStatus } from '../../lib/db';
 import { setActiveKitBox } from '../../lib/activeKitBox';
@@ -16,7 +16,7 @@ import AdBanner from '../../components/AdBanner';
 import EmptyState from '../../components/EmptyState';
 import KitDetailModal from '../../components/KitDetailModal';
 import KitFilterModal, { KitFilter } from '../../components/KitFilterModal';
-import ListActionBar from '../../components/ListActionBar';
+import ListActionBar, { ListToolbar } from '../../components/ListActionBar';
 import { deleteKitPhoto } from '../../lib/kitPhoto';
 
 interface CountRow { n: number; }
@@ -54,7 +54,7 @@ const KIT_SORT_ORDER: Record<KitSort, string> = {
   maker: 'maker ASC, name ASC',
 };
 
-export function KitsScreen({ completedScreen = false }: { completedScreen?: boolean }) {
+export function KitsScreen({ completedScreen = false, wishlistScreen = false }: { completedScreen?: boolean; wishlistScreen?: boolean }) {
   const locale = useLocale();
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -69,7 +69,6 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   const [items, setItems] = useState<KitListItem[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
-  const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [detailKitId, setDetailKitId] = useState<number | null>(null);
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
@@ -77,12 +76,12 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   const loadVersionRef = useRef(0);
 
   useEffect(() => {
-    if (completedScreen) return;
+    if (completedScreen || wishlistScreen) return;
     const requested = boxId === 'all' ? 'all' : Number(boxId);
     if (requested === 'all' || (Number.isInteger(requested) && requested > 0)) setSelected(requested);
-  }, [boxId, completedScreen]);
+  }, [boxId, completedScreen, wishlistScreen]);
 
-  useEffect(() => { if (!completedScreen) setActiveKitBox(selected); }, [completedScreen, selected]);
+  useEffect(() => { if (!completedScreen && !wishlistScreen) setActiveKitBox(selected); }, [completedScreen, wishlistScreen, selected]);
 
   // 実際にこの画面が表示された時点で、起動時復元先とドロワーのモードを常に一致させる。
   useFocusEffect(useCallback(() => {
@@ -92,8 +91,8 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
 
   useEffect(() => {
     let cancelled = false;
-    if (completedScreen) {
-      navigation.setOptions({ title: t('completedKits') });
+    if (completedScreen || wishlistScreen) {
+      navigation.setOptions({ title: t(completedScreen ? 'completedKits' : 'kitWishlist') });
       return;
     }
     if (selected === 'all') {
@@ -106,26 +105,28 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
       if (!cancelled && box) { navigation.setOptions({ title: box.name }); router.setParams({ boxName: box.name }); }
     });
     return () => { cancelled = true; };
-  }, [completedScreen, locale, navigation, selected]);
+  }, [completedScreen, wishlistScreen, locale, navigation, selected]);
 
   useEffect(() => { getDefaultKitBoxId().then(setDefaultBoxId); }, []);
 
   const load = useCallback(async (sel: Selected, sf: KitStatus[], f: KitFilter, sortBy: KitSort) => {
     const loadVersion = ++loadVersionRef.current;
     const db = getDB();
-    const totalWhere = completedScreen || sel === 'all' ? '' : ' AND box_id = ?';
-    const totalArgs = completedScreen || sel === 'all' ? [] : [sel];
+    const totalWhere = completedScreen || wishlistScreen || sel === 'all' ? '' : ' AND box_id = ?';
+    const totalArgs = completedScreen || wishlistScreen || sel === 'all' ? [] : [sel];
     const where: string[] = [];
     const args: (string | number)[] = [];
 
-    if (sf.length === 0) {
+    if (wishlistScreen) {
+      where.push('id IN (SELECT kit_id FROM kit_lists)');
+    } else if (sf.length === 0) {
       where.push('1 = 0'); // 全OFFなら該当なし
     } else {
       where.push(`status IN (${sf.map(() => '?').join(',')})`);
       args.push(...sf);
     }
 
-    if (!completedScreen && sel !== 'all') { where.push('box_id = ?'); args.push(sel); }
+    if (!completedScreen && !wishlistScreen && sel !== 'all') { where.push('box_id = ?'); args.push(sel); }
 
     if (f.makers.length) { where.push(`maker IN (${f.makers.map(() => '?').join(',')})`); args.push(...f.makers); }
     if (f.series.length) { where.push(`series IN (${f.series.map(() => '?').join(',')})`); args.push(...f.series); }
@@ -140,9 +141,9 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
       + ' ORDER BY ' + KIT_SORT_ORDER[sortBy];
 
     const [totalRow, nextFilterOptions, nextItems] = await Promise.all([
-      db.getFirstAsync<CountRow>("SELECT COUNT(*) AS n FROM kits WHERE status IN ('not_started','building')" + totalWhere, totalArgs),
+      db.getFirstAsync<CountRow>(wishlistScreen ? 'SELECT COUNT(*) AS n FROM kit_lists' : "SELECT COUNT(*) AS n FROM kits WHERE status IN ('not_started','building')" + totalWhere, wishlistScreen ? [] : totalArgs),
       db.getAllAsync<{ maker: string; series: string | null; category: string | null; scale: string | null }>(
-        'SELECT DISTINCT maker, series, category, scale FROM kits'
+        wishlistScreen ? 'SELECT DISTINCT maker, series, category, scale FROM kits WHERE id IN (SELECT kit_id FROM kit_lists)' : 'SELECT DISTINCT maker, series, category, scale FROM kits'
       ),
       db.getAllAsync<KitListItem>(sql, args),
     ]);
@@ -150,16 +151,11 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
     setKitTotal(totalRow?.n ?? 0);
     setFilterOptions(nextFilterOptions);
     setItems(nextItems);
-  }, [completedScreen]);
+  }, [completedScreen, wishlistScreen]);
 
   useFocusEffect(useCallback(() => { load(selected, statuses, filter, sort); }, [load, selected, statuses, filter, sort]));
 
   const reload = () => load(selected, statuses, filter, sort);
-  const toggleStatus = (s: KitStatus) => {
-    const next = statuses.includes(s) ? statuses.filter((x) => x !== s) : [...statuses, s];
-    setStatuses(next);
-    load(selected, next, filter, sort);
-  };
 
   // 未着手⇄制作中 トグル(完成品画面では完成→未着手に戻す)。塗料の在庫⇄使用中トグルと同じ挙動。
   const toggleKitStatus = async (item: KitListItem) => {
@@ -196,12 +192,12 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   const renderDeleteAction = () => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>;
   const renderCompleteAction = () => <View style={styles.completeAction}><Text style={styles.swipeActionText}>{t('statusCompleted')}</Text></View>;
 
-  const filterActive = filter.makers.length > 0 || filter.series.length > 0 || filter.categories.length > 0 || filter.scales.length > 0 || filter.search.trim() !== '';
-  const statusDefault = statuses.length === 2 && statuses.includes('not_started') && statuses.includes('building');
-  const trulyEmpty = completedScreen ? items.length === 0 : !filterActive && statusDefault && kitTotal === 0;
+  const statusDefault = completedScreen
+    ? statuses.length === 1 && statuses[0] === 'completed'
+    : wishlistScreen || (statuses.length === 2 && statuses.includes('not_started') && statuses.includes('building'));
+  const filterActive = !statusDefault || filter.makers.length > 0 || filter.series.length > 0 || filter.categories.length > 0 || filter.scales.length > 0 || filter.search.trim() !== '';
+  const trulyEmpty = completedScreen || wishlistScreen ? items.length === 0 : !filterActive && statusDefault && kitTotal === 0;
   const emptyMessage = trulyEmpty ? t('emptyKits') : t('noResults');
-  const statusLabel = statusDefault ? t('allStatuses') : statuses.length === 1 ? t(statuses[0] === 'not_started' ? 'statusNotStarted' : 'statusBuilding') : t('statusAll');
-  const statusColor = statusDefault ? colors.success : statuses[0] === 'not_started' ? colors.primary : colors.inUse;
 
   const openSort = () => {
     const opts: { key: KitSort; label: string }[] = [
@@ -218,11 +214,8 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   return (
     <View style={styles.container}>
       <View style={styles.statusBarWrap}>
-        <Text style={styles.statusCount}>{t('kitCount', { total: completedScreen ? items.length : kitTotal, shown: items.length })}</Text>
-        {!completedScreen ? <TouchableOpacity style={styles.statusSelect} onPress={() => setShowStatusPicker(true)} accessibilityRole="button" accessibilityLabel={statusLabel}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={styles.statusSelectText}>{statusLabel}</Text><IconChevronDown color={colors.textMuted} size={18} />
-        </TouchableOpacity> : null}
+        <Text style={styles.statusCount}>{t('kitCount', { total: completedScreen || wishlistScreen ? items.length : kitTotal, shown: items.length })}</Text>
+        <ListToolbar onFilter={() => setShowFilter(true)} onSort={openSort} filterActive={filterActive} />
       </View>
 
       <View style={styles.adBar}><AdBanner /></View>
@@ -235,7 +228,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
           <Swipeable
             ref={(ref) => { if (ref) swipeRefs.current.set(item.id, ref); else swipeRefs.current.delete(item.id); }}
             renderRightActions={renderDeleteAction}
-            renderLeftActions={completedScreen ? undefined : renderCompleteAction}
+            renderLeftActions={completedScreen || wishlistScreen ? undefined : renderCompleteAction}
             onSwipeableOpen={(direction) => {
               if (direction === 'left') deleteKitItem(item);
               else completeKit(item);
@@ -244,27 +237,32 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
             overshootRight={false}
             overshootLeft={false}
           >
-          <TouchableOpacity style={styles.row} onPress={() => setDetailKitId(item.id)}>
-            {item.thumb_uri ? (
-              <Image source={{ uri: item.thumb_uri }} style={styles.thumb} resizeMode="cover" />
-            ) : (
-              <View style={styles.thumbPlaceholder}><IconBox color={colors.textFaint} size={22} /></View>
-            )}
-            <View style={styles.rowInfo}>
-              <Text numberOfLines={1} style={styles.rowName}>{item.name}</Text>
-              <Text numberOfLines={1} style={styles.rowSub}>{item.maker}{item.scale ? ` · ${item.scale}` : ''}</Text>
-            </View>
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.rowPress} onPress={() => setDetailKitId(item.id)} accessibilityRole="button">
+              {item.thumb_uri ? (
+                <Image source={{ uri: item.thumb_uri }} style={styles.thumb} resizeMode="cover" />
+              ) : (
+                <View style={styles.thumbPlaceholder}><IconBox color={colors.textFaint} size={22} /></View>
+              )}
+              <View style={styles.rowInfo}>
+                <Text numberOfLines={1} style={styles.rowName}>{item.name}</Text>
+                <Text numberOfLines={1} style={styles.rowSub}>{item.maker}{item.scale ? ` · ${item.scale}` : ''}</Text>
+              </View>
+            </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.iconBtn, {
+              style={[styles.statusBadge, {
                 backgroundColor: item.status === 'completed'
-                  ? colors.usedUp
-                  : (item.status === 'building' ? colors.inUse : colors.primary),
+                  ? colors.usedUpSoft
+                  : (item.status === 'building' ? colors.inUseSoft : colors.primarySoft),
               }]}
               onPress={() => toggleKitStatus(item)}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={t(STATUS_LABEL_KEYS[item.status])}
             >
-              <Text style={styles.iconBtnText}>{t(STATUS_LABEL_KEYS[item.status])}</Text>
+              <Text style={[styles.statusBadgeText, { color: item.status === 'completed' ? colors.usedUp : (item.status === 'building' ? colors.inUse : colors.primaryText) }]}>{t(STATUS_LABEL_KEYS[item.status])}</Text>
             </TouchableOpacity>
-          </TouchableOpacity>
+          </View>
           </Swipeable>
         )}
         ListEmptyComponent={(
@@ -277,36 +275,22 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
         )}
       />
 
-      <ListActionBar onFilter={() => setShowFilter(true)} onSort={openSort} onAdd={() => setShowAdd(true)} filterActive={filterActive} />
-
-      <Modal visible={showStatusPicker} transparent animationType="fade" onRequestClose={() => setShowStatusPicker(false)}>
-        <View style={styles.statusModalRoot}>
-          <Pressable style={styles.statusModalBackdrop} onPress={() => setShowStatusPicker(false)} />
-          <View style={styles.statusModal}>
-            {STATUS_TOGGLES.map((option) => {
-              const selectedOption = statuses.includes(option.key);
-              const optionColor = option.key === 'not_started' ? colors.primary : colors.inUse;
-              return <TouchableOpacity key={option.key} style={styles.statusOption} onPress={() => toggleStatus(option.key)}>
-                <View style={[styles.statusDot, { backgroundColor: optionColor }]} /><Text style={styles.statusOptionText}>{t(option.label)}</Text>
-                <Text style={[styles.statusCheck, selectedOption && { color: optionColor }]}>{selectedOption ? '✓' : ''}</Text>
-              </TouchableOpacity>;
-            })}
-            <TouchableOpacity style={styles.statusDone} onPress={() => setShowStatusPicker(false)}><Text style={styles.statusDoneText}>{t('ok')}</Text></TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <ListActionBar onAdd={() => setShowAdd(true)} />
 
       <KitFilterModal
         visible={showFilter}
         options={filterOptions}
         initial={filter}
         onApply={(f) => { setFilter(f); setShowFilter(false); }}
+        statusOptions={completedScreen || wishlistScreen ? undefined : STATUS_TOGGLES.map((option) => ({ value: option.key, label: t(option.label) }))}
+        initialStatuses={completedScreen || wishlistScreen ? undefined : statuses}
+        onApplyStatuses={completedScreen || wishlistScreen ? undefined : setStatuses}
         onClose={() => setShowFilter(false)}
       />
 
       <AddKitModal
         visible={showAdd}
-        defaultBoxId={completedScreen || selected === 'all' ? defaultBoxId : selected}
+        defaultBoxId={completedScreen || wishlistScreen || selected === 'all' ? defaultBoxId : selected}
         onClose={() => { setShowAdd(false); reload(); }}
       />
       <KitDetailModal
@@ -335,26 +319,16 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   statusBarWrap: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
   statusCount: { color: colors.text, fontSize: 15, fontVariant: ['tabular-nums'] },
-  statusSelect: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  statusSelectText: { color: colors.text, fontSize: 14 },
-  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: spacing.xs },
-  statusModalRoot: { flex: 1, justifyContent: 'center', padding: spacing.xxl },
-  statusModalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.32)' },
-  statusModal: { backgroundColor: colors.surface, borderRadius: radius.md, overflow: 'hidden' },
-  statusOption: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl },
-  statusOptionText: { color: colors.text, fontSize: 16 },
-  statusCheck: { marginLeft: 'auto', fontSize: 20, fontWeight: '700' },
-  statusDone: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderLight },
-  statusDoneText: { color: colors.primary, fontWeight: '700' },
   list: { paddingBottom: 104 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  rowPress: { flex: 1, minHeight: touch.min, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   thumb: { width: 48, height: 48, borderRadius: radius.sm },
   thumbPlaceholder: { width: 48, height: 48, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   rowInfo: { flex: 1 },
   rowName: { fontSize: 15, fontWeight: '600', color: colors.text },
   rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  iconBtn: { width: 64, borderRadius: 12, minHeight: touch.min, alignItems: 'center', justifyContent: 'center' },
-  iconBtnText: { color: colors.onPrimary, fontSize: 12, fontWeight: 'bold' },
+  statusBadge: { minWidth: 56, minHeight: 32, borderRadius: radius.pill, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center' },
+  statusBadgeText: { fontSize: 12, fontWeight: '700' },
   deleteAction: { width: 88, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
   completeAction: { width: 88, backgroundColor: colors.darkAction, alignItems: 'center', justifyContent: 'center' },
   swipeActionText: { color: colors.onPrimary, fontWeight: 'bold' },

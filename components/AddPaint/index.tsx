@@ -142,7 +142,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   tabBtn: { flex: 1, padding: spacing.lg, alignItems: 'center' },
   tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
   tabText: { fontSize: 13, color: colors.textPlaceholder },
-  tabTextActive: { color: colors.primary, fontWeight: 'bold' },
+  tabTextActive: { color: colors.primaryText, fontWeight: 'bold' },
   content: { flex: 1 },
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
 });

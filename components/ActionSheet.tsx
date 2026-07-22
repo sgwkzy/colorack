@@ -82,7 +82,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   row: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
   disabledRow: { opacity: 0.35 },
   rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-  rowText: { fontSize: 17, color: colors.primary },
-  destructiveText: { color: colors.danger },
-  cancelText: { fontSize: 17, fontWeight: 'bold', color: colors.primary },
+  rowText: { fontSize: 17, color: colors.primaryText },
+  destructiveText: { color: colors.dangerText },
+  cancelText: { fontSize: 17, fontWeight: 'bold', color: colors.primaryText },
 });

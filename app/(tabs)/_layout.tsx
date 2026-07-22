@@ -43,6 +43,7 @@ export default function TabsLayout() {
       tabBarInactiveTintColor: colors.textFaint,
       headerStyle: { backgroundColor: colors.surface },
       headerTintColor: colors.text,
+      headerTitleAlign: 'center',
       headerShadowVisible: !isDark,
       headerLeft: () => <TouchableOpacity onPress={() => drawerRef.current?.openDrawer()} accessibilityRole="button" accessibilityLabel="Menu" hitSlop={12} style={{ marginLeft: 16 }}><IconMenu3 color={colors.text} size={26} /></TouchableOpacity>,
     }}>
@@ -58,6 +59,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen name="used" options={{ title: t('statusUsedUp') }} />
       <Tabs.Screen name="completed" options={{ title: t('completedKits') }} />
+      <Tabs.Screen name="kit-wishlist" options={{ title: t('kitWishlist') }} />
       <Tabs.Screen name="favorites" options={{ title: t('favorites') }} />
       <Tabs.Screen name="wishlist" options={{ title: t('wishlist') }} />
       <Tabs.Screen name="catalog" options={{ title: t('catalog') }} />
