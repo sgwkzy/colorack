@@ -15,9 +15,9 @@ import BoxEditorModal, { BoxDraft, BoxIcon } from './BoxEditorModal';
 interface Box { id: number; name: string; icon: BoxIcon | null; icon_color: string | null; }
 interface CountRow { box_id: number | null; n: number; }
 interface TotalRow { n: number; }
-interface Props { visible: boolean; onClose: () => void; }
+interface Props { onClose: () => void; }
 
-export default function NavigationDrawer({ visible, onClose }: Props) {
+export default function NavigationDrawer({ onClose }: Props) {
   const { colors } = useTheme();
   const locale = useLocale();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -62,7 +62,7 @@ export default function NavigationDrawer({ visible, onClose }: Props) {
     setCompletedCount(completedRow?.n ?? 0);
     setKitWishlistCount(kitWishlistRow?.n ?? 0);
   }, []);
-  useEffect(() => { if (visible) loadBoxes(); }, [visible, loadBoxes]);
+  useEffect(() => { loadBoxes(); }, [loadBoxes]);
   const saveBox = async ({ name, icon, color }: BoxDraft) => {
     const db = getDB();
     if (editingBox === 'new') await db.runAsync('INSERT INTO boxes (name, icon, icon_color, sort_order) VALUES (?, ?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM boxes), 0))', [name, icon, color]);
