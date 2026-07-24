@@ -44,6 +44,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
   const [tab, setTab] = useState<typeof TABS[number]>('hierarchy');
   const [selectedPaints, setSelectedPaints] = useState<SelectedPaint[]>([]);
   const [accordionOpen, setAccordionOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
   const canSave = selectedPaints.length > 0;
 
   useEffect(() => {
@@ -97,14 +98,17 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
   };
 
   const save = async () => {
-    if (!canSave) return;
+    if (!canSave || busy) return;
+    setBusy(true);
     const total = selectedPaints.reduce((sum, p) => sum + p.ratio, 0);
     const normalized = total > 0
       ? selectedPaints.map((p) => ({ paintId: p.paintId, ratio: p.ratio / total }))
       : selectedPaints.map((p) => ({ paintId: p.paintId, ratio: 1 / selectedPaints.length }));
-    await addKitColor(kitId, name.trim() || null, null, normalized);
-    onAdded();
-    onClose();
+    try {
+      await addKitColor(kitId, name.trim() || null, null, normalized);
+      onAdded();
+      onClose();
+    } finally { setBusy(false); }
   };
 
   return (
@@ -220,7 +224,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
                 )}
               </View>
 
-              <TouchableOpacity style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]} onPress={save} disabled={!canSave}>
+              <TouchableOpacity style={[styles.saveBtn, (!canSave || busy) && styles.saveBtnDisabled]} onPress={save} disabled={!canSave || busy}>
                 <Text style={styles.saveBtnText}>{t('save')}</Text>
               </TouchableOpacity>
             </KeyboardAvoidingView>
@@ -236,7 +240,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   backBtn: { flexDirection: 'row', alignItems: 'center' },
-  backText: { fontSize: 15, color: colors.primary, marginLeft: 2 },
+  backText: { fontSize: 15, color: colors.primaryText, marginLeft: 2 },
   setupContent: { flex: 1, padding: spacing.xl, gap: spacing.lg },
   nameInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
   sectionLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
@@ -253,7 +257,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   tabBtn: { flex: 1, padding: spacing.md, alignItems: 'center' },
   tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
   tabText: { fontSize: 13, color: colors.textPlaceholder },
-  tabTextActive: { color: colors.primary, fontWeight: 'bold' },
+  tabTextActive: { color: colors.primaryText, fontWeight: 'bold' },
   pickerArea: { flex: 1 },
   accordion: { borderTopWidth: 1, borderTopColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
   accordionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },

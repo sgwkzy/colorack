@@ -222,14 +222,12 @@ const makeStyles = (colors: typeof lightColors, fabSide: FabSide, listFontSize: 
   navItem: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   allItem: { backgroundColor: colors.primarySoft },
   navText: { flex: 1, fontSize: NAV_TEXT_SIZE[listFontSize], color: colors.text },
-  allText: { color: colors.primary, fontWeight: 'bold' },
+  allText: { color: colors.primaryText, fontWeight: 'bold' },
   back: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.md, backgroundColor: colors.surfaceAlt },
-  backText: { fontSize: 15, color: colors.primary },
+  backText: { fontSize: 15, color: colors.primaryText },
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
   delBtn: { padding: spacing.md, marginLeft: spacing.md },
-  fabContainer: fabSide === 'bottom' ? { position: 'absolute', left: 0, right: 0, bottom: spacing.xxl, alignItems: 'center' } : {},
-  fab: fabSide === 'bottom'
-    ? { width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }
-    : { position: 'absolute', ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }), bottom: spacing.xxl, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  fabContainer: { position: 'absolute', ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }), bottom: spacing.xxl },
+  fab: { width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 });
 };

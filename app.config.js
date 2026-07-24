@@ -15,7 +15,7 @@ module.exports = ({ config }) => ({
   ...config,
   name: 'Colorack',
   slug: 'colorack',
-  version: '1.1.0',
+  version: '1.1.3',
   orientation: 'portrait',
   backgroundColor: '#172033',
   icon: './assets/icon-ios.png',
@@ -25,14 +25,14 @@ module.exports = ({ config }) => ({
     supportsTablet: false,
     bundleIdentifier: env('EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER', 'com.example.colorack'),
     infoPlist: {
-      NSCameraUsageDescription: '塗料の色の読み取りやバーコードスキャンのためにカメラを使用します',
+      NSCameraUsageDescription: '塗料の色を読み取るためにカメラを使用します',
       ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
     ...config.android,
     package: env('EXPO_PUBLIC_ANDROID_PACKAGE', 'com.example.colorack'),
-    versionCode: 8,
+    versionCode: 12,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/android-icon-foreground.png',

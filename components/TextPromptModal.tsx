@@ -70,6 +70,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   button: { minHeight: touch.min, minWidth: 72, paddingHorizontal: spacing.xl, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
   okButton: { backgroundColor: colors.primary },
   okButtonDisabled: { backgroundColor: colors.primaryDisabled },
-  cancelText: { color: colors.primary, fontWeight: 'bold' },
+  cancelText: { color: colors.primaryText, fontWeight: 'bold' },
   okText: { color: colors.onPrimary, fontWeight: 'bold' },
 });

@@ -35,7 +35,10 @@ export default function RootLayout() {
   useEffect(() => {
     const initialize = async () => {
       try {
-        if (mobileAds) await mobileAds().initialize().catch(console.warn);
+        if (mobileAds) {
+          try { await mobileAds().initialize(); }
+          catch (error) { console.warn(error); }
+        }
         await initDB();
         await Promise.all([
           initTheme(),

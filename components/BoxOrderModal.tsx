@@ -51,5 +51,5 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   disabled: { opacity: 0.3 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: spacing.xl },
   button: { minWidth: 72, minHeight: touch.min, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, marginLeft: spacing.md },
-  save: { backgroundColor: colors.primary }, cancel: { color: colors.primary, fontWeight: '700' }, saveText: { color: colors.onPrimary, fontWeight: '700' },
+  save: { backgroundColor: colors.primary }, cancel: { color: colors.primaryText, fontWeight: '700' }, saveText: { color: colors.onPrimary, fontWeight: '700' },
 });

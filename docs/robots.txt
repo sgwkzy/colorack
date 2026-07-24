@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://sgwkzy.github.io/colorack/sitemap.xml

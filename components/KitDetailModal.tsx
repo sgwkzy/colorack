@@ -1,7 +1,7 @@
 // components/KitDetailModal.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconChevronDown, IconChevronLeft, IconEdit, IconX } from '@tabler/icons-react-native';
+import { IconChevronDown, IconChevronLeft, IconEdit, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   addKitPhoto,
@@ -84,12 +84,16 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const toggleTooltip = (key: string) => setOpenTooltipKey((current) => (current === key ? null : key));
   const [editMode, setEditMode] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [inWishlist, setInWishlist] = useState(false);
 
   const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
 
   const load = useCallback(async () => {
     if (kitId == null) return;
-    const [row, colorRows, photoRows, owned] = await Promise.all([getKitDetail(kitId), getKitColors(kitId), getKitPhotos(kitId), getOwnedCountMap()]);
+    const [row, colorRows, photoRows, owned, wishlistRow] = await Promise.all([
+      getKitDetail(kitId), getKitColors(kitId), getKitPhotos(kitId), getOwnedCountMap(),
+      getDB().getFirstAsync<{ id: number }>('SELECT id FROM kit_lists WHERE kit_id = ?', [kitId]),
+    ]);
     setDetail(row);
     setKitColors(colorRows);
     setPhotos(photoRows);
@@ -101,6 +105,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     setNote(row?.note ?? '');
     setSeries(row?.series ?? '');
     setCategory(row?.category ?? '');
+    setInWishlist(!!wishlistRow);
   }, [kitId]);
 
   useEffect(() => {
@@ -125,6 +130,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setDetailTab('details');
       setEditMode(false);
       setViewerOpen(false);
+      setInWishlist(false);
       setOpenTooltipKey(null);
     }
   }, [visible, load]);
@@ -226,6 +232,14 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     setStatusPickerOpen(false);
     await setKitStatus(detail.id, status);
     await load();
+    onChanged?.();
+  };
+
+  const toggleWishlist = async () => {
+    if (!detail) return;
+    if (inWishlist) await getDB().runAsync('DELETE FROM kit_lists WHERE kit_id = ?', [detail.id]);
+    else await getDB().runAsync('INSERT OR IGNORE INTO kit_lists (kit_id) VALUES (?)', [detail.id]);
+    setInWishlist((current) => !current);
     onChanged?.();
   };
 
@@ -337,9 +351,14 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                   <>
                     <View style={styles.nameRow}>
                       <Text style={styles.name}>{detail.name}</Text>
-                      <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('enterEditMode')}>
-                        <IconEdit color={colors.textMuted} size={20} />
-                      </TouchableOpacity>
+                      <View style={styles.nameActions}>
+                        <TouchableOpacity onPress={toggleWishlist} hitSlop={8} accessibilityRole="button" accessibilityLabel={t(inWishlist ? 'removeFromKitWishlist' : 'addToKitWishlist')}>
+                          <IconShoppingCartPlus color={inWishlist ? colors.primary : colors.textMuted} size={20} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('enterEditMode')}>
+                          <IconEdit color={colors.textMuted} size={20} />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                     <Text style={styles.maker}>{detail.maker}{detail.scale ? ` · ${detail.scale}` : ''}</Text>
                   </>
@@ -532,6 +551,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.lg },
   titleBlock: { gap: spacing.xs },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  nameActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   name: { fontSize: 20, fontWeight: '700', color: colors.text },
   nameEditInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, fontSize: 20, fontWeight: '700' },
   maker: { fontSize: 14, color: colors.textMuted },
@@ -548,17 +568,17 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   tabBtn: { flex: 1, padding: spacing.md, alignItems: 'center' },
   tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
   tabText: { fontSize: 13, color: colors.textPlaceholder },
-  tabTextActive: { color: colors.primary, fontWeight: 'bold' },
+  tabTextActive: { color: colors.primaryText, fontWeight: 'bold' },
   sectionTitle: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
   noteInput: { minHeight: 72, alignItems: 'flex-start' },
   paintsSection: { gap: spacing.md },
   paintsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  addLink: { color: colors.primary, fontWeight: '700', fontSize: 14 },
+  addLink: { color: colors.primaryText, fontWeight: '700', fontSize: 14 },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   editBar: { flexDirection: 'row', gap: spacing.md, padding: spacing.xl, borderTopWidth: 1, borderTopColor: colors.borderLight },
   deleteBtn: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.danger, borderRadius: radius.md },
-  deleteBtnText: { color: colors.danger, fontWeight: '700', fontSize: 16 },
+  deleteBtnText: { color: colors.dangerText, fontWeight: '700', fontSize: 16 },
   saveEditBtn: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md },
   saveEditBtnText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
 });

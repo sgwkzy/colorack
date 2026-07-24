@@ -1,5 +1,5 @@
 // app/(tabs)/_layout.tsx
-import { useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { TouchableOpacity, useWindowDimensions } from 'react-native';
 import DrawerLayout from 'react-native-gesture-handler/DrawerLayout';
 import { Tabs } from 'expo-router';
@@ -17,9 +17,10 @@ import { useModalOpen } from '../../lib/modalLock';
 export default function TabsLayout() {
   useLocale(); // ロケール変更でタブ名(ヘッダー/ラベル)を再計算
   const { colors, isDark } = useTheme();
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const modalOpen = useModalOpen();
   const drawerRef = useRef<DrawerLayout>(null);
+  const closeDrawer = useCallback(() => drawerRef.current?.closeDrawer(), []);
+  const renderNavigationView = useCallback(() => <NavigationDrawer onClose={closeDrawer} />, [closeDrawer]);
   const { width } = useWindowDimensions();
   const restoreTarget = getRestoreTarget();
   return (
@@ -32,10 +33,7 @@ export default function TabsLayout() {
       overlayColor="transparent"
       drawerBackgroundColor={colors.surface}
       drawerLockMode={modalOpen ? 'locked-closed' : 'unlocked'}
-      onDrawerStateChanged={(_state, willShow) => { if (willShow) setDrawerOpen(true); }}
-      onDrawerOpen={() => setDrawerOpen(true)}
-      onDrawerClose={() => setDrawerOpen(false)}
-      renderNavigationView={() => <NavigationDrawer visible={drawerOpen} onClose={() => drawerRef.current?.closeDrawer()} />}
+      renderNavigationView={renderNavigationView}
     >
     <Tabs
       initialRouteName={restoreTarget?.screen}
@@ -45,6 +43,7 @@ export default function TabsLayout() {
       tabBarInactiveTintColor: colors.textFaint,
       headerStyle: { backgroundColor: colors.surface },
       headerTintColor: colors.text,
+      headerTitleAlign: 'center',
       headerShadowVisible: !isDark,
       headerLeft: () => <TouchableOpacity onPress={() => drawerRef.current?.openDrawer()} accessibilityRole="button" accessibilityLabel="Menu" hitSlop={12} style={{ marginLeft: 16 }}><IconMenu3 color={colors.text} size={26} /></TouchableOpacity>,
     }}>
@@ -60,6 +59,7 @@ export default function TabsLayout() {
       />
       <Tabs.Screen name="used" options={{ title: t('statusUsedUp') }} />
       <Tabs.Screen name="completed" options={{ title: t('completedKits') }} />
+      <Tabs.Screen name="kit-wishlist" options={{ title: t('kitWishlist') }} />
       <Tabs.Screen name="favorites" options={{ title: t('favorites') }} />
       <Tabs.Screen name="wishlist" options={{ title: t('wishlist') }} />
       <Tabs.Screen name="catalog" options={{ title: t('catalog') }} />

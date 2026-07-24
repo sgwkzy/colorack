@@ -12,6 +12,7 @@ import { useUiPrefs, type ListFontSize } from '../lib/uiPrefs';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
 import { useModalLock } from '../lib/modalLock';
+import type { KitStatus } from '../lib/db';
 
 export interface KitFilter {
   makers: string[];
@@ -28,9 +29,12 @@ interface Props {
   initial: KitFilter;
   onApply: (f: KitFilter) => void;
   onClose: () => void;
+  statusOptions?: { value: KitStatus; label: string }[];
+  initialStatuses?: KitStatus[];
+  onApplyStatuses?: (statuses: KitStatus[]) => void;
 }
 
-export default function KitFilterModal({ visible, options, initial, onApply, onClose }: Props) {
+export default function KitFilterModal({ visible, options, initial, onApply, onClose, statusOptions, initialStatuses, onApplyStatuses }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
   const { listFontSize } = useUiPrefs();
@@ -40,6 +44,8 @@ export default function KitFilterModal({ visible, options, initial, onApply, onC
   const [categories, setCategories] = useState<string[]>(initial.categories);
   const [scales, setScales] = useState<string[]>(initial.scales);
   const [search, setSearch] = useState(initial.search);
+  const [statuses, setStatuses] = useState<KitStatus[]>(initialStatuses ?? []);
+  const [statusOpen, setStatusOpen] = useState(false);
   const [makerOpen, setMakerOpen] = useState(false);
   const [seriesOpen, setSeriesOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -50,7 +56,7 @@ export default function KitFilterModal({ visible, options, initial, onApply, onC
   useEffect(() => {
     if (!visible) return;
     setMakers(initial.makers); setSeries(initial.series);
-    setCategories(initial.categories); setScales(initial.scales); setSearch(initial.search);
+    setCategories(initial.categories); setScales(initial.scales); setSearch(initial.search); setStatuses(initialStatuses ?? []);
   }, [visible]);
 
   const makerOptions = useMemo(
@@ -70,10 +76,10 @@ export default function KitFilterModal({ visible, options, initial, onApply, onC
     [options]
   );
 
-  const toggle = (arr: string[], v: string, set: (x: string[]) => void) =>
+  const toggle = <T extends string>(arr: T[], v: T, set: (x: T[]) => void) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
-  const clear = () => { setMakers([]); setSeries([]); setCategories([]); setScales([]); setSearch(''); };
+  const clear = () => { setMakers([]); setSeries([]); setCategories([]); setScales([]); setSearch(''); setStatuses(statusOptions?.map((option) => option.value) ?? []); };
 
   const checkRow = (key: string, label: string, checked: boolean, onPress: () => void) => (
     <TouchableOpacity key={key} style={styles.checkRow} onPress={onPress} accessibilityRole="checkbox" accessibilityState={{ checked }} accessibilityLabel={label}>
@@ -105,10 +111,20 @@ export default function KitFilterModal({ visible, options, initial, onApply, onC
           <Text style={styles.sectionTitle}>{t('name')}</Text>
           <ClearableInput
             style={styles.input}
-            placeholder={t('searchPlaceholder')}
+            placeholder={t('kitSearchPlaceholder')}
             value={search}
             onChangeText={setSearch}
           />
+
+          {statusOptions ? <>
+            <TouchableOpacity style={styles.dropdown} onPress={() => setStatusOpen((open) => !open)}>
+              <Text style={styles.dropdownLabel}>{t('status')}{statuses.length !== statusOptions.length ? ` (${statuses.length})` : ''}</Text>
+              {statusOpen ? <IconChevronUp size={16} color={colors.textFaint} /> : <IconChevronDown size={16} color={colors.textFaint} />}
+            </TouchableOpacity>
+            {statusOpen ? <View style={styles.checkList}>
+              {statusOptions.map((option) => checkRow(option.value, option.label, statuses.includes(option.value), () => toggle(statuses, option.value, setStatuses)))}
+            </View> : null}
+          </> : null}
 
           {/* メーカー複数選択 */}
           <TouchableOpacity style={styles.dropdown} onPress={() => setMakerOpen((o) => !o)}>
@@ -181,7 +197,7 @@ export default function KitFilterModal({ visible, options, initial, onApply, onC
 
         <TouchableOpacity
           style={styles.applyBtn}
-          onPress={() => onApply({ makers, series, categories, scales, search: search.trim() })}
+          onPress={() => { onApply({ makers, series, categories, scales, search: search.trim() }); onApplyStatuses?.(statuses); }}
         >
           <Text style={styles.applyText}>{t('apply')}</Text>
         </TouchableOpacity>
@@ -203,7 +219,7 @@ const makeStyles = (colors: typeof lightColors, listFontSize: ListFontSize) => {
     container: { flex: 1, backgroundColor: colors.surface },
     header: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     headerSide: { flex: 1 },
-    headerBtn: { color: colors.primary, fontSize: 16 },
+    headerBtn: { color: colors.primaryText, fontSize: 16 },
     title: { flex: 1, fontSize: 18, fontWeight: 'bold', textAlign: 'center', color: colors.text },
     sectionTitle: { fontSize: 13, color: colors.textFaint, marginTop: spacing.xl, marginHorizontal: spacing.xl, marginBottom: spacing.sm },
     input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg, marginHorizontal: spacing.xl, color: colors.text },
