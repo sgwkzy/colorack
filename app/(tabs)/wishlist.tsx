@@ -4,6 +4,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, LayoutAnimation } f
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconShoppingCartPlus } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
+import { logEvent, useScreenView } from '../../lib/analytics';
 import { getDB, getDefaultBoxId } from '../../lib/db';
 import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
@@ -60,6 +61,8 @@ export default function WishlistScreen() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const loadVersionRef = useRef(0);
+
+  useScreenView('Wishlist');
 
   const load = useCallback(async (f: PaintFilter, sortBy: Sort) => {
     const loadVersion = ++loadVersionRef.current;
@@ -155,6 +158,7 @@ export default function WishlistScreen() {
     );
     const insertedInventoryId = result.lastInsertRowId;
     await db.runAsync('DELETE FROM lists WHERE id = ?', [item.id]);
+    logEvent('wishlist_purchased');
     reload();
     showToast(
       paintName(item.name_ja, item.name_en) + t('purchasedToast'),

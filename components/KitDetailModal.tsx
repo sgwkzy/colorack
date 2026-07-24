@@ -31,6 +31,7 @@ import {
   updateKitSeries,
 } from '../lib/db';
 import { deleteKitPhoto } from '../lib/kitPhoto';
+import { deleteUploadedKitPhoto } from '../lib/kitPhotoBackup';
 import { t } from '../lib/i18n';
 import { useModalLock } from '../lib/modalLock';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
@@ -249,9 +250,10 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     onChanged?.();
   };
 
-  const removePhoto = async (photoId: number, uri: string) => {
+  const removePhoto = async (photoId: number, uri: string, storagePath: string | null) => {
     await removeKitPhoto(photoId);
     await deleteKitPhoto(uri);
+    deleteUploadedKitPhoto(storagePath).catch((e) => console.error('removePhoto: failed to delete uploaded copy', e));
     await load();
     onChanged?.();
   };
@@ -370,7 +372,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 onAdd={addPhoto}
                 onRemove={(key) => {
                   const photo = photos.find((p) => p.id === key);
-                  if (photo) removePhoto(photo.id, photo.uri);
+                  if (photo) removePhoto(photo.id, photo.uri, photo.storage_path);
                 }}
                 onMove={(key, direction) => movePhoto(key as number, direction)}
               />

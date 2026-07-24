@@ -4,6 +4,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, LayoutAnimation } f
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconHeart } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
+import { useScreenView } from '../../lib/analytics';
 import { getDB } from '../../lib/db';
 import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
@@ -60,6 +61,8 @@ export default function FavoritesScreen() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const loadVersionRef = useRef(0);
+
+  useScreenView('Favorites');
 
   const load = useCallback(async (f: PaintFilter, sortBy: Sort) => {
     const loadVersion = ++loadVersionRef.current;

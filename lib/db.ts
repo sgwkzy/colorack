@@ -118,6 +118,12 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN category TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN price INTEGER'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kit_colors ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0'); } catch { /* 既にある */ }
+  // クラウドバックアップ(スタンダードプラン)で、アップロード済みかどうかを判定するための列。
+  try { await db.execAsync('ALTER TABLE kit_photos ADD COLUMN synced_at TEXT'); } catch { /* 既にある */ }
+  // Storage上の位置をローカルファイル名から独立した永続識別子として保持する列。
+  // ローカルファイル名(uri)から都度導出すると、復元先の端末が同じファイル名を
+  // 再利用した際に別端末と同一Storageオブジェクトを指してしまう事故につながるため。
+  try { await db.execAsync('ALTER TABLE kit_photos ADD COLUMN storage_path TEXT'); } catch { /* 既にある */ }
   await migrateKitPhotoUris(db);
   await db.runAsync(
     'UPDATE inventory SET status_changed_at = added_at WHERE status_changed_at IS NULL OR status_changed_at < added_at'
@@ -574,11 +580,12 @@ export interface KitPhoto {
   id: number;
   uri: string;
   sort_order: number;
+  storage_path: string | null;
 }
 
 export async function getKitPhotos(kitId: number): Promise<KitPhoto[]> {
   return getDB().getAllAsync<KitPhoto>(
-    'SELECT id, uri, sort_order FROM kit_photos WHERE kit_id = ? ORDER BY sort_order, id',
+    'SELECT id, uri, sort_order, storage_path FROM kit_photos WHERE kit_id = ? ORDER BY sort_order, id',
     [kitId]
   );
 }

@@ -7,6 +7,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { IconBox } from '@tabler/icons-react-native';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { getDB, getDefaultBoxId, getListMembership, PaintStatus, setInventoryStatus } from '../../lib/db';
+import { logEvent, useScreenView } from '../../lib/analytics';
 import { setActiveBox } from '../../lib/activeBox';
 import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
@@ -112,6 +113,8 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
     });
     return () => { cancelled = true; };
   }, [isUsedScreen, locale, navigation, selected]);
+
+  useScreenView('Owned');
 
   const load = useCallback(async (sel: Selected, sf: PaintStatus[], f: PaintFilter, sortBy: Sort) => {
     const loadVersion = ++loadVersionRef.current;
@@ -227,7 +230,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
       {
         text: t('cancel'), style: 'cancel',
       },
-      { text: t('dontAddToList'), onPress: async () => { await setStatus(item, 'used_up'); showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast')); } },
+      { text: t('dontAddToList'), onPress: async () => { await setStatus(item, 'used_up'); logEvent('mark_used_up'); showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast')); } },
       {
         text: t('add'),
         onPress: async () => {
@@ -236,6 +239,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
             await getDB().runAsync("INSERT OR IGNORE INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
           }
           await setStatus(item, 'used_up');
+          logEvent('mark_used_up');
           showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast'));
         },
       },

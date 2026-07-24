@@ -1,15 +1,19 @@
 // app/(tabs)/settings.tsx
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
-import { getDB, resetCatalogToMaster, setSetting } from '../../lib/db';
+import { useFocusEffect, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { isAnalyticsEnabled, logEvent, setAnalyticsEnabled, useScreenView } from '../../lib/analytics';
+import { getDB, getSetting, resetCatalogToMaster, setSetting } from '../../lib/db';
 import { notifyBoxesChanged, setActiveBox } from '../../lib/activeBox';
 import { notifyKitBoxesChanged, setActiveKitBox } from '../../lib/activeKitBox';
 import { deleteKitPhoto } from '../../lib/kitPhoto';
-import { router } from 'expo-router';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
 import { useUiPrefs, setFabSide, setListFontSize } from '../../lib/uiPrefs';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { signInWithGoogle, signOutUser, useAuthUser } from '../../lib/auth';
+import { fetchBackupSnapshot, pushBackupToFirestore, restoreFromSnapshot, runRestoreDecision } from '../../lib/cloudBackup';
+import { presentPaywall, restorePurchases, useEntitlements } from '../../lib/subscription';
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
   { value: 'light', labelKey: 'themeLight' },
@@ -23,9 +27,31 @@ export default function SettingsScreen() {
   const { fabSide, listFontSize } = useUiPrefs();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [analyticsOn, setAnalyticsOn] = useState(isAnalyticsEnabled());
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
+  const [accountBusy, setAccountBusy] = useState(false);
+  const authUser = useAuthUser();
+  const { hasBackup, hasPhotoBackup } = useEntitlements();
+  const [purchaseBusy, setPurchaseBusy] = useState(false);
+
+  useScreenView('Settings');
+
+  const loadLastBackupAt = useCallback(async () => {
+    setLastBackupAt(await getSetting('last_backup_at'));
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    loadLastBackupAt();
+  }, [loadLastBackupAt]));
+
   const toggleLang = (val: boolean) => {
     setIsJa(val);
     setLocale(val ? 'ja' : 'en');
+  };
+
+  const toggleAnalytics = async (val: boolean) => {
+    setAnalyticsOn(val);
+    await setAnalyticsEnabled(val);
   };
 
   const confirmReset = (title: string, onConfirm: () => Promise<void>) => {
@@ -44,6 +70,7 @@ export default function SettingsScreen() {
     await setSetting('default_box_id', String(boxId));
     setActiveBox(boxId);
     notifyBoxesChanged();
+    logEvent('reset_data', { target: 'owned' });
     router.navigate({ pathname: '/owned', params: { boxId: String(boxId), boxName: 'Box' } });
   });
 
@@ -68,25 +95,175 @@ export default function SettingsScreen() {
     for (const { uri } of photos) await deleteKitPhoto(uri);
     notifyKitBoxesChanged();
     setActiveKitBox(boxId);
+    logEvent('reset_data', { target: 'kits' });
     router.navigate({ pathname: '/kits', params: { boxId: String(boxId), boxName: 'Box' } });
   });
 
   const resetFavorites = () => confirmReset(t('resetFavorites'), async () => {
     await getDB().runAsync("DELETE FROM lists WHERE type = 'favorites'");
+    logEvent('reset_data', { target: 'favorites' });
   });
 
   const resetWishlist = () => confirmReset(t('resetWishlist'), async () => {
     await getDB().runAsync("DELETE FROM lists WHERE type = 'wishlist'");
+    logEvent('reset_data', { target: 'wishlist' });
+  });
+
+  const resetCatalog = () => confirmReset(t('resetCatalog'), async () => {
+    await resetCatalogToMaster();
+    logEvent('reset_data', { target: 'catalog' });
   });
 
   const resetKitWishlist = () => confirmReset(t('resetKitWishlist'), async () => {
     await getDB().runAsync('DELETE FROM kit_lists');
+    logEvent('reset_data', { target: 'kit_wishlist' });
   });
 
-  const resetCatalog = () => confirmReset(t('resetCatalog'), resetCatalogToMaster);
+  // クラウド復元は端末のボックス/キットボックスを丸ごと入れ替えるため、他画面が
+  // 参照しているリアクティブなボックス一覧・選択中ボックスを必ず更新し直す。
+  const refreshAfterRestore = () => {
+    setActiveBox('all');
+    setActiveKitBox('all');
+    notifyBoxesChanged();
+    notifyKitBoxesChanged();
+  };
+
+  const restoreCloudBackup = async () => {
+    const snapshot = await fetchBackupSnapshot();
+    if (!snapshot) return;
+    await restoreFromSnapshot(snapshot);
+    refreshAfterRestore();
+  };
+
+  const showConflictAlert = () => {
+    Alert.alert(t('cloudRestoreConflictTitle'), t('cloudRestoreConflictMessage'), [
+      { text: t('cloudRestoreFromCloud'), style: 'destructive', onPress: () => { restoreCloudBackup().catch(console.error); } },
+      { text: t('cloudKeepDeviceData'), style: 'cancel' },
+    ]);
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (accountBusy) return;
+    setAccountBusy(true);
+    try {
+      await signInWithGoogle();
+      const result = await runRestoreDecision();
+      if (result === 'conflict') showConflictAlert();
+      refreshAfterRestore();
+      await loadLastBackupAt();
+    } catch (e) {
+      console.error('handleGoogleSignIn: failed', e);
+      Alert.alert(t('error'), t('cloudBackupError'));
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const handleBackupNow = async () => {
+    if (accountBusy) return;
+    setAccountBusy(true);
+    try {
+      await pushBackupToFirestore();
+      await loadLastBackupAt();
+    } catch (e) {
+      console.error('handleBackupNow: failed', e);
+      Alert.alert(t('error'), t('cloudBackupError'));
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (accountBusy) return;
+    setAccountBusy(true);
+    try {
+      await signOutUser();
+    } catch (e) {
+      console.error('handleSignOut: failed', e);
+      Alert.alert(t('error'), t('cloudBackupError'));
+    } finally {
+      setAccountBusy(false);
+    }
+  };
+
+  const handleViewPlans = async () => {
+    if (purchaseBusy) return;
+    setPurchaseBusy(true);
+    try {
+      await presentPaywall();
+    } catch (e) {
+      console.error('handleViewPlans: failed', e);
+      Alert.alert(t('error'), t('purchaseError'));
+    } finally {
+      setPurchaseBusy(false);
+    }
+  };
+
+  const handleRestorePurchases = async () => {
+    if (purchaseBusy) return;
+    setPurchaseBusy(true);
+    try {
+      await restorePurchases();
+    } catch (e) {
+      console.error('handleRestorePurchases: failed', e);
+      Alert.alert(t('error'), t('purchaseError'));
+    } finally {
+      setPurchaseBusy(false);
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('account')}</Text>
+        <Text style={styles.accountSubText}>
+          {t('currentPlan')}: {hasPhotoBackup ? t('planStandard') : hasBackup ? t('planLight') : t('planFree')}
+        </Text>
+        {hasBackup ? (
+          <>
+            <Text style={styles.accountSubText}>{hasPhotoBackup ? t('cloudBackupPhotosIncluded') : t('cloudBackupPhotosNote')}</Text>
+            {authUser ? (
+              <>
+                <Text style={styles.accountText}>{authUser.displayName ?? authUser.email ?? authUser.uid}</Text>
+                {authUser.email ? <Text style={styles.accountSubText}>{authUser.email}</Text> : null}
+                <Text style={styles.accountSubText}>{t('lastBackupAt')}: {lastBackupAt ?? t('lastBackupNever')}</Text>
+                <TouchableOpacity style={[styles.accountBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleBackupNow} disabled={accountBusy}>
+                  <Text style={styles.accountBtnText}>{t('backupNow')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.resetBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleSignOut} disabled={accountBusy}>
+                  <Text style={styles.resetBtnText}>{t('signOut')}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity style={[styles.accountBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleGoogleSignIn} disabled={accountBusy}>
+                <Text style={styles.accountBtnText}>{t('signInWithGoogle')}</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        ) : (
+          <>
+            <Text style={styles.accountSubText}>{t('backupRequiresSubscription')}</Text>
+            <TouchableOpacity style={[styles.accountBtn, purchaseBusy && styles.accountBtnDisabled]} onPress={handleViewPlans} disabled={purchaseBusy}>
+              <Text style={styles.accountBtnText}>{t('viewPlans')}</Text>
+            </TouchableOpacity>
+            {authUser ? (
+              <TouchableOpacity style={[styles.resetBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleSignOut} disabled={accountBusy}>
+                <Text style={styles.resetBtnText}>{t('signOut')}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </>
+        )}
+        <TouchableOpacity style={[styles.resetBtn, purchaseBusy && styles.accountBtnDisabled]} onPress={handleRestorePurchases} disabled={purchaseBusy}>
+          <Text style={styles.resetBtnText}>{t('restorePurchases')}</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('analytics')}</Text>
+        <View style={styles.langRow}>
+          <Text style={{ color: colors.text }}>{t('analyticsEnabled')}</Text>
+          <Switch value={analyticsOn} onValueChange={toggleAnalytics} style={{ marginHorizontal: 8 }} />
+        </View>
+      </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('language')}</Text>
         <View style={styles.langRow}>
@@ -174,4 +351,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   themeBtnTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   resetBtn: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
   resetBtnText: { color: colors.dangerText, fontWeight: 'bold', textAlign: 'center' },
+  accountText: { fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: spacing.xs },
+  accountSubText: { fontSize: 14, color: colors.textSecondary, marginBottom: spacing.md },
+  accountBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
+  accountBtnDisabled: { backgroundColor: colors.primaryDisabled },
+  accountBtnText: { color: colors.onPrimary, fontWeight: 'bold', textAlign: 'center' },
 });

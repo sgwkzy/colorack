@@ -75,6 +75,8 @@ module.exports = ({ config }) => ({
         userTrackingPermission: 'パーソナライズ広告の表示のために使用されます',
       },
     ],
+    '@react-native-firebase/app',
+    '@react-native-google-signin/google-signin',
     [
       'react-native-google-mobile-ads',
       {

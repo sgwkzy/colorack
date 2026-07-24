@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { Platform, StyleSheet, View } from 'react-native';
+import { useEntitlements } from '../lib/subscription';
 
 const productionAdUnitId = Platform.select({
   ios: Constants.expoConfig?.extra?.adMobBannerAdUnitIdIos,
@@ -11,7 +12,8 @@ const isExpoGo = Constants.appOwnership === 'expo' || Platform.OS === 'web';
 const Ads = isExpoGo ? null : (require('react-native-google-mobile-ads') as typeof import('react-native-google-mobile-ads'));
 
 export default function AdBanner() {
-  if (isExpoGo || !Ads) {
+  const { hasBackup } = useEntitlements();
+  if (hasBackup || isExpoGo || !Ads) {
     return null;
   }
 

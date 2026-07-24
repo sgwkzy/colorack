@@ -7,6 +7,7 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, Touchab
 import { IconCamera, IconChevronDown, IconChevronLeft, IconHeart, IconPencil, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { logEvent } from '../lib/analytics';
 import { brandLabel } from '../lib/brands';
 import { readableTextColor } from '../lib/color';
 import {
@@ -181,9 +182,11 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     const isMember = membership[type];
     if (isMember) {
       await removeFromList(detail.id, type);
+      logEvent('add_to_list', { list_type: type, action: 'remove' });
       showToast(paintName(detail.name_ja, detail.name_en) + t('removedToast'));
     } else {
       await getDB().runAsync('INSERT OR IGNORE INTO lists (type, paint_id) VALUES (?, ?)', [type, detail.id]);
+      logEvent('add_to_list', { list_type: type, action: 'add' });
       showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
     }
     setMembership((m) => ({ ...m, [type]: !isMember }));

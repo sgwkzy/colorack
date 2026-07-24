@@ -12,6 +12,9 @@ import { initDB } from '../lib/db';
 import { checkForCatalogUpdate, downloadAndApplyCatalogUpdate } from '../lib/catalogUpdate';
 import { initTheme, useTheme } from '../lib/theme';
 import { initLocale } from '../lib/i18n';
+import { initAuth } from '../lib/auth';
+import { initAutoBackup } from '../lib/cloudBackup';
+import { initAnalytics } from '../lib/analytics';
 import { initLastScreen } from '../lib/lastScreen';
 import { initUiPrefs } from '../lib/uiPrefs';
 import mobileAds from '../lib/mobileAds';
@@ -37,7 +40,20 @@ export default function RootLayout() {
           catch (error) { console.warn(error); }
         }
         await initDB();
-        await Promise.all([initTheme(), initLocale(), initUiPrefs(), initAppMode(), initLastScreen()]);
+        await Promise.all([
+          initTheme(),
+          initLocale(),
+          initUiPrefs(),
+          initAppMode(),
+          initLastScreen(),
+          // Firebase/RevenueCat/Google Play Servicesのネイティブ呼び出しに依存するため、
+          // 実機で失敗する可能性がある。失敗してもカタログ閲覧・在庫管理といった
+          // 認証と無関係なコア機能まで巻き込んでアプリ全体を起動不能にしないよう、
+          // ここで握りつぶす(ready状態には遷移させる)。
+          initAuth().catch((e) => console.error('initAuth: failed, continuing without auth', e)),
+          initAnalytics().catch((e) => console.error('initAnalytics: failed, continuing without analytics', e)),
+        ]);
+        initAutoBackup();
         void checkForCatalogUpdate(true).then(({ available, manifest }) => {
           if (available && manifest) return downloadAndApplyCatalogUpdate(manifest);
         }).catch(console.warn);

@@ -7,6 +7,7 @@ import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-na
 import { IconChevronDown, IconChevronRight, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { logEvent } from '../lib/analytics';
 import { brandLabel } from '../lib/brands';
 import {
   getDB,
@@ -140,7 +141,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
       {
         text: t('cancel'), style: 'cancel',
       },
-      { text: t('dontAddToList'), onPress: async () => { await setInventoryStatus(item.id, 'used_up'); await load(); onChanged?.(); showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast')); } },
+      { text: t('dontAddToList'), onPress: async () => { await setInventoryStatus(item.id, 'used_up'); logEvent('mark_used_up'); await load(); onChanged?.(); showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast')); } },
       {
         text: t('add'),
         onPress: async () => {
@@ -149,6 +150,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
             await getDB().runAsync("INSERT OR IGNORE INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
           }
           await setInventoryStatus(item.id, 'used_up');
+          logEvent('mark_used_up');
           await load();
           onChanged?.();
           showToast(paintName(item.name_ja, item.name_en) + t('usedUpToast'));

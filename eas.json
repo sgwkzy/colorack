@@ -18,7 +18,9 @@
         "EXPO_PUBLIC_ADMOB_APP_ID_ANDROID": "ca-app-pub-9724024455959596~9119854843",
         "EXPO_PUBLIC_ADMOB_BANNER_AD_UNIT_ID_ANDROID": "ca-app-pub-9724024455959596/4831492561",
         "EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER": "com.sugawalabo.colorack",
-        "EXPO_PUBLIC_ANDROID_PACKAGE": "com.sugawalabo.colorack"
+        "EXPO_PUBLIC_ANDROID_PACKAGE": "com.sugawalabo.colorack",
+        "EXPO_PUBLIC_REVENUECAT_API_KEY_IOS": "",
+        "EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID": ""
       },
       "ios": {
         "autoIncrement": true
