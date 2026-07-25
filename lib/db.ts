@@ -265,7 +265,12 @@ async function upsertCatalogFromSeed(db: SQLite.SQLiteDatabase): Promise<void> {
       [catalogCode(paint.brand, paint.series, paint.code)]
     );
     await db.runAsync(
-      'DELETE FROM catalog_paints WHERE catalog_code NOT IN (SELECT catalog_code FROM seed_catalog_codes)' +
+      // source = 'catalog' の絞り込みは必須。これが無いとユーザーが手動追加した塗料
+      // (source='manual')までシードに無い行として削除され、在庫/リスト/配合から
+      // 参照されていないものが SEED_VERSION 更新時に警告なく消える。
+      // applyCatalogUpdate 側の同処理と条件を揃えている。
+      "DELETE FROM catalog_paints WHERE source = 'catalog'" +
+      ' AND catalog_code NOT IN (SELECT catalog_code FROM seed_catalog_codes)' +
       ' AND id NOT IN (SELECT paint_id FROM inventory)' +
       ' AND id NOT IN (SELECT paint_id FROM lists)' +
       ' AND id NOT IN (SELECT paint_id FROM kit_color_paints)',

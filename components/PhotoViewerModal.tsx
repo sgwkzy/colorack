@@ -2,7 +2,7 @@
 import { Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconDownload, IconX } from '@tabler/icons-react-native';
 import ImageViewing from 'react-native-image-viewing';
-import { useLocale } from '../lib/i18n';
+import { t, useLocale } from '../lib/i18n';
 import { saveKitPhotoToLibrary } from '../lib/kitPhoto';
 import { spacing } from '../lib/theme';
 
@@ -39,7 +39,7 @@ export default function PhotoViewerModal({ visible, uri, uris, onClose }: Props)
     <SafeAreaView style={styles.header}>
       <View style={styles.headerSpacer} />
       <View style={styles.titlePill}>
-        <Text style={styles.title}>キット写真</Text>
+        <Text style={styles.title}>{t('kitPhoto')}</Text>
         <Text style={styles.subtitle}>{currentIndex + 1} / {photoUris.length}</Text>
       </View>
       <TouchableOpacity style={styles.closeButton} onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={labels.close}>

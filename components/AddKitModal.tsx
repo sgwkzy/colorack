@@ -63,6 +63,10 @@ export default function AddKitModal({ visible, defaultBoxId, addToWishlist = fal
   };
 
   const cancelAndClose = async () => {
+    // 保存中(busy)は閉じさせない。save() が addKitPhoto でコピー中の写真を
+    // ここで deleteKitPhoto すると、kits/kit_photos のレコードだけ残って
+    // 参照先ファイルが消えた壊れた状態になる。
+    if (busy) return;
     for (const uri of photos) await deleteKitPhoto(uri);
     onClose();
   };

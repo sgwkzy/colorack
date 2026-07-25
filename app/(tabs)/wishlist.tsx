@@ -43,7 +43,7 @@ const SORT_ORDER: Record<Sort, string> = {
 };
 
 export default function WishlistScreen() {
-  const locale = useLocale();
+  useLocale(); // ロケール変更で再描画。戻り値は使わない
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<ListItem[]>([]);
@@ -183,7 +183,7 @@ export default function WishlistScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.statusBarWrap}>
-        <Text style={styles.statusCount}>{locale === 'ja' ? `塗料数 ${totalCount} ・ 表示数 ${items.length}` : `Paints ${totalCount} · Showing ${items.length}`}</Text>
+        <Text style={styles.statusCount}>{t('paintCount', { total: totalCount, shown: items.length })}</Text>
         <ListToolbar onFilter={() => setShowFilter(true)} onSort={openSort} filterActive={filterActive} />
       </View>
       <View style={styles.adBar}><AdBanner /></View>

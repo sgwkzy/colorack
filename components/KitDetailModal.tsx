@@ -87,7 +87,10 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
 
   const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
 
-  const load = useCallback(async () => {
+  // seedEditFields はモーダルを開くときだけ true にする。1フィールドの onBlur 保存の
+  // あとに全フィールドを DB 値で再設定すると、まだ保存されていない別フィールドの
+  // 入力中テキストが警告なく消える(例: 名前を編集して即メーカー欄に入力した場合)。
+  const load = useCallback(async (seedEditFields = false) => {
     if (kitId == null) return;
     const [row, colorRows, photoRows, owned, wishlistRow] = await Promise.all([
       getKitDetail(kitId), getKitColors(kitId), getKitPhotos(kitId), getOwnedCountMap(),
@@ -97,19 +100,21 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     setKitColors(colorRows);
     setPhotos(photoRows);
     setOwnedMap(owned);
-    setName(row?.name ?? '');
-    setMaker(row?.maker ?? '');
-    setScale(row?.scale ?? '');
-    setPrice(row?.price != null ? String(row.price) : '');
-    setNote(row?.note ?? '');
-    setSeries(row?.series ?? '');
-    setCategory(row?.category ?? '');
     setInWishlist(!!wishlistRow);
+    if (seedEditFields) {
+      setName(row?.name ?? '');
+      setMaker(row?.maker ?? '');
+      setScale(row?.scale ?? '');
+      setPrice(row?.price != null ? String(row.price) : '');
+      setNote(row?.note ?? '');
+      setSeries(row?.series ?? '');
+      setCategory(row?.category ?? '');
+    }
   }, [kitId]);
 
   useEffect(() => {
     if (visible) {
-      load();
+      load(true);
       getDB().getAllAsync<Box>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id').then(setBoxes);
     } else {
       setDetail(null);
