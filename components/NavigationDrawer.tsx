@@ -19,13 +19,13 @@ interface Props { onClose: () => void; }
 
 export default function NavigationDrawer({ onClose }: Props) {
   const { colors } = useTheme();
-  const locale = useLocale();
+  useLocale();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const pathname = usePathname();
   const appMode = useAppMode();
   const mode = appMode;
   const activeBoxId = useActiveBox();
-  const allBoxesLabel = locale === 'ja' ? 'すべてのボックス' : 'All Boxes';
+  const allBoxesLabel = t('allBoxesTitle');
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [boxCounts, setBoxCounts] = useState<Map<number | null, number>>(new Map());
   const [favoriteCount, setFavoriteCount] = useState(0);

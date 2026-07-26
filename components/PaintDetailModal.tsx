@@ -419,9 +419,9 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
           ) : (
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <SwipeDownScrollView style={styles.scroll} onClose={returnToDetail} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-              <EditField label={locale === 'ja' ? '名前（和名）' : 'Name (Japanese)'} value={nameJa} onChangeText={setNameJa} styles={styles} />
+              <EditField label={t('nameJa')} value={nameJa} onChangeText={setNameJa} styles={styles} />
               {masterLine(nameJa, master?.name_ja)}
-              <EditField label={locale === 'ja' ? '名前（英名）' : 'Name (English)'} value={nameEn} onChangeText={setNameEn} styles={styles} />
+              <EditField label={t('nameEn')} value={nameEn} onChangeText={setNameEn} styles={styles} />
               {masterLine(nameEn, master?.name_en)}
 
               {isManual ? (

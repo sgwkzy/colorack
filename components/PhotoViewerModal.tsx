@@ -18,20 +18,17 @@ export default function PhotoViewerModal({ visible, uri, uris, onClose }: Props)
   // imageIndex は開いた瞬間だけ渡す。スワイプ後に親から渡し直すと、
   // ライブラリがビューアー全体を作り直してフェードしてしまう。
   const initialImageIndex = uri ? Math.max(0, photoUris.indexOf(uri)) : 0;
-  const locale = useLocale();
-  const labels = locale === 'ja'
-    ? { close: '閉じる', download: 'ダウンロード', saved: '写真ライブラリに保存しました', failed: '写真を保存できませんでした。写真ライブラリへのアクセスを許可してください。' }
-    : { close: 'Close', download: 'Download', saved: 'Saved to your photo library', failed: 'Unable to save the photo. Allow photo library access and try again.' };
+  useLocale();
 
   const savePhoto = async (index: number) => {
     const selectedUri = photoUris[index];
     if (!selectedUri) return;
     try {
       const saved = await saveKitPhotoToLibrary(selectedUri);
-      Alert.alert(labels.download, saved ? labels.saved : labels.failed);
+      Alert.alert(t('download'), saved ? t('photoSaved') : t('photoSaveFailed'));
     } catch (error) {
       console.error('saveKitPhotoToLibrary failed', error);
-      Alert.alert(labels.download, labels.failed);
+      Alert.alert(t('download'), t('photoSaveFailed'));
     }
   };
 
@@ -42,7 +39,7 @@ export default function PhotoViewerModal({ visible, uri, uris, onClose }: Props)
         <Text style={styles.title}>{t('kitPhoto')}</Text>
         <Text style={styles.subtitle}>{currentIndex + 1} / {photoUris.length}</Text>
       </View>
-      <TouchableOpacity style={styles.closeButton} onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={labels.close}>
+      <TouchableOpacity style={styles.closeButton} onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('close')}>
         <IconX color="#fff" size={26} />
       </TouchableOpacity>
     </SafeAreaView>
@@ -57,7 +54,7 @@ export default function PhotoViewerModal({ visible, uri, uris, onClose }: Props)
         ))}
       </ScrollView>
       <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.downloadButton} onPress={() => savePhoto(currentIndex)} accessibilityRole="button" accessibilityLabel={labels.download}>
+        <TouchableOpacity style={styles.downloadButton} onPress={() => savePhoto(currentIndex)} accessibilityRole="button" accessibilityLabel={t('download')}>
           <IconDownload color="#fff" size={24} />
         </TouchableOpacity>
       </View>

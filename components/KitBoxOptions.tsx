@@ -15,7 +15,7 @@ interface Box { id: number; name: string; icon: BoxIcon | null; icon_color: stri
 
 export default function KitBoxOptions() {
   const { colors } = useTheme();
-  const locale = useLocale();
+  useLocale();
   const activeBox = useActiveKitBox();
   const boxesVersion = useKitBoxesVersion();
   const [boxes, setBoxes] = useState<Box[]>([]);
@@ -24,7 +24,7 @@ export default function KitBoxOptions() {
   const [editing, setEditing] = useState(false);
   const [ordering, setOrdering] = useState(false);
   const box = activeBox === 'all' ? null : boxes.find((item) => item.id === activeBox) ?? null;
-  const editLabel = locale === 'ja' ? 'ボックスを編集' : 'Edit Box';
+  const editLabel = t('editBox');
 
   useEffect(() => {
     Promise.all([
@@ -86,15 +86,15 @@ export default function KitBoxOptions() {
   };
 
   const buttons: ActionSheetButton[] = [
-    { text: locale === 'ja' ? 'このボックスをデフォルトにする' : 'Make this the default box', onPress: makeDefault, disabled: defaultBoxId === box.id },
-    { text: locale === 'ja' ? 'ボックスを並び替え' : 'Reorder Boxes', onPress: () => setOrdering(true) },
+    { text: t('makeDefaultBox'), onPress: makeDefault, disabled: defaultBoxId === box.id },
+    { text: t('reorderBoxes'), onPress: () => setOrdering(true) },
     { text: editLabel, onPress: () => setEditing(true) },
     ...(boxes.length > 1 ? [{ text: t('delete'), style: 'destructive' as const, onPress: confirmDelete }] : []),
     { text: t('cancel'), style: 'cancel' },
   ];
 
   return <>
-    <TouchableOpacity onPress={() => setOptionsOpen(true)} accessibilityRole="button" accessibilityLabel="Kit box options" hitSlop={12} style={{ marginRight: 16 }}>
+    <TouchableOpacity onPress={() => setOptionsOpen(true)} accessibilityRole="button" accessibilityLabel={t('kitBoxOptions')} hitSlop={12} style={{ marginRight: 16 }}>
       <IconDotsVertical color={colors.text} size={24} />
     </TouchableOpacity>
     <ActionSheet visible={optionsOpen} title={box.name} buttons={buttons} onClose={() => setOptionsOpen(false)} />

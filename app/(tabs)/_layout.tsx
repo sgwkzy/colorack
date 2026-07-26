@@ -45,7 +45,7 @@ export default function TabsLayout() {
       headerTintColor: colors.text,
       headerTitleAlign: 'center',
       headerShadowVisible: !isDark,
-      headerLeft: () => <TouchableOpacity onPress={() => drawerRef.current?.openDrawer()} accessibilityRole="button" accessibilityLabel="Menu" hitSlop={12} style={{ marginLeft: 16 }}><IconMenu3 color={colors.text} size={26} /></TouchableOpacity>,
+      headerLeft: () => <TouchableOpacity onPress={() => drawerRef.current?.openDrawer()} accessibilityRole="button" accessibilityLabel={t('menu')} hitSlop={12} style={{ marginLeft: 16 }}><IconMenu3 color={colors.text} size={26} /></TouchableOpacity>,
     }}>
       <Tabs.Screen
         name="owned"

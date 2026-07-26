@@ -204,7 +204,7 @@ export default function CatalogScreen() {
             >
               <PaintRow paint={item} borderColor={item.hex ?? colors.transparent} ownedCount={ownedCounts.get(item.id) ?? 0}>
               {manual ? (
-                <TouchableOpacity style={styles.delBtn} onPress={() => remove(item)} hitSlop={8}>
+                <TouchableOpacity style={styles.delBtn} onPress={() => remove(item)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('deletePaint')}>
                   <IconTrash color={colors.danger} size={22} />
                 </TouchableOpacity>
               ) : null}
