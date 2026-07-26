@@ -46,11 +46,10 @@ export default function BoxOptions() {
     const db = getDB();
     const defaultBoxId = await getDefaultBoxId();
     await db.withTransactionAsync(async () => {
-      // 確認ダイアログ(deleteBoxConfirm)は「中の塗料は未分類になります」と約束している。
-      // 以前はここで inventory を DELETE しており、所持記録(ステータス・メモ含む)が
-      // 文言に反して消えていた。inventory.box_id は NULL 許容で、「すべてのボックス」
-      // 表示は box 絞り込みをしないため、NULL にすれば未分類として残る。
-      await db.runAsync('UPDATE inventory SET box_id = NULL WHERE box_id = ?', [box.id]);
+      // ボックス削除は中の在庫も一緒に消す仕様(キットボックス削除と同じ)。
+      // 確認ダイアログ(deleteBoxConfirm)で「中の塗料もすべて削除され元に戻せない」
+      // ことを明示しているので、文言と実装は一致している。
+      await db.runAsync('DELETE FROM inventory WHERE box_id = ?', [box.id]);
       await db.runAsync('DELETE FROM boxes WHERE id = ?', [box.id]);
       if (defaultBoxId === box.id) {
         await db.runAsync(
