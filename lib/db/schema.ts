@@ -165,6 +165,11 @@ export async function initDB(): Promise<void> {
     );
   }
 
+  // デフォルトボックスは常に有効な行を指している前提でUIを組んでいるため、起動時に
+  // 自己修復する。未設定(この仕組み導入前からボックスがあった端末)と、削除済みの
+  // ボックスを指している場合の両方を先頭のボックスへ寄せる。
+  await ensureDefaultBox(db, 'default_box_id', 'boxes');
+
   // 初期キットボックス「Box」を用意し、デフォルトに設定(キットボックスが無い時だけ)。
   // 塗料ボックスと同じ仕組み。
   const kitBoxCount = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM kit_boxes');
@@ -175,21 +180,10 @@ export async function initDB(): Promise<void> {
       + ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
       ['default_kit_box_id', String(kitRes.lastInsertRowId)]
     );
-  } else {
-    // この仕様導入前からキットボックスがあった端末はdefault_kit_box_id未設定のため、
-    // 先頭のキットボックスへ一度だけバックフィルする。
-    const existingDefault = await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'default_kit_box_id'");
-    if (!existingDefault?.value) {
-      const first = await db.getFirstAsync<{ id: number }>('SELECT id FROM kit_boxes ORDER BY sort_order, id LIMIT 1');
-      if (first) {
-        await db.runAsync(
-          'INSERT INTO app_settings (key, value) VALUES (?, ?)'
-          + ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-          ['default_kit_box_id', String(first.id)]
-        );
-      }
-    }
   }
+
+  // 塗料ボックスと同じ理由で自己修復する。
+  await ensureDefaultBox(db, 'default_kit_box_id', 'kit_boxes');
 
   // この仕様導入前に完成(completed)になっていたキットのbox_idを一度だけクリアする。
   // 塗料の使用済み(used_up)がボックスから外れているのと同じ扱いにするため。
@@ -202,4 +196,32 @@ export async function initDB(): Promise<void> {
     await upsertCatalogFromSeed(db);
     await db.execAsync(`PRAGMA user_version = ${SEED_VERSION}`);
   }
+}
+
+// デフォルトボックス設定が有効な行を指すようにする。未設定、または削除済みの行を
+// 指している場合に先頭のボックスへ寄せる。ボックスが1件も無い場合は何もしない。
+// table は内部で決め打ちした識別子のみを渡す(SQLへ値として埋め込めないため)。
+async function ensureDefaultBox(
+  db: SQLite.SQLiteDatabase,
+  key: 'default_box_id' | 'default_kit_box_id',
+  table: 'boxes' | 'kit_boxes'
+): Promise<void> {
+  const current = await db.getFirstAsync<{ value: string }>(
+    'SELECT value FROM app_settings WHERE key = ?', [key]
+  );
+  if (current?.value) {
+    const exists = await db.getFirstAsync<{ id: number }>(
+      `SELECT id FROM ${table} WHERE id = ?`, [Number(current.value)]
+    );
+    if (exists) return;
+  }
+  const first = await db.getFirstAsync<{ id: number }>(
+    `SELECT id FROM ${table} ORDER BY sort_order, id LIMIT 1`
+  );
+  if (!first) return;
+  await db.runAsync(
+    'INSERT INTO app_settings (key, value) VALUES (?, ?)'
+    + ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    [key, String(first.id)]
+  );
 }

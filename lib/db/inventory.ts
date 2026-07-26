@@ -79,7 +79,18 @@ export async function updateInventoryBox(inventoryId: number, boxId: number): Pr
   );
 }
 
-export async function setInventoryStatus(inventoryId: number, status: PaintStatus): Promise<void> {
+// boxId を渡すと、そのボックスへ入れて状態を変える(使用済みから在庫へ戻すときに
+// 戻し先をユーザーが選ぶ用途)。ステータスとボックスを別々に更新すると途中で失敗した
+// ときに「使用済みなのにボックスが入っている」中途半端な状態が残るため、1文で行う。
+// boxId 未指定時は従来どおり、ボックス未所属ならデフォルトボックスへ入れる。
+export async function setInventoryStatus(inventoryId: number, status: PaintStatus, boxId?: number): Promise<void> {
+  if (status !== 'used_up' && boxId != null) {
+    await getDB().runAsync(
+      "UPDATE inventory SET status = ?, box_id = ?, status_changed_at = datetime('now') WHERE id = ?",
+      [status, boxId, inventoryId]
+    );
+    return;
+  }
   const defaultBoxId = status === 'used_up' ? null : await getDefaultBoxId();
   await getDB().runAsync(
     "UPDATE inventory SET status = ?, box_id = CASE WHEN ? = 'used_up' THEN NULL WHEN box_id IS NULL THEN ? ELSE box_id END, status_changed_at = datetime('now') WHERE id = ?",
