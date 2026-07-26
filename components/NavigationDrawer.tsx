@@ -15,9 +15,12 @@ import BoxEditorModal, { BoxDraft, BoxIcon } from './BoxEditorModal';
 interface Box { id: number; name: string; icon: BoxIcon | null; icon_color: string | null; }
 interface CountRow { box_id: number | null; n: number; }
 interface TotalRow { n: number; }
-interface Props { onClose: () => void; }
+// refreshToken はドロワーが開かれる度に増える値。これが変わったら件数を取り直す。
+// ドロワー自体は常時マウントのまま(再マウントすると表示がちらつくため)、
+// 数字だけ最新化する。
+interface Props { onClose: () => void; refreshToken?: number; }
 
-export default function NavigationDrawer({ onClose }: Props) {
+export default function NavigationDrawer({ onClose, refreshToken = 0 }: Props) {
   const { colors } = useTheme();
   useLocale();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -62,7 +65,10 @@ export default function NavigationDrawer({ onClose }: Props) {
     setCompletedCount(completedRow?.n ?? 0);
     setKitWishlistCount(kitWishlistRow?.n ?? 0);
   }, []);
-  useEffect(() => { loadBoxes(); }, [loadBoxes]);
+  // loadBoxes は useCallback(deps=[]) で不変なので、これだけではマウント時の1回しか
+  // 走らない。ドロワーが常時マウントになった結果、キットを完成品にしても在庫の
+  // ステータスを変えても件数が古いままになっていた。refreshToken で開く度に取り直す。
+  useEffect(() => { loadBoxes(); }, [loadBoxes, refreshToken]);
   const saveBox = async ({ name, icon, color }: BoxDraft) => {
     const db = getDB();
     if (editingBox === 'new') await db.runAsync('INSERT INTO boxes (name, icon, icon_color, sort_order) VALUES (?, ?, ?, COALESCE((SELECT MAX(sort_order) + 1 FROM boxes), 0))', [name, icon, color]);
