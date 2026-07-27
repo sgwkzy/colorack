@@ -10,11 +10,11 @@ interface Props { visible: boolean; boxes: Box[]; onSave: (ids: number[]) => voi
 
 export default function BoxOrderModal({ visible, boxes, onSave, onClose }: Props) {
   useModalLock(visible);
-  const locale = useLocale();
+  useLocale();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [ordered, setOrdered] = useState(boxes);
-  const title = locale === 'ja' ? 'ボックスを並び替え' : 'Reorder Boxes';
+  const title = t('reorderBoxes');
 
   useEffect(() => { if (visible) setOrdered(boxes); }, [visible, boxes]);
   const move = (index: number, direction: -1 | 1) => {

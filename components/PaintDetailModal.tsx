@@ -3,7 +3,7 @@
 // モーダル方式にしているのは、呼び出し元(一覧やAddPaintモーダル)を閉じずに
 // 「詳細を見る→戻る→別の色を見る」を繰り返せるようにするため。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { IconCamera, IconChevronDown, IconChevronLeft, IconHeart, IconPencil, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -27,7 +27,7 @@ import { glossLabel } from '../lib/gloss';
 import { t, useLocale } from '../lib/i18n';
 import { paintName, seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
-import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
+import { spacing, useTheme } from '../lib/theme';
 import ClearableInput from './ClearableInput';
 import ActionSheet from './ActionSheet';
 import ColorCameraPicker from './ColorCameraPicker';
@@ -37,6 +37,8 @@ import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
 import Toast from './Toast';
 import { useModalLock } from '../lib/modalLock';
+import { CompactInfo, EditField, ReadonlyField } from './PaintDetail/fields';
+import { makeStyles } from './PaintDetail/styles';
 
 interface Box { id: number; name: string; }
 interface StockStatusRow { box_name: string | null; status: string; n: number; }
@@ -419,9 +421,9 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
           ) : (
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <SwipeDownScrollView style={styles.scroll} onClose={returnToDetail} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-              <EditField label={locale === 'ja' ? '名前（和名）' : 'Name (Japanese)'} value={nameJa} onChangeText={setNameJa} styles={styles} />
+              <EditField label={t('nameJa')} value={nameJa} onChangeText={setNameJa} styles={styles} />
               {masterLine(nameJa, master?.name_ja)}
-              <EditField label={locale === 'ja' ? '名前（英名）' : 'Name (English)'} value={nameEn} onChangeText={setNameEn} styles={styles} />
+              <EditField label={t('nameEn')} value={nameEn} onChangeText={setNameEn} styles={styles} />
               {masterLine(nameEn, master?.name_en)}
 
               {isManual ? (
@@ -516,101 +518,3 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   );
 }
 
-function CompactInfo({ label, value, styles }: { label: string; value: string; styles: ReturnType<typeof makeStyles> }) {
-  return (
-    <View style={styles.compactItem}>
-      <Text style={styles.compactLabel}>{label}</Text>
-      <Text style={styles.compactValue}>{value || '—'}</Text>
-    </View>
-  );
-}
-
-function EditField({ label, value, onChangeText, styles }: { label: string; value: string; onChangeText: (value: string) => void; styles: ReturnType<typeof makeStyles> }) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      <ClearableInput style={styles.input} value={value} onChangeText={onChangeText} autoCapitalize="none" />
-    </View>
-  );
-}
-
-function ReadonlyField({ label, value, styles }: { label: string; value: string; styles: ReturnType<typeof makeStyles> }) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={styles.readonly}>{value || '—'}</Text>
-    </View>
-  );
-}
-
-const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface },
-  header: { position: 'relative', alignItems: 'center', justifyContent: 'center', minHeight: 56, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
-  headerAction: { position: 'absolute', top: 0, bottom: 0, width: touch.min, alignItems: 'center', justifyContent: 'center' },
-  headerBack: { left: spacing.md },
-  headerClose: { right: spacing.md },
-  scroll: { flex: 1 },
-  content: { flexGrow: 1, padding: spacing.xl, paddingBottom: spacing.xl, gap: spacing.lg },
-  colorSpecimen: { overflow: 'hidden', borderRadius: radius.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.borderLight },
-  swatch: { height: 156, overflow: 'hidden', justifyContent: 'flex-end', paddingVertical: spacing.xxl, paddingHorizontal: spacing.xl },
-  finishOverlay: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
-  swatchLabel: { gap: spacing.xs, zIndex: 1, position: 'relative' },
-  swatchBrandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  swatchBrand: { fontSize: 14, fontWeight: '600', opacity: 0.82 },
-  swatchName: { fontSize: 26, lineHeight: 32, fontWeight: '700', letterSpacing: -0.3 },
-  nameTooltip: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, zIndex: 2 },
-  nameTooltipText: { fontSize: 16, lineHeight: 22, fontWeight: '600' },
-  swatchCode: { fontSize: 18, fontWeight: '600', marginTop: spacing.xs },
-  swatchHex: { fontSize: 13, fontWeight: '600', opacity: 0.84, letterSpacing: 0.6 },
-  sectionTitle: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
-  editBtn: { padding: spacing.sm, marginRight: -spacing.sm },
-  toneRail: { height: 34, flexDirection: 'row', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.18)' },
-  toneStep: { flex: 1 },
-  detailCard: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, paddingTop: spacing.lg },
-  compactItem: { width: '50%', paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
-  compactLabel: { fontSize: 11, color: colors.textMuted },
-  compactValue: { fontSize: 15, color: colors.text, fontWeight: '600', marginTop: 2 },
-  ledgerCard: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, gap: spacing.md },
-  stockStatusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
-  stockItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  statusDot: { width: 10, height: 10, borderRadius: 5 },
-  stockStatusText: { fontSize: 14, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
-  field: { marginBottom: spacing.lg },
-  label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg, color: colors.text },
-  readonly: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.sm, padding: spacing.lg, color: colors.textFaint, backgroundColor: colors.surfaceAlt },
-  quote: { fontSize: 14, lineHeight: 20, color: colors.textSecondary },
-  hexRow: { flexDirection: 'row', alignItems: 'center' },
-  hexInput: { flex: 1 },
-  notesInput: { minHeight: 80, alignItems: 'flex-start' },
-  previewSwatch: { marginLeft: spacing.md, width: touch.min, height: touch.min, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
-  cameraBtn: { marginLeft: spacing.md, width: touch.min, height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.xs },
-  chip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chip, marginRight: spacing.md, marginBottom: spacing.md },
-  chipOn: { backgroundColor: colors.primary },
-  chipText: { fontSize: 13, color: colors.textSecondary },
-  chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
-  sectionGap: { marginTop: spacing.lg },
-  masterText: { color: colors.textFaint, fontSize: 12, marginTop: -spacing.md, marginBottom: spacing.lg },
-  addGroup: { borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, gap: spacing.sm },
-  boxPicker: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.lg },
-  boxPickerText: { flex: 1, color: colors.text, fontSize: 14 },
-  fullWidth: { alignSelf: 'stretch' },
-  toggleRow: { flexDirection: 'row', gap: spacing.md },
-  toggleButton: { flex: 1, flexDirection: 'row' },
-  toggleIcon: { marginRight: spacing.xs },
-  button: { minHeight: touch.min, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, alignItems: 'center', justifyContent: 'center' },
-  primaryButton: { backgroundColor: colors.primary, borderColor: colors.primary },
-  deleteButton: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
-  buttonText: { color: colors.text, fontWeight: 'bold' },
-  primaryButtonText: { color: colors.onPrimary, fontWeight: 'bold' },
-  deleteButtonText: { color: colors.dangerText, fontWeight: 'bold' },
-  textAction: { alignSelf: 'center', paddingVertical: spacing.lg, paddingHorizontal: spacing.xl },
-  textActionLabel: { fontSize: 14, color: colors.dangerText, fontWeight: 'bold' },
-  saveArea: { backgroundColor: colors.surface, paddingHorizontal: spacing.xl, paddingTop: spacing.md },
-  saveBtn: { minHeight: touch.min, borderRadius: radius.md, backgroundColor: colors.primary, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, alignItems: 'center', justifyContent: 'center' },
-  saveBtnDisabled: { backgroundColor: colors.primaryDisabled },
-  saveBtnText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
-  empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
-});

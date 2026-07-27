@@ -63,6 +63,10 @@ export default function AddKitModal({ visible, defaultBoxId, addToWishlist = fal
   };
 
   const cancelAndClose = async () => {
+    // 保存中(busy)は閉じさせない。save() が addKitPhoto でコピー中の写真を
+    // ここで deleteKitPhoto すると、kits/kit_photos のレコードだけ残って
+    // 参照先ファイルが消えた壊れた状態になる。
+    if (busy) return;
     for (const uri of photos) await deleteKitPhoto(uri);
     onClose();
   };
@@ -130,7 +134,9 @@ export default function AddKitModal({ visible, defaultBoxId, addToWishlist = fal
               <ClearableInput style={[styles.input, styles.noteInput]} value={note} onChangeText={setNote} multiline textAlignVertical="top" />
             </View>
           </SwipeDownScrollView>
-          <TouchableOpacity style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]} onPress={save} disabled={!canSave || busy}>
+          {/* busy も無効表示に含める。保存中は閉じる操作も無視する(写真のコピー中に
+              削除すると壊れたレコードが残るため)ので、見た目でも処理中だと分かるようにする。 */}
+          <TouchableOpacity style={[styles.saveBtn, (!canSave || busy) && styles.saveBtnDisabled]} onPress={save} disabled={!canSave || busy}>
             <Text style={styles.saveBtnText}>{t('save')}</Text>
           </TouchableOpacity>
           </KeyboardAvoidingView>

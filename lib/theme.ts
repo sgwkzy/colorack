@@ -131,10 +131,6 @@ export function setThemeMode(mode: ThemeMode): void {
   setSetting(THEME_MODE_KEY, mode).catch((e) => console.error('setThemeMode: failed to persist', e));
 }
 
-export function getThemeMode(): ThemeMode {
-  return currentMode;
-}
-
 export function useTheme(): { colors: typeof lightColors; mode: ThemeMode; isDark: boolean } {
   const [, force] = useReducer((x) => x + 1, 0);
   useEffect(() => {

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconPlus } from '@tabler/icons-react-native';
 import { t } from '../lib/i18n';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
@@ -28,24 +28,28 @@ export function ListToolbar({ onFilter, onSort, filterActive = false }: { onFilt
 export default function ListActionBar({ onAdd }: Props) {
   const { colors } = useTheme();
   const { fabSide } = useUiPrefs();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  // ponytail: FABだけを絶対配置する。以前は全幅の透明ViewとSafeAreaViewで包んでいたが、
+  // 見えないタッチ面を画面下部の全幅に敷くことになり、pointerEvents="box-none"が
+  // 効かないと下部全域(背後のリスト行を含む)が反応しなくなる。ラッパーを無くして
+  // その前提自体を排除する。safe areaはinsetsで直接オフセットする。
   return (
-    <View collapsable={false} pointerEvents="box-none" style={styles.overlay}>
-      <SafeAreaView edges={['bottom']} pointerEvents="box-none" style={[styles.safeArea, fabSide === 'left' ? styles.safeAreaLeft : styles.safeAreaRight]}>
-        <TouchableOpacity style={styles.fab} onPress={onAdd} accessibilityRole="button" accessibilityLabel={t('add')}>
-          <IconPlus color={colors.onPrimary} size={28} />
-        </TouchableOpacity>
-      </SafeAreaView>
-    </View>
+    <TouchableOpacity
+      style={[styles.fab, { bottom: insets.bottom + spacing.md }, fabSide === 'left' ? styles.fabLeft : styles.fabRight]}
+      onPress={onAdd}
+      accessibilityRole="button"
+      accessibilityLabel={t('add')}
+    >
+      <IconPlus color={colors.onPrimary} size={28} />
+    </TouchableOpacity>
   );
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  overlay: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 20, elevation: 20 },
-  safeArea: { paddingHorizontal: spacing.xl, paddingTop: spacing.md },
-  safeAreaLeft: { alignItems: 'flex-start' },
-  safeAreaRight: { alignItems: 'flex-end' },
-  fab: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: radius.fab, backgroundColor: colors.primary, boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)' },
+  fab: { position: 'absolute', zIndex: 20, elevation: 20, width: 56, height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: radius.fab, backgroundColor: colors.primary, boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)' },
+  fabLeft: { left: spacing.xl },
+  fabRight: { right: spacing.xl },
   toolbar: { flexDirection: 'row', gap: spacing.sm },
   toolbarAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md },
   toolbarText: { color: colors.textMuted, fontSize: 14, fontWeight: '600' },
