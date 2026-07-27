@@ -270,13 +270,18 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
     setStatus(item, item.status === 'in_use' ? 'owned' : 'in_use');
   };
 
+  // boxes は useFocusEffect で非同期に取得するため、開いた時点で未取得だと
+  // restoreBoxId が null になりうる。その場合に「戻す」が押せない行き止まりに
+  // ならないよう、表示・確定の両方でこの派生値を使う。
+  const effectiveRestoreBoxId = restoreBoxId ?? defaultBoxId ?? boxes[0]?.id ?? null;
+
   const confirmRestore = async () => {
-    if (!restoreItem || restoreBoxId == null) return;
+    if (!restoreItem || effectiveRestoreBoxId == null) return;
     const item = restoreItem;
     setRestoreItem(null);
     setRestorePickerOpen(false);
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    await setInventoryStatus(item.id, 'owned', restoreBoxId);
+    await setInventoryStatus(item.id, 'owned', effectiveRestoreBoxId);
     reload();
   };
   const markUsedUp = async (item: InventoryItem) => {
@@ -425,7 +430,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
               accessibilityLabel={t('box')}
             >
               <Text style={styles.restoreSelectText} numberOfLines={1}>
-                {boxes.find((b) => b.id === restoreBoxId)?.name ?? t('unassigned')}
+                {boxes.find((b) => b.id === effectiveRestoreBoxId)?.name ?? t('unassigned')}
               </Text>
               <IconChevronDown color={colors.textMuted} size={18} />
             </TouchableOpacity>
@@ -437,10 +442,10 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
                     style={styles.restoreOption}
                     onPress={() => { setRestoreBoxId(box.id); setRestorePickerOpen(false); }}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: box.id === restoreBoxId }}
+                    accessibilityState={{ selected: box.id === effectiveRestoreBoxId }}
                   >
                     <Text style={styles.restoreOptionText} numberOfLines={1}>{box.name}</Text>
-                    <Text style={styles.restoreCheck}>{box.id === restoreBoxId ? '\u2713' : ''}</Text>
+                    <Text style={styles.restoreCheck}>{box.id === effectiveRestoreBoxId ? '\u2713' : ''}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -452,10 +457,10 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
               <TouchableOpacity
                 style={styles.restoreBtn}
                 onPress={confirmRestore}
-                disabled={restoreBoxId == null}
+                disabled={effectiveRestoreBoxId == null}
                 accessibilityRole="button"
               >
-                <Text style={[styles.restoreBtnText, styles.restoreBtnPrimary, restoreBoxId == null && styles.restoreBtnDisabled]}>{t('restore')}</Text>
+                <Text style={[styles.restoreBtnText, styles.restoreBtnPrimary, effectiveRestoreBoxId == null && styles.restoreBtnDisabled]}>{t('restore')}</Text>
               </TouchableOpacity>
             </View>
           </View>
