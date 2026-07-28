@@ -80,6 +80,10 @@ module.exports = ({ config }) => ({
         androidAppId: ADMOB_APP_ID_ANDROID,
       },
     ],
+    // Androidのリリース署名を build.gradle へ注入する。これにより
+    // expo prebuild --clean を安全に再実行でき、上のプラグイン設定や
+    // app.json のバージョンが Android ビルドへ確実に反映される。
+    './plugins/withAndroidReleaseSigning',
   ],
   scheme: 'colorack',
   extra: {
