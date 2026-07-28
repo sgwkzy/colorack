@@ -64,7 +64,11 @@ module.exports = ({ config }) => ({
       'expo-media-library',
       {
         savePhotosPermission: 'キット写真を写真ライブラリに保存するために使用します',
-        granularPermissions: ['photo'],
+        // このアプリは写真ライブラリへの「保存」しか行わない(requestPermissionsAsync(true) の
+        // writeOnly)。expo-media-library のネイティブ実装は writeOnly のとき
+        // READ_MEDIA_IMAGES を実行時に要求しないので、manifest からも出さない。
+        // 残したままだと Google Play の写真/動画ポリシーに抵触して審査に出せない。
+        granularPermissions: [],
       },
     ],
     [
