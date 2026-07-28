@@ -11,6 +11,7 @@ import { brandLabel } from '../../lib/brands';
 import { paintName, seriesLabel } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
 import { useUiPrefs, type ListFontSize } from '../../lib/uiPrefs';
+import { useAndroidBack } from '../../lib/androidBack';
 import AdBanner from '../../components/AdBanner';
 import ClearableInput from '../../components/ClearableInput';
 import EmptyState from '../../components/EmptyState';
@@ -90,6 +91,14 @@ export default function CatalogScreen() {
     if (selectedBrand === ALL) { setSelectedBrand(null); setSelectedSeries(null); }
     else setSelectedSeries(null);
   };
+  // Androidの戻る: 画面を離脱させず、SwipeBack と同じ順序で1階層ずつ戻す。
+  // Hooksは早期returnより前に置く必要があるため、階層の状態から戻り先を導出して
+  // ここで一度だけ登録する。最上位(ブランド一覧)では何もせず既定の動作に任せる。
+  useAndroidBack(selectedBrand != null, () => {
+    if (selectedSeries != null) backFromPaints();
+    else setSelectedBrand(null);
+  });
+
   const openNew = () => { setEditing(null); setShowForm(true); };
 
   const remove = (p: Paint) => {

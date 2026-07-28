@@ -295,8 +295,11 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     ? (swatchTextColor === '#fff' ? 'rgba(0,0,0,0.78)' : 'rgba(255,255,255,0.92)')
     : colors.surface;
 
+  // onRequestClose(Androidの戻る)は SwipeBack と同じ出し分けにする。
+  // requestClose だけだと編集中に戻るを押したとき、詳細へ戻らずモーダルごと
+  // 閉じてしまう(iOSは端スワイプなので差が出ていなかった)。
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={requestClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={isEditing ? returnToDetail : requestClose}>
       <SafeAreaProvider>
         <SwipeBack enabled={visible} onBack={isEditing ? returnToDetail : requestClose}>
         <SafeAreaView style={styles.container} edges={['top']}>

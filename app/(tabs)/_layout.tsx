@@ -13,6 +13,7 @@ import BoxOptions from '../../components/BoxOptions';
 import KitBoxTitlePicker from '../../components/KitBoxTitlePicker';
 import KitBoxOptions from '../../components/KitBoxOptions';
 import { useModalOpen } from '../../lib/modalLock';
+import { useAndroidBack } from '../../lib/androidBack';
 
 export default function TabsLayout() {
   useLocale(); // ロケール変更でタブ名(ヘッダー/ラベル)を再計算
@@ -23,6 +24,10 @@ export default function TabsLayout() {
   // ドロワーを開いた回数。NavigationDrawer は常時マウントで再読込の契機が無いため、
   // これを渡して開く度に件数を取り直させる。
   const [drawerOpenCount, setDrawerOpenCount] = useState(0);
+  // ドロワーが開いている間はAndroidの戻るで閉じる。DrawerLayout自身は戻る操作を
+  // 扱わないため、これが無いとドロワーを開いたまま戻るを押すと画面ごと離脱する。
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  useAndroidBack(drawerOpen, closeDrawer);
   const renderNavigationView = useCallback(
     () => <NavigationDrawer onClose={closeDrawer} refreshToken={drawerOpenCount} />,
     [closeDrawer, drawerOpenCount]
@@ -44,6 +49,8 @@ export default function TabsLayout() {
       // 'Settling' はアニメーション開始時なので、表示が完了するまでに取り直しが間に合う。
       // ('Idle' でも willShow は true になるが、そちらは完了後なので使わない)
       onDrawerStateChanged={(state, willShow) => {
+        // 'Dragging' は willShow が常に false で来るので開閉状態の判定には使わない。
+        if (state === 'Settling' || state === 'Idle') setDrawerOpen(willShow);
         if (willShow && state === 'Settling') setDrawerOpenCount((n) => n + 1);
       }}
       renderNavigationView={renderNavigationView}
