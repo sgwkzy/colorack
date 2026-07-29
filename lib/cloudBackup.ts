@@ -400,6 +400,14 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
 // 同時に走ると、後から完了した方が新しい内容を古い内容で上書きしかねない。
 // 実行中は同じ Promise を返して重複起動を防ぐ。
 let pushInFlight: Promise<void> | null = null;
+// pushと破壊的なrestoreを直列化し、復元途中のDBをバックアップしない。
+let operationTail: Promise<void> = Promise.resolve();
+
+function runCloudBackupOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = operationTail.then(operation, operation);
+  operationTail = result.then(() => undefined, () => undefined);
+  return result;
+}
 
 export async function pushBackupToFirestore(): Promise<void> {
   if (!auth || !firestore) return;
@@ -409,7 +417,7 @@ export async function pushBackupToFirestore(): Promise<void> {
   const user = auth().currentUser;
   if (!user) return;
 
-  pushInFlight = (async () => {
+  pushInFlight = runCloudBackupOperation(async () => {
     if (getEntitlements().hasPhotoBackup) {
       await uploadPendingKitPhotos().catch((e) => console.error('pushBackupToFirestore: failed to upload kit photos', e));
     }
@@ -423,7 +431,7 @@ export async function pushBackupToFirestore(): Promise<void> {
       updatedAt: firestore!.FieldValue.serverTimestamp(),
     }, { merge: true });
     await setSetting(LAST_BACKUP_AT_KEY, now);
-  })();
+  });
 
   try {
     await pushInFlight;
@@ -443,16 +451,38 @@ export async function fetchBackupSnapshot(): Promise<BackupSnapshot | null> {
 }
 
 export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<void> {
+  return runCloudBackupOperation(() => restoreFromSnapshotUnlocked(snapshot));
+}
+
+async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<void> {
   if (!getEntitlements().hasBackup) return;
   const db = getDB();
   let orphanedKitPhotoUris: string[] = [];
   const kitIdByLocalRef = new Map<string, number>();
+  const photosToRestore = getEntitlements().hasPhotoBackup ? snapshot.kitPhotos ?? [] : [];
+  const kitRefs = new Set((snapshot.kits ?? []).map((kit) => kit.localRef));
+  const invalidPhoto = photosToRestore.find((photo) => !kitRefs.has(photo.kitLocalRef));
+  if (invalidPhoto) throw new Error(`Kit photo references missing kit: ${invalidPhoto.kitLocalRef}`);
 
-  await db.withTransactionAsync(async () => {
-    await db.runAsync('DELETE FROM inventory');
-    await db.runAsync('DELETE FROM lists');
-    await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
-    await db.runAsync("UPDATE catalog_paints SET notes = NULL WHERE source = 'catalog'");
+  const localUriByStoragePath = photosToRestore.length > 0
+    ? await downloadKitPhotosForRestore(photosToRestore)
+    : new Map<string, string>();
+  const missingDownloads = photosToRestore.filter((photo) => !localUriByStoragePath.has(photo.storagePath));
+  if (missingDownloads.length > 0) {
+    for (const uri of localUriByStoragePath.values()) {
+      await deleteKitPhoto(uri).catch((e) =>
+        console.error('restoreFromSnapshot: failed to clean up partial photo download', uri, e)
+      );
+    }
+    throw new Error(`Failed to download ${missingDownloads.length} kit photo(s)`);
+  }
+
+  try {
+    await db.withTransactionAsync(async () => {
+      await db.runAsync('DELETE FROM inventory');
+      await db.runAsync('DELETE FROM lists');
+      await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
+      await db.runAsync("UPDATE catalog_paints SET notes = NULL WHERE source = 'catalog'");
 
     for (const p of snapshot.manualPaints ?? []) {
       await db.runAsync(
@@ -536,11 +566,9 @@ export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<voi
       );
     }
 
-    // キット関連は塗料ボックスと独立した体系のため、常に全消去して再構築する
-    // (settings.tsx の resetKits() と同じ完全リセット方式)。kit_photos は
-    // 復元後にhasPhotoBackup加入者のみダウンロードして再構築する(後述)ため、
-    // 古い写真ファイルが端末に残り続けないよう一旦削除する
-    // (実ファイル削除はトランザクション外で行う)。
+    // キット関連は塗料ボックスと独立した体系のため、常に全消去して再構築する。
+    // 写真は事前ダウンロードが全件成功した場合だけDB行を入れ替え、
+    // 古い実ファイルはトランザクション成功後に削除する。
     orphanedKitPhotoUris = (await db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos')).map((r) => r.uri);
     await db.runAsync('DELETE FROM kit_color_paints');
     await db.runAsync('DELETE FROM kit_colors');
@@ -593,15 +621,30 @@ export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<voi
       );
     }
 
-    const defaultKitBoxId = snapshot.defaultKitBoxLocalRef ? kitBoxIdByLocalRef.get(snapshot.defaultKitBoxLocalRef) ?? null : null;
-    if (defaultKitBoxId) {
-      await db.runAsync(
-        'INSERT INTO app_settings (key, value) VALUES (?, ?)' +
-        ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-        ['default_kit_box_id', String(defaultKitBoxId)]
+      for (const photo of photosToRestore) {
+        await db.runAsync(
+          "INSERT INTO kit_photos (kit_id, uri, sort_order, synced_at, storage_path) VALUES (?, ?, ?, datetime('now'), ?)",
+          [kitIdByLocalRef.get(photo.kitLocalRef)!, localUriByStoragePath.get(photo.storagePath)!, photo.sort_order, photo.storagePath]
+        );
+      }
+
+      const defaultKitBoxId = snapshot.defaultKitBoxLocalRef ? kitBoxIdByLocalRef.get(snapshot.defaultKitBoxLocalRef) ?? null : null;
+      if (defaultKitBoxId) {
+        await db.runAsync(
+          'INSERT INTO app_settings (key, value) VALUES (?, ?)' +
+          ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+          ['default_kit_box_id', String(defaultKitBoxId)]
+        );
+      }
+    });
+  } catch (e) {
+    for (const uri of localUriByStoragePath.values()) {
+      await deleteKitPhoto(uri).catch((cleanupError) =>
+        console.error('restoreFromSnapshot: failed to clean up rolled-back photo download', uri, cleanupError)
       );
     }
-  });
+    throw e;
+  }
 
   // 写真ファイルの実削除はベストエフォート。DB行は既にトランザクション内で
   // 削除済みのため、1件の削除失敗で残り全部を諦めない(ログだけ残して続行)。
@@ -613,27 +656,6 @@ export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<voi
     }
   }
 
-  // キット写真のダウンロードはネットワークI/Oのため、SQLiteトランザクションの
-  // 外で行う。ダウンロード成功分だけkit_photos行を再構築する(ベストエフォート)。
-  if (getEntitlements().hasPhotoBackup && (snapshot.kitPhotos?.length ?? 0) > 0) {
-    const localUriByStoragePath = await downloadKitPhotosForRestore(snapshot.kitPhotos ?? []);
-    for (const photo of snapshot.kitPhotos ?? []) {
-      const kitId = kitIdByLocalRef.get(photo.kitLocalRef);
-      const localUri = localUriByStoragePath.get(photo.storagePath);
-      if (!kitId || !localUri) {
-        console.warn('restoreFromSnapshot: skipping kit photo for missing kit or failed download', photo.kitLocalRef, photo.storagePath);
-        continue;
-      }
-      try {
-        await db.runAsync(
-          "INSERT INTO kit_photos (kit_id, uri, sort_order, synced_at, storage_path) VALUES (?, ?, ?, datetime('now'), ?)",
-          [kitId, localUri, photo.sort_order, photo.storagePath]
-        );
-      } catch (e) {
-        console.error('restoreFromSnapshot: failed to insert restored kit photo', photo.storagePath, e);
-      }
-    }
-  }
 }
 
 let autoBackupInitialized = false;

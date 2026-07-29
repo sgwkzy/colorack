@@ -137,7 +137,16 @@ export default function SettingsScreen() {
 
   const showConflictAlert = () => {
     Alert.alert(t('cloudRestoreConflictTitle'), t('cloudRestoreConflictMessage'), [
-      { text: t('cloudRestoreFromCloud'), style: 'destructive', onPress: () => { restoreCloudBackup().catch(console.error); } },
+      {
+        text: t('cloudRestoreFromCloud'),
+        style: 'destructive',
+        onPress: () => {
+          restoreCloudBackup().catch((e) => {
+            console.error('restoreCloudBackup: failed', e);
+            Alert.alert(t('error'), t('cloudBackupError'));
+          });
+        },
+      },
       { text: t('cloudKeepDeviceData'), style: 'cancel' },
     ]);
   };
