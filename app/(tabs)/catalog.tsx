@@ -11,7 +11,8 @@ import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { paintName, seriesLabel } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing } from '../../lib/theme';
-import { useUiPrefs, type FabSide, type ListFontSize } from '../../lib/uiPrefs';
+import { useUiPrefs, type ListFontSize } from '../../lib/uiPrefs';
+import { useAndroidBack } from '../../lib/androidBack';
 import AdBanner from '../../components/AdBanner';
 import ClearableInput from '../../components/ClearableInput';
 import EmptyState from '../../components/EmptyState';
@@ -28,7 +29,7 @@ const ALL = 'ALL';
 export default function CatalogScreen() {
   const { colors } = useTheme();
   const { fabSide, listFontSize } = useUiPrefs();
-  const styles = useMemo(() => makeStyles(colors, fabSide, listFontSize), [colors, fabSide, listFontSize]);
+  const styles = useMemo(() => makeStyles(colors, listFontSize), [colors, listFontSize]);
   useLocale();
   const [brands, setBrands] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
@@ -93,6 +94,14 @@ export default function CatalogScreen() {
     if (selectedBrand === ALL) { setSelectedBrand(null); setSelectedSeries(null); }
     else setSelectedSeries(null);
   };
+  // Androidの戻る: 画面を離脱させず、SwipeBack と同じ順序で1階層ずつ戻す。
+  // Hooksは早期returnより前に置く必要があるため、階層の状態から戻り先を導出して
+  // ここで一度だけ登録する。最上位(ブランド一覧)では何もせず既定の動作に任せる。
+  useAndroidBack(selectedBrand != null, () => {
+    if (selectedSeries != null) backFromPaints();
+    else setSelectedBrand(null);
+  });
+
   const openNew = () => { setEditing(null); setShowForm(true); };
 
   const remove = (p: Paint) => {
@@ -110,11 +119,17 @@ export default function CatalogScreen() {
 
   const fab = (
     <>
-      <View style={styles.fabContainer} pointerEvents="box-none">
-        <TouchableOpacity style={styles.fab} onPress={openNew} accessibilityRole="button" accessibilityLabel={t('addPaint')}>
-          <IconPlus color={colors.onPrimary} size={28} />
-        </TouchableOpacity>
-      </View>
+      {/* ponytail: ラッパーを挟まずFAB自身を絶対配置する。以前は pointerEvents="box-none"
+          の View で包んでいたが、box-none が効かないと画面下部のタッチが死ぬ構造だった
+          (ListActionBar でも同じ理由でラッパーを撤去済み)。 */}
+      <TouchableOpacity
+        style={[styles.fab, fabSide === 'left' ? styles.fabLeft : styles.fabRight]}
+        onPress={openNew}
+        accessibilityRole="button"
+        accessibilityLabel={t('addPaint')}
+      >
+        <IconPlus color={colors.onPrimary} size={28} />
+      </TouchableOpacity>
       <PaintFormModal visible={showForm} paint={editing} onClose={() => setShowForm(false)} onSaved={reload} />
       <PaintDetailModal
         visible={detailPaintId != null}
@@ -132,6 +147,7 @@ export default function CatalogScreen() {
         <View style={styles.adBar}><AdBanner /></View>
         <FlatList
           data={[ALL, ...brands]}
+          contentContainerStyle={styles.listContent}
           keyExtractor={(b) => b || '(none)'}
           renderItem={({ item }) => (
             <TouchableOpacity style={[styles.navItem, item === ALL && styles.allItem]} onPress={() => openBrand(item)}>
@@ -158,6 +174,7 @@ export default function CatalogScreen() {
           <View style={styles.adBar}><AdBanner /></View>
           <FlatList
             data={[{ series: ALL, series_en: null }, ...seriesList]}
+            contentContainerStyle={styles.listContent}
             keyExtractor={(s) => s.series || '(none)'}
             renderItem={({ item }) => (
               <TouchableOpacity style={[styles.navItem, item.series === ALL && styles.allItem]} onPress={() => openSeries(item.series)}>
@@ -187,6 +204,7 @@ export default function CatalogScreen() {
       <View style={styles.adBar}><AdBanner /></View>
       <FlatList
         data={shown}
+        contentContainerStyle={styles.listContent}
         keyExtractor={(p) => String(p.id)}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
@@ -198,7 +216,7 @@ export default function CatalogScreen() {
             >
               <PaintRow paint={item} borderColor={item.hex ?? colors.transparent} ownedCount={ownedCounts.get(item.id) ?? 0}>
               {manual ? (
-                <TouchableOpacity style={styles.delBtn} onPress={() => remove(item)} hitSlop={8}>
+                <TouchableOpacity style={styles.delBtn} onPress={() => remove(item)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('deletePaint')}>
                   <IconTrash color={colors.danger} size={22} />
                 </TouchableOpacity>
               ) : null}
@@ -214,7 +232,7 @@ export default function CatalogScreen() {
   );
 }
 
-const makeStyles = (colors: typeof lightColors, fabSide: FabSide, listFontSize: ListFontSize) => {
+const makeStyles = (colors: typeof lightColors, listFontSize: ListFontSize) => {
   const NAV_TEXT_SIZE: Record<ListFontSize, number> = { small: 14, medium: 16, large: 18 };
   return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
@@ -227,7 +245,10 @@ const makeStyles = (colors: typeof lightColors, fabSide: FabSide, listFontSize: 
   backText: { fontSize: 15, color: colors.primaryText },
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
   delBtn: { padding: spacing.md, marginLeft: spacing.md },
-  fabContainer: { position: 'absolute', ...(fabSide === 'left' ? { left: spacing.xxl } : { right: spacing.xxl }), bottom: spacing.xxl },
-  fab: { width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  fab: { position: 'absolute', bottom: spacing.xxl, zIndex: 20, elevation: 20, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  fabLeft: { left: spacing.xxl },
+  fabRight: { right: spacing.xxl },
+  // 他の一覧画面と同じく、最終行がFABに隠れない余白を確保する。
+  listContent: { paddingBottom: 104 },
 });
 };

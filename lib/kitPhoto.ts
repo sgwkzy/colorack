@@ -1,7 +1,7 @@
 // lib/kitPhoto.ts
 // キット写真の選択・永続化。ImagePickerが返す一時URIは端末側のキャッシュ整理で
 // 消える可能性があるため、documentDirectory配下にコピーしてから保存する。
-import { Image } from 'react-native';
+import { Image, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
@@ -79,8 +79,16 @@ export async function pickKitPhotoFromCamera(): Promise<string | null> {
 // 端末の写真ライブラリから複数枚を一度に選択できる。maxCountで選択可能数をOS側にも伝える。
 export async function pickKitPhotosFromLibrary(maxCount: number): Promise<string[]> {
   if (maxCount <= 0) return [];
-  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) return [];
+  // Androidの launchImageLibraryAsync は システム写真ピッカー
+  // (ActivityResultContracts.PickVisualMedia)を使うため権限が要らない。
+  // ここで requestMediaLibraryPermissionsAsync を呼ぶと READ_MEDIA_IMAGES 等の
+  // 広範なメディア権限を要求することになり、Google Play の写真/動画ポリシー
+  // (「代替のシステムの選択ツールを使用する」)に抵触して審査に出せない。
+  // iOS は選択にも権限が必要なので従来どおり要求する。
+  if (Platform.OS !== 'android') {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return [];
+  }
   const result = await ImagePicker.launchImageLibraryAsync({
     quality: 0.7,
     mediaTypes: ['images'],

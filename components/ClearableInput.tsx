@@ -5,8 +5,10 @@ import { useMemo } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, TextInputProps, ViewStyle, StyleProp } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { useTheme, lightColors, spacing } from '../lib/theme';
+import { t, useLocale } from '../lib/i18n';
 
 export default function ClearableInput({ value, onChangeText, style, ...rest }: TextInputProps) {
+  useLocale();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -14,7 +16,7 @@ export default function ClearableInput({ value, onChangeText, style, ...rest }: 
     <View style={[style as StyleProp<ViewStyle>, styles.wrap]}>
       <TextInput style={styles.input} value={value} onChangeText={onChangeText} placeholderTextColor={colors.textPlaceholder} {...rest} />
       {value ? (
-        <TouchableOpacity style={styles.clear} onPress={() => onChangeText?.('')} hitSlop={8}>
+        <TouchableOpacity style={styles.clear} onPress={() => onChangeText?.('')} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('clearInput')}>
           <IconX size={14} color={colors.onPrimary} />
         </TouchableOpacity>
       ) : null}

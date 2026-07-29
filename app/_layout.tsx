@@ -1,6 +1,6 @@
 // app/_layout.tsx
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator, LayoutAnimation, Platform, Text, UIManager } from 'react-native';
+import { View, ActivityIndicator, Platform, Text, UIManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -35,10 +35,10 @@ export default function RootLayout() {
   useEffect(() => {
     const initialize = async () => {
       try {
-        if (mobileAds) {
-          try { await mobileAds().initialize(); }
-          catch (error) { console.warn(error); }
-        }
+        // 広告SDKの初期化はここでは行わない。スプラッシュ表示中に初期化すると、
+        // SDKが掴むルートViewControllerが本来のUI階層になる前の状態になり、
+        // 実機で画面下部の全幅がタッチを受け付けなくなる不具合が出た。
+        // ATTの結果が確定した後に初期化する(下の useEffect を参照)。
         await initDB();
         await Promise.all([
           initTheme(),
@@ -69,8 +69,23 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!ready) return;
+    // 順序: スプラッシュを閉じる -> ATTの許可要求 -> 広告SDKの初期化。
+    // ATTより先に広告SDKを初期化すると、SDKが追跡許可の状態を確定前にキャッシュする
+    // (Googleのガイダンスでも ATT を先に要求するよう案内されている)。
+    // また初期化をUI表示後まで遅らせることで、SDKが本来のUI階層のルートVCを掴む。
+    const initAds = () => {
+      if (!mobileAds) return;
+      mobileAds().initialize().catch((error) => console.warn('mobileAds initialize failed', error));
+    };
     void SplashScreen.hideAsync().then(() => {
-      if (!initFailed && Platform.OS === 'ios') setTimeout(() => requestTrackingPermissionsAsync().catch(console.error), 250);
+      if (initFailed) return;
+      if (Platform.OS === 'ios') {
+        setTimeout(() => {
+          requestTrackingPermissionsAsync().catch(console.error).finally(initAds);
+        }, 250);
+        return;
+      }
+      initAds();
     });
   }, [initFailed, ready]);
 

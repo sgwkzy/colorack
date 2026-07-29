@@ -44,7 +44,7 @@ const SORT_ORDER: Record<Sort, string> = {
 };
 
 export default function FavoritesScreen() {
-  const locale = useLocale();
+  useLocale(); // ロケール変更で再描画。戻り値は使わない
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<ListItem[]>([]);

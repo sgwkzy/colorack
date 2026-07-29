@@ -215,7 +215,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
                           onChangeText={(v) => setRatio(index, v)}
                         />
                         <Text style={styles.percentSign}>%</Text>
-                        <TouchableOpacity onPress={() => removePaintFromMix(index)} hitSlop={8}>
+                        <TouchableOpacity onPress={() => removePaintFromMix(index)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('removeFromMix')}>
                           <IconTrash color={colors.danger} size={18} />
                         </TouchableOpacity>
                       </View>

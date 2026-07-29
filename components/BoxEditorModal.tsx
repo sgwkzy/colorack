@@ -11,18 +11,18 @@ export interface BoxDraft { name: string; icon: BoxIcon; color: string; }
 interface Props { visible: boolean; title: string; initial?: BoxDraft; onSave: (draft: BoxDraft) => void; onClose: () => void; }
 
 const COLORS = [
-  { value: '#4a90d9', label: { ja: '青', en: 'Blue' } }, { value: '#b85a0a', label: { ja: '橙', en: 'Orange' } },
-  { value: '#6a5acd', label: { ja: '紫', en: 'Purple' } }, { value: '#2f7d55', label: { ja: '緑', en: 'Green' } },
-  { value: '#8b5e3c', label: { ja: '茶', en: 'Brown' } },
+  { value: '#4a90d9', labelKey: 'colorBlue' }, { value: '#b85a0a', labelKey: 'colorOrange' },
+  { value: '#6a5acd', labelKey: 'colorPurple' }, { value: '#2f7d55', labelKey: 'colorGreen' },
+  { value: '#8b5e3c', labelKey: 'colorBrown' },
 ];
-const ICONS: { value: BoxIcon; Icon: typeof IconBox; label: { ja: string; en: string } }[] = [
-  { value: 'box', Icon: IconBox, label: { ja: '箱', en: 'Box' } }, { value: 'archive', Icon: IconArchive, label: { ja: 'アーカイブ', en: 'Archive' } }, { value: 'briefcase', Icon: IconBriefcase, label: { ja: 'ブリーフケース', en: 'Briefcase' } },
-  { value: 'warehouse', Icon: IconBuildingWarehouse, label: { ja: '倉庫', en: 'Warehouse' } }, { value: 'package', Icon: IconPackage, label: { ja: '荷物', en: 'Package' } }, { value: 'flask', Icon: IconFlask, label: { ja: 'フラスコ', en: 'Flask' } },
+const ICONS: { value: BoxIcon; Icon: typeof IconBox; labelKey: Parameters<typeof t>[0] }[] = [
+  { value: 'box', Icon: IconBox, labelKey: 'boxIconBox' }, { value: 'archive', Icon: IconArchive, labelKey: 'boxIconArchive' }, { value: 'briefcase', Icon: IconBriefcase, labelKey: 'boxIconBriefcase' },
+  { value: 'warehouse', Icon: IconBuildingWarehouse, labelKey: 'boxIconWarehouse' }, { value: 'package', Icon: IconPackage, labelKey: 'boxIconPackage' }, { value: 'flask', Icon: IconFlask, labelKey: 'boxIconFlask' },
 ];
 
 export default function BoxEditorModal({ visible, title, initial, onSave, onClose }: Props) {
   useModalLock(visible);
-  const locale = useLocale();
+  useLocale();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [name, setName] = useState('');
@@ -35,8 +35,8 @@ export default function BoxEditorModal({ visible, title, initial, onSave, onClos
     <View style={styles.backdrop}><View style={styles.card}>
       <Text style={styles.title}>{title}</Text>
       <ClearableInput style={styles.input} value={name} onChangeText={setName} autoFocus />
-      <View style={styles.row}>{ICONS.map(({ value, Icon, label }) => <TouchableOpacity key={value} style={[styles.iconChoice, icon === value && styles.selected]} onPress={() => setIcon(value)} accessibilityRole="radio" accessibilityLabel={locale === 'ja' ? label.ja : label.en} accessibilityState={{ selected: icon === value }}><Icon color={color} size={24} /></TouchableOpacity>)}</View>
-      <View style={styles.row}>{COLORS.map(({ value, label }) => <TouchableOpacity key={value} style={[styles.colorChoice, { backgroundColor: value }, color === value && styles.selectedColor]} onPress={() => setColor(value)} accessibilityRole="radio" accessibilityLabel={locale === 'ja' ? label.ja : label.en} accessibilityState={{ selected: color === value }} />)}</View>
+      <View style={styles.row}>{ICONS.map(({ value, Icon, labelKey }) => <TouchableOpacity key={value} style={[styles.iconChoice, icon === value && styles.selected]} onPress={() => setIcon(value)} accessibilityRole="radio" accessibilityLabel={t(labelKey)} accessibilityState={{ selected: icon === value }}><Icon color={color} size={24} /></TouchableOpacity>)}</View>
+      <View style={styles.row}>{COLORS.map(({ value, labelKey }) => <TouchableOpacity key={value} style={[styles.colorChoice, { backgroundColor: value }, color === value && styles.selectedColor]} onPress={() => setColor(value)} accessibilityRole="radio" accessibilityLabel={t(labelKey)} accessibilityState={{ selected: color === value }} />)}</View>
       <View style={styles.actions}><TouchableOpacity style={styles.button} onPress={onClose}><Text style={styles.cancel}>{t('cancel')}</Text></TouchableOpacity><TouchableOpacity style={[styles.button, styles.save, !name.trim() && styles.saveDisabled]} onPress={save} disabled={!name.trim()}><Text style={styles.saveText}>{t('save')}</Text></TouchableOpacity></View>
     </View></View>
   </Modal>;

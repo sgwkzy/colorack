@@ -14,7 +14,7 @@ const colorForCode = (colors: typeof lightColors, code: string): string => ({
 
 export default function TypeIcon({ paintType }: { paintType: string | null | undefined }) {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const styles = makeStyles;
   const code = paintTypeIcon(paintType);
   if (!code) return null;
   const color = colorForCode(colors, code);
@@ -23,7 +23,7 @@ export default function TypeIcon({ paintType }: { paintType: string | null | und
   );
 }
 
-const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
+const makeStyles = StyleSheet.create({
   // 2文字のピル型バッジ
   badge: {
     minWidth: 24, height: 18, borderRadius: 9, borderWidth: 1,

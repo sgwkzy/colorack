@@ -33,7 +33,7 @@ interface Props {
 }
 
 export default function PaintFormModal({ visible, paint, onClose, onSaved }: Props) {
-  const locale = useLocale();
+  useLocale();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [nameJa, setNameJa] = useState('');
@@ -104,8 +104,8 @@ export default function PaintFormModal({ visible, paint, onClose, onSaved }: Pro
           <SwipeDownScrollView onClose={onClose} style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
             <PaintFormFields
               fields={[
-                { label: (locale === 'ja' ? '名前（和名）' : 'Name (Japanese)') + '*', value: nameJa, set: setNameJa },
-                { label: locale === 'ja' ? '名前（英名）' : 'Name (English)', value: nameEn, set: setNameEn },
+                { label: t('nameJa') + '*', value: nameJa, set: setNameJa },
+                { label: t('nameEn'), value: nameEn, set: setNameEn },
                 { label: t('brand') + '*', value: brand, set: setBrand },
                 { label: t('series') + '*', value: series, set: setSeries },
                 { label: t('code'), value: code, set: setCode },

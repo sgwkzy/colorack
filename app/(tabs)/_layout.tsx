@@ -1,5 +1,5 @@
 // app/(tabs)/_layout.tsx
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { TouchableOpacity, useWindowDimensions } from 'react-native';
 import DrawerLayout from 'react-native-gesture-handler/DrawerLayout';
 import { Tabs } from 'expo-router';
@@ -13,6 +13,7 @@ import BoxOptions from '../../components/BoxOptions';
 import KitBoxTitlePicker from '../../components/KitBoxTitlePicker';
 import KitBoxOptions from '../../components/KitBoxOptions';
 import { useModalOpen } from '../../lib/modalLock';
+import { useAndroidBack } from '../../lib/androidBack';
 
 export default function TabsLayout() {
   useLocale(); // ロケール変更でタブ名(ヘッダー/ラベル)を再計算
@@ -20,7 +21,17 @@ export default function TabsLayout() {
   const modalOpen = useModalOpen();
   const drawerRef = useRef<DrawerLayout>(null);
   const closeDrawer = useCallback(() => drawerRef.current?.closeDrawer(), []);
-  const renderNavigationView = useCallback(() => <NavigationDrawer onClose={closeDrawer} />, [closeDrawer]);
+  // ドロワーを開いた回数。NavigationDrawer は常時マウントで再読込の契機が無いため、
+  // これを渡して開く度に件数を取り直させる。
+  const [drawerOpenCount, setDrawerOpenCount] = useState(0);
+  // ドロワーが開いている間はAndroidの戻るで閉じる。DrawerLayout自身は戻る操作を
+  // 扱わないため、これが無いとドロワーを開いたまま戻るを押すと画面ごと離脱する。
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  useAndroidBack(drawerOpen, closeDrawer);
+  const renderNavigationView = useCallback(
+    () => <NavigationDrawer onClose={closeDrawer} refreshToken={drawerOpenCount} />,
+    [closeDrawer, drawerOpenCount]
+  );
   const { width } = useWindowDimensions();
   const restoreTarget = getRestoreTarget();
   return (
@@ -33,6 +44,15 @@ export default function TabsLayout() {
       overlayColor="transparent"
       drawerBackgroundColor={colors.surface}
       drawerLockMode={modalOpen ? 'locked-closed' : 'unlocked'}
+      // onDrawerOpen ではなく 'Settling' で拾う。onDrawerOpen は開くアニメーションが
+      // 完了してから呼ばれるため、開き始めから開き終わるまで古い件数が見えてしまう。
+      // 'Settling' はアニメーション開始時なので、表示が完了するまでに取り直しが間に合う。
+      // ('Idle' でも willShow は true になるが、そちらは完了後なので使わない)
+      onDrawerStateChanged={(state, willShow) => {
+        // 'Dragging' は willShow が常に false で来るので開閉状態の判定には使わない。
+        if (state === 'Settling' || state === 'Idle') setDrawerOpen(willShow);
+        if (willShow && state === 'Settling') setDrawerOpenCount((n) => n + 1);
+      }}
       renderNavigationView={renderNavigationView}
     >
     <Tabs
@@ -45,7 +65,7 @@ export default function TabsLayout() {
       headerTintColor: colors.text,
       headerTitleAlign: 'center',
       headerShadowVisible: !isDark,
-      headerLeft: () => <TouchableOpacity onPress={() => drawerRef.current?.openDrawer()} accessibilityRole="button" accessibilityLabel="Menu" hitSlop={12} style={{ marginLeft: 16 }}><IconMenu3 color={colors.text} size={26} /></TouchableOpacity>,
+      headerLeft: () => <TouchableOpacity onPress={() => drawerRef.current?.openDrawer()} accessibilityRole="button" accessibilityLabel={t('menu')} hitSlop={12} style={{ marginLeft: 16 }}><IconMenu3 color={colors.text} size={26} /></TouchableOpacity>,
     }}>
       <Tabs.Screen
         name="owned"
