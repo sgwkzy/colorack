@@ -97,22 +97,3 @@ export async function downloadKitPhotosForRestore(photos: BackupKitPhoto[]): Pro
   }
   return localUriByStoragePath;
 }
-
-// キット/キットボックスの一括削除やクラウド復元前のローカルデータ一掃では
-// 呼ばない(復元直後に復元元のStorageオブジェクトを消してしまう事故を防ぐため)。
-// ユーザーが個々の写真を明示的に削除する操作(KitDetailModalの単体削除)からのみ呼ぶ。
-// 一括削除経路で生じるStorage上の孤児オブジェクトは、解約時クリーンアップと同じ
-// Cloud Functionsの定期整理(本リポジトリのスコープ外)で回収する想定。
-export async function deleteUploadedKitPhoto(storagePath: string | null): Promise<void> {
-  if (!auth || !storage) return;
-  if (!getEntitlements().hasPhotoBackup) return;
-  if (!storagePath) return;
-  const user = auth().currentUser;
-  if (!user) return;
-  try {
-    await storage().ref(storagePath).delete();
-  } catch (e) {
-    // アップロード前に削除された場合はStorage側に存在せず失敗するのが正常系。
-    console.warn('deleteUploadedKitPhoto: delete failed (may not exist)', e);
-  }
-}
