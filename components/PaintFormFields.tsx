@@ -7,7 +7,9 @@ import { paintTypeLabel } from '../lib/paintType';
 import { useTheme, lightColors, radius, spacing, touch } from '../lib/theme';
 import ClearableInput from './ClearableInput';
 
-export const TYPE_OPTIONS = ['ラッカー塗料', '水性アクリル塗料', 'エナメル塗料', 'エマルジョン塗料'];
+// カタログ(assets/seed_catalog.json)側の表記に揃える。'エマルジョン塗料' だと
+// カタログの 'エマルジョン系水性塗料' と別項目になり、絞り込みで分裂する。
+export const TYPE_OPTIONS = ['ラッカー塗料', '水性アクリル塗料', 'エナメル塗料', 'エマルジョン系水性塗料'];
 export const GLOSS_OPTIONS = ['光沢', '半光沢', 'つや消し', 'メタリック', 'パール'];
 
 export function isValidHex(value: string) {
