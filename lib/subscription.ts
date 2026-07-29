@@ -30,6 +30,8 @@ const listeners = new Set<() => void>();
 let entitlements: Entitlements = NO_ENTITLEMENTS;
 let configured = false;
 let entitlementUpdateTail: Promise<void> = Promise.resolve();
+let linkedUserId: string | null = null;
+let linkInFlight: { uid: string; promise: Promise<void> } | null = null;
 
 function toEntitlements(active: Record<string, unknown>): Entitlements {
   return {
@@ -92,11 +94,22 @@ export async function linkSubscriptionUser(uid: string | null): Promise<void> {
   // ここでPurchases.logOut()すると課金継続中のユーザーの広告非表示/バックアップ
   // 権限まで一時的に失われてしまう(「購入を復元」を押すまで復帰しない)。
   if (!uid) return;
-  try {
+  if (linkedUserId === uid) return;
+  if (linkInFlight?.uid === uid) return linkInFlight.promise;
+
+  const promise = (async () => {
     const { customerInfo } = await Purchases.logIn(uid);
     await applyEntitlements(customerInfo.entitlements.active);
+    linkedUserId = uid;
+  })();
+  linkInFlight = { uid, promise };
+  try {
+    await promise;
   } catch (e) {
     console.error('linkSubscriptionUser: failed', e);
+    throw e;
+  } finally {
+    if (linkInFlight?.promise === promise) linkInFlight = null;
   }
 }
 

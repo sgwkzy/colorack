@@ -47,9 +47,11 @@ function configureGoogleSignin(): void {
   });
 }
 
-async function signInWithFirebaseCredential(credential: FirebaseAuthTypes.AuthCredential): Promise<void> {
-  if (!auth) return;
-  await auth().signInWithCredential(credential);
+async function signInWithFirebaseCredential(
+  credential: FirebaseAuthTypes.AuthCredential
+): Promise<FirebaseAuthTypes.UserCredential> {
+  if (!auth) throw new Error('Firebase auth is not available.');
+  return auth().signInWithCredential(credential);
 }
 
 export async function initAuth(): Promise<void> {
@@ -74,10 +76,11 @@ export async function initAuth(): Promise<void> {
     auth!().onAuthStateChanged((user) => {
       currentUser = toAuthUser(user);
       notify();
-      linkSubscriptionUser(user?.uid ?? null).catch((e) => console.error('initAuth: failed to link subscription user', e));
+      const subscriptionReady = linkSubscriptionUser(user?.uid ?? null)
+        .catch((e) => console.error('initAuth: failed to link subscription user', e));
       if (!initialAuthResolved) {
         initialAuthResolved = true;
-        resolve();
+        subscriptionReady.finally(resolve);
       }
     });
   });
@@ -95,7 +98,8 @@ export async function signInWithGoogle(): Promise<void> {
   const { idToken } = await GoogleSignin.getTokens();
   if (!idToken) throw new Error('Google sign-in did not return an idToken.');
   const credential = auth.GoogleAuthProvider.credential(idToken);
-  await signInWithFirebaseCredential(credential);
+  const { user } = await signInWithFirebaseCredential(credential);
+  await linkSubscriptionUser(user.uid);
 }
 
 export async function signOutUser(): Promise<void> {
