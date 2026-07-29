@@ -9,6 +9,7 @@ import { brandLabel } from '../../lib/brands';
 import { seriesLabel } from '../../lib/paintLabel';
 import { useTheme, lightColors, radius, spacing, touch } from '../../lib/theme';
 import { useUiPrefs, type ListFontSize } from '../../lib/uiPrefs';
+import { useAndroidBack } from '../../lib/androidBack';
 import PaintRow from '../PaintRow';
 import ActionSheet, { ActionSheetButton } from '../ActionSheet';
 import SwipeBack from '../SwipeBack';
@@ -123,6 +124,13 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
     if (selectedBrand === ALL) { setSelectedBrand(null); setSelectedSeries(null); }
     else setSelectedSeries(null);
   };
+
+  // Androidの戻る: 階層を1つ戻す。最上位ではモーダル側の閉じる処理(onRequestClose)に
+  // 委ねる。ここで消費しないと、階層の途中でもモーダルごと閉じてしまう。
+  useAndroidBack(selectedBrand != null, () => {
+    if (selectedSeries != null) backFromPaints();
+    else setSelectedBrand(null);
+  });
 
   const q = nameFilter.trim().toLowerCase();
   const shownPaints = q

@@ -12,7 +12,7 @@ export type SeedRow = {
 
 // シード内容を更新したら上げる。catalog_paints を作り直して再シードする。
 // (INSERT OR IGNORE のため既存行は更新されない。過去の壊れた名前を一掃する用途も兼ねる)
-export const SEED_VERSION = 19;
+export const SEED_VERSION = 20;
 
 // 品番(code)はブランドをまたいで重複しうる上、同一ブランド内でもシリーズをまたいで
 // 再利用される(例: タミヤ X-1 はエナメル/アクリルミニ両方に存在)ため、
