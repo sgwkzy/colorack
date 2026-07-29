@@ -1,6 +1,7 @@
 import { useEffect, useReducer } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { getDB, getSetting, setSetting } from './db';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -23,10 +24,12 @@ export interface Entitlements {
 }
 
 const NO_ENTITLEMENTS: Entitlements = { hasBackup: false, hasPhotoBackup: false };
+const PHOTO_BACKUP_ENTITLED_KEY = 'photo_backup_entitled';
 
 const listeners = new Set<() => void>();
 let entitlements: Entitlements = NO_ENTITLEMENTS;
 let configured = false;
+let entitlementUpdateTail: Promise<void> = Promise.resolve();
 
 function toEntitlements(active: Record<string, unknown>): Entitlements {
   return {
@@ -37,6 +40,24 @@ function toEntitlements(active: Record<string, unknown>): Entitlements {
 
 function notify(): void {
   listeners.forEach((l) => l());
+}
+
+function applyEntitlements(active: Record<string, unknown>): Promise<void> {
+  const next = toEntitlements(active);
+  const update = async () => {
+    const previousPhotoBackup = await getSetting(PHOTO_BACKUP_ENTITLED_KEY);
+    // 解約中にStorage側が整理されている可能性があるため、再加入時は
+    // 古い参照を再利用せずローカル写真をすべて再アップロードする。
+    if (previousPhotoBackup === '0' && next.hasPhotoBackup) {
+      await getDB().runAsync('UPDATE kit_photos SET synced_at = NULL, storage_path = NULL');
+    }
+    await setSetting(PHOTO_BACKUP_ENTITLED_KEY, next.hasPhotoBackup ? '1' : '0');
+    entitlements = next;
+    notify();
+  };
+  const result = entitlementUpdateTail.then(update, update);
+  entitlementUpdateTail = result.then(() => undefined, () => undefined);
+  return result;
 }
 
 // アプリ起動時に一度だけ呼ぶ。RevenueCatのデフォルトの匿名IDで設定するため、
@@ -51,13 +72,12 @@ export async function initSubscription(): Promise<void> {
   Purchases.configure({ apiKey });
   configured = true;
   Purchases.addCustomerInfoUpdateListener((info) => {
-    entitlements = toEntitlements(info.entitlements.active);
-    notify();
+    applyEntitlements(info.entitlements.active)
+      .catch((e) => console.error('initSubscription: failed to apply customer info update', e));
   });
   try {
     const info = await Purchases.getCustomerInfo();
-    entitlements = toEntitlements(info.entitlements.active);
-    notify();
+    await applyEntitlements(info.entitlements.active);
   } catch (e) {
     console.error('initSubscription: failed to load customer info', e);
   }
@@ -74,8 +94,7 @@ export async function linkSubscriptionUser(uid: string | null): Promise<void> {
   if (!uid) return;
   try {
     const { customerInfo } = await Purchases.logIn(uid);
-    entitlements = toEntitlements(customerInfo.entitlements.active);
-    notify();
+    await applyEntitlements(customerInfo.entitlements.active);
   } catch (e) {
     console.error('linkSubscriptionUser: failed', e);
   }
@@ -105,6 +124,5 @@ export async function presentPaywall(): Promise<void> {
 export async function restorePurchases(): Promise<void> {
   if (!Purchases || !configured) return;
   const info = await Purchases.restorePurchases();
-  entitlements = toEntitlements(info.entitlements.active);
-  notify();
+  await applyEntitlements(info.entitlements.active);
 }
