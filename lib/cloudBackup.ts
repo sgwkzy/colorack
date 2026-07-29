@@ -456,6 +456,11 @@ export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<voi
 
 async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<void> {
   if (!getEntitlements().hasBackup) return;
+  if (!Number.isInteger(snapshot.schemaVersion)
+    || snapshot.schemaVersion < 1
+    || snapshot.schemaVersion > BACKUP_SCHEMA_VERSION) {
+    throw new Error(`Unsupported backup schema version: ${snapshot.schemaVersion}`);
+  }
   const db = getDB();
   let orphanedKitPhotoUris: string[] = [];
   const kitIdByLocalRef = new Map<string, number>();
