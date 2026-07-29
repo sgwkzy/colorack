@@ -11,6 +11,17 @@ const ADMOB_APP_ID_ANDROID = env('EXPO_PUBLIC_ADMOB_APP_ID_ANDROID', 'ca-app-pub
 const ADMOB_BANNER_AD_UNIT_ID_IOS = env('EXPO_PUBLIC_ADMOB_BANNER_AD_UNIT_ID_IOS', '');
 const ADMOB_BANNER_AD_UNIT_ID_ANDROID = env('EXPO_PUBLIC_ADMOB_BANNER_AD_UNIT_ID_ANDROID', '');
 
+if (isProductionBuild) {
+  env('EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID', '');
+  if (process.env.EAS_BUILD_PLATFORM === 'ios') {
+    env('EXPO_PUBLIC_REVENUECAT_API_KEY_IOS', '');
+    env('GOOGLE_SERVICE_INFO_PLIST', '');
+  } else if (process.env.EAS_BUILD_PLATFORM === 'android') {
+    env('EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID', '');
+    env('GOOGLE_SERVICES_JSON', '');
+  }
+}
+
 module.exports = ({ config }) => ({
   ...config,
   name: 'Colorack',
@@ -23,6 +34,7 @@ module.exports = ({ config }) => ({
     ...config.ios,
     supportsTablet: false,
     bundleIdentifier: env('EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER', 'com.example.colorack'),
+    googleServicesFile: process.env.GOOGLE_SERVICE_INFO_PLIST ?? config.ios?.googleServicesFile,
     infoPlist: {
       NSCameraUsageDescription: '塗料の色を読み取るためにカメラを使用します',
       ITSAppUsesNonExemptEncryption: false,
@@ -31,6 +43,7 @@ module.exports = ({ config }) => ({
   android: {
     ...config.android,
     package: env('EXPO_PUBLIC_ANDROID_PACKAGE', 'com.example.colorack'),
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? config.android?.googleServicesFile,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/android-icon-foreground.png',
