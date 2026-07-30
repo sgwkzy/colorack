@@ -8,7 +8,8 @@ service cloud.firestore {
     }
 
     match /backups/{uid} {
-      allow read, write: if ownsBackup(uid);
+      allow read, create, update: if ownsBackup(uid);
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
   }
 }

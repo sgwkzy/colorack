@@ -8,7 +8,8 @@ service firebase.storage {
     }
 
     match /users/{uid}/kit-photos/{fileName} {
-      allow read: if ownsPhotoBackup(uid);
+      allow get: if ownsPhotoBackup(uid);
+      allow list: if request.auth != null && request.auth.uid == uid;
       allow create, update: if ownsPhotoBackup(uid)
         && request.resource.size <= 5 * 1024 * 1024
         && request.resource.contentType == 'image/jpeg';

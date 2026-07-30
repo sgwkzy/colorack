@@ -461,6 +461,15 @@ export async function fetchBackupSnapshot(expectedUid: string): Promise<BackupSn
   return doc.data() as BackupSnapshot;
 }
 
+export async function deleteCloudBackup(expectedUid: string): Promise<void> {
+  if (!auth || !firestore) throw new Error('Cloud backup is not available.');
+  assertCurrentUser(expectedUid);
+  await firestore().collection('backups').doc(expectedUid).delete();
+  assertCurrentUser(expectedUid);
+  await setSetting(BACKUP_READY_UID_KEY, '');
+  await setSetting(LAST_BACKUP_AT_KEY, '');
+}
+
 export async function restoreFromSnapshot(snapshot: BackupSnapshot, expectedUid: string): Promise<void> {
   return runAccountOperation(() => restoreFromSnapshotUnlocked(snapshot, expectedUid));
 }

@@ -112,3 +112,15 @@ export async function downloadKitPhotosForRestore(photos: BackupKitPhoto[]): Pro
   }
   return localUriByStoragePath;
 }
+
+export async function deleteAllKitPhotoBackups(expectedUid: string): Promise<void> {
+  if (!auth || !storage) throw new Error('Kit photo backup is not available.');
+  assertCurrentUser(expectedUid);
+  const folder = storage().ref(`users/${expectedUid}/kit-photos`);
+  const { items } = await folder.listAll();
+  for (const item of items) {
+    assertCurrentUser(expectedUid);
+    await item.delete();
+  }
+  assertCurrentUser(expectedUid);
+}

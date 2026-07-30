@@ -1,6 +1,6 @@
 // app/(tabs)/settings.tsx
 import { useCallback, useMemo, useState } from 'react';
-import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform } from 'react-native';
+import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform, Linking } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useFocusEffect, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { useUiPrefs, setFabSide, setListFontSize } from '../../lib/uiPrefs';
 import {
   ensureSubscriptionIdentity,
   getCurrentAuthUser,
+  isAppleDeviceRequiredForDeletion,
   isAccountLinkConflict,
   linkAppleAccount,
   linkGoogleAccount,
@@ -23,6 +24,7 @@ import {
   signOutUser,
   useAuthUser,
 } from '../../lib/auth';
+import { deleteCurrentAccount } from '../../lib/accountDeletion';
 import { fetchBackupSnapshot, isCloudBackupReady, markCloudBackupReady, pushBackupToFirestore, restoreFromSnapshot, runRestoreDecision } from '../../lib/cloudBackup';
 import { presentPaywall, restorePurchases, useEntitlements } from '../../lib/subscription';
 
@@ -309,6 +311,55 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleDeleteAccount = () => {
+    if (busy || !authUser) return;
+    Alert.alert(
+      isJa ? 'アカウントを削除' : 'Delete account',
+      isJa
+        ? 'クラウドバックアップとキット写真を完全に削除します。この端末のローカルデータは残ります。サブスクリプションは自動解約されません。'
+        : 'This permanently deletes your cloud backup and kit photos. Local data on this device remains. Your subscription is not canceled automatically.',
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: isJa ? 'アカウントを削除' : 'Delete account',
+          style: 'destructive',
+          onPress: async () => {
+            setAccountBusy(true);
+            try {
+              await deleteCurrentAccount();
+              setLastBackupAt(null);
+              Alert.alert(
+                isJa ? '削除しました' : 'Account deleted',
+                isJa
+                  ? 'クラウドデータとアカウントを削除しました。'
+                  : 'Your cloud data and account were deleted.'
+              );
+            } catch (e) {
+              console.error('handleDeleteAccount: failed', e);
+              Alert.alert(
+                t('error'),
+                isAppleDeviceRequiredForDeletion(e)
+                  ? isJa
+                    ? 'Apple連携済みアカウントは、Appleトークンを安全に失効するためiOS端末から削除してください。'
+                    : 'Delete an Apple-linked account from an iOS device so its Apple token can be revoked safely.'
+                  : t('cloudBackupError')
+              );
+            } finally {
+              setAccountBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const openSubscriptionManagement = () => {
+    const url = Platform.OS === 'ios'
+      ? 'https://apps.apple.com/account/subscriptions'
+      : 'https://play.google.com/store/account/subscriptions';
+    Linking.openURL(url).catch((e) => console.error('openSubscriptionManagement: failed', e));
+  };
+
   const signInButtons = !authUser ? (
     <>
       {Platform.OS === 'ios' ? (
@@ -405,6 +456,18 @@ export default function SettingsScreen() {
         <TouchableOpacity style={[styles.resetBtn, busy && styles.accountBtnDisabled]} onPress={handleRestorePurchases} disabled={busy}>
           <Text style={styles.resetBtnText}>{t('restorePurchases')}</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.resetBtn} onPress={openSubscriptionManagement}>
+          <Text style={styles.resetBtnText}>
+            {isJa ? 'サブスクリプションを管理' : 'Manage subscription'}
+          </Text>
+        </TouchableOpacity>
+        {authUser ? (
+          <TouchableOpacity style={[styles.resetBtn, busy && styles.accountBtnDisabled]} onPress={handleDeleteAccount} disabled={busy}>
+            <Text style={styles.resetBtnText}>
+              {isJa ? 'アカウントを削除' : 'Delete account'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('analytics')}</Text>

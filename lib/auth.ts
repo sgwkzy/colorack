@@ -1,4 +1,5 @@
 import { useEffect, useReducer } from 'react';
+import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
@@ -133,7 +134,10 @@ async function getGoogleCredential(): Promise<FirebaseAuthTypes.AuthCredential> 
   return auth.GoogleAuthProvider.credential(idToken);
 }
 
-async function getAppleCredential(): Promise<FirebaseAuthTypes.AuthCredential> {
+async function getAppleCredential(): Promise<{
+  credential: FirebaseAuthTypes.AuthCredential;
+  authorizationCode: string | null;
+}> {
   if (!auth || !await AppleAuthentication.isAvailableAsync()) {
     throw new Error('Apple sign-in is not available.');
   }
@@ -152,7 +156,10 @@ async function getAppleCredential(): Promise<FirebaseAuthTypes.AuthCredential> {
     ],
   });
   if (!result.identityToken) throw new Error('Apple sign-in did not return an identity token.');
-  return auth.AppleAuthProvider.credential(result.identityToken, rawNonce);
+  return {
+    credential: auth.AppleAuthProvider.credential(result.identityToken, rawNonce),
+    authorizationCode: result.authorizationCode,
+  };
 }
 
 export async function initAuth(): Promise<void> {
@@ -198,7 +205,8 @@ export async function signInWithGoogle(): Promise<void> {
 
 export async function signInWithApple(): Promise<void> {
   return runAccountOperation(async () => {
-    await completeFirebaseSignIn(await getAppleCredential());
+    const { credential } = await getAppleCredential();
+    await completeFirebaseSignIn(credential);
   });
 }
 
@@ -210,7 +218,8 @@ export async function linkGoogleAccount(): Promise<void> {
 
 export async function linkAppleAccount(): Promise<void> {
   return runAccountOperation(async () => {
-    await linkFirebaseCredential(await getAppleCredential());
+    const { credential } = await getAppleCredential();
+    await linkFirebaseCredential(credential);
   });
 }
 
@@ -221,6 +230,58 @@ export function isAccountLinkConflict(error: unknown): boolean {
     'auth/credential-already-in-use',
     'auth/email-already-in-use',
   ].includes(String(error.code));
+}
+
+export async function deleteFirebaseAccount(
+  deleteCloudData: (uid: string) => Promise<void>
+): Promise<void> {
+  return runAccountOperation(async () => {
+    if (!auth?.().currentUser) throw new Error('Firebase sign-in is required.');
+    const user = auth().currentUser!;
+    const providerIds = new Set(user.providerData.map(({ providerId }) => providerId));
+    let appleAuthorizationCode: string | null = null;
+    let credential: FirebaseAuthTypes.AuthCredential;
+
+    if (providerIds.has('apple.com')) {
+      if (Platform.OS !== 'ios') {
+        throw Object.assign(
+          new Error('Delete an Apple-linked account from an iOS device.'),
+          { code: 'account-deletion/apple-device-required' }
+        );
+      }
+      const apple = await getAppleCredential();
+      if (!apple.authorizationCode) {
+        throw new Error('Apple reauthentication did not return an authorization code.');
+      }
+      credential = apple.credential;
+      appleAuthorizationCode = apple.authorizationCode;
+    } else if (providerIds.has('google.com')) {
+      credential = await getGoogleCredential();
+    } else {
+      throw new Error('No supported sign-in provider is linked.');
+    }
+
+    const reauthenticated = await user.reauthenticateWithCredential(credential);
+    if (reauthenticated.user.uid !== user.uid || auth().currentUser?.uid !== user.uid) {
+      throw new Error('Firebase user changed during account deletion.');
+    }
+
+    await deleteCloudData(user.uid);
+    if (auth().currentUser?.uid !== user.uid) {
+      throw new Error('Firebase user changed during account deletion.');
+    }
+    if (appleAuthorizationCode) {
+      await auth().revokeToken(appleAuthorizationCode);
+    }
+    await user.delete();
+  });
+}
+
+export function isAppleDeviceRequiredForDeletion(error: unknown): boolean {
+  return !!error
+    && typeof error === 'object'
+    && 'code' in error
+    && String(error.code) === 'account-deletion/apple-device-required';
 }
 
 export async function ensureSubscriptionIdentity(expectedUid?: string): Promise<AuthUser> {
