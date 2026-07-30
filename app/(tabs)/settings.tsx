@@ -326,13 +326,28 @@ export default function SettingsScreen() {
           onPress: async () => {
             setAccountBusy(true);
             try {
-              await deleteCurrentAccount();
+              const { appleManualRevocationRequired } = await deleteCurrentAccount();
               setLastBackupAt(null);
               Alert.alert(
                 isJa ? '削除しました' : 'Account deleted',
-                isJa
-                  ? 'クラウドデータとアカウントを削除しました。'
-                  : 'Your cloud data and account were deleted.'
+                appleManualRevocationRequired
+                  ? isJa
+                    ? 'クラウドデータとアカウントを削除しました。Apple Accountの「サインインとセキュリティ」からColorackの連携も解除してください。'
+                    : 'Your cloud data and account were deleted. Also remove Colorack under Sign-In & Security in your Apple Account.'
+                  : isJa
+                    ? 'クラウドデータとアカウントを削除しました。'
+                    : 'Your cloud data and account were deleted.',
+                appleManualRevocationRequired
+                  ? [
+                    { text: isJa ? '閉じる' : 'Close', style: 'cancel' },
+                    {
+                      text: isJa ? 'Apple Accountを開く' : 'Open Apple Account',
+                      onPress: () => {
+                        void Linking.openURL('https://account.apple.com/');
+                      },
+                    },
+                  ]
+                  : undefined
               );
             } catch (e) {
               console.error('handleDeleteAccount: failed', e);

@@ -1,15 +1,19 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function accountActive(uid) {
+      return !exists(/databases/$(database)/documents/accountDeletions/$(uid));
+    }
+
     function ownsBackup(uid) {
       return request.auth != null
         && request.auth.uid == uid
+        && accountActive(uid)
         && 'backup' in request.auth.token.get('revenueCatEntitlements', []);
     }
 
     match /backups/{uid} {
-      allow read, create, update: if ownsBackup(uid);
-      allow delete: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if ownsBackup(uid);
     }
   }
 }

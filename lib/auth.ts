@@ -233,8 +233,12 @@ export function isAccountLinkConflict(error: unknown): boolean {
 }
 
 export async function deleteFirebaseAccount(
-  deleteCloudData: (uid: string) => Promise<void>
-): Promise<void> {
+  deleteAccountOnServer: (request: {
+    uid: string;
+    idToken: string;
+    projectId: string;
+  }) => Promise<void>
+): Promise<{ appleManualRevocationRequired: boolean }> {
   return runAccountOperation(async () => {
     if (!auth?.().currentUser) throw new Error('Firebase sign-in is required.');
     const user = auth().currentUser!;
@@ -242,13 +246,7 @@ export async function deleteFirebaseAccount(
     let appleAuthorizationCode: string | null = null;
     let credential: FirebaseAuthTypes.AuthCredential;
 
-    if (providerIds.has('apple.com')) {
-      if (Platform.OS !== 'ios') {
-        throw Object.assign(
-          new Error('Delete an Apple-linked account from an iOS device.'),
-          { code: 'account-deletion/apple-device-required' }
-        );
-      }
+    if (providerIds.has('apple.com') && Platform.OS === 'ios') {
       const apple = await getAppleCredential();
       if (!apple.authorizationCode) {
         throw new Error('Apple reauthentication did not return an authorization code.');
@@ -257,6 +255,11 @@ export async function deleteFirebaseAccount(
       appleAuthorizationCode = apple.authorizationCode;
     } else if (providerIds.has('google.com')) {
       credential = await getGoogleCredential();
+    } else if (providerIds.has('apple.com')) {
+      throw Object.assign(
+        new Error('Delete an Apple-only account from an iOS device.'),
+        { code: 'account-deletion/apple-device-required' }
+      );
     } else {
       throw new Error('No supported sign-in provider is linked.');
     }
@@ -266,14 +269,20 @@ export async function deleteFirebaseAccount(
       throw new Error('Firebase user changed during account deletion.');
     }
 
-    await deleteCloudData(user.uid);
-    if (auth().currentUser?.uid !== user.uid) {
-      throw new Error('Firebase user changed during account deletion.');
-    }
     if (appleAuthorizationCode) {
       await auth().revokeToken(appleAuthorizationCode);
     }
-    await user.delete();
+    const projectId = auth().app.options.projectId;
+    if (!projectId) throw new Error('Firebase project ID is unavailable.');
+    await deleteAccountOnServer({
+      uid: user.uid,
+      idToken: await user.getIdToken(true),
+      projectId,
+    });
+    return {
+      appleManualRevocationRequired:
+        providerIds.has('apple.com') && !appleAuthorizationCode,
+    };
   });
 }
 

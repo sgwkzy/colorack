@@ -110,6 +110,25 @@ export async function linkSubscriptionUser(uid: string | null): Promise<void> {
   }
 }
 
+export async function logOutSubscriptionUser(expectedUid: string): Promise<void> {
+  if (!Purchases || !configured) return;
+  const update = async () => {
+    const [currentId, anonymous] = await Promise.all([
+      Purchases.getAppUserID(),
+      Purchases.isAnonymous(),
+    ]);
+    if (anonymous) return;
+    if (currentId !== expectedUid) {
+      throw new Error('RevenueCat user does not match Firebase.');
+    }
+    const info = await Purchases.logOut();
+    await applyEntitlements(info.entitlements.active);
+  };
+  const result = identityUpdateTail.then(update, update);
+  identityUpdateTail = result.then(() => undefined, () => undefined);
+  await result;
+}
+
 export function useEntitlements(): Entitlements {
   const [, force] = useReducer((x) => x + 1, 0);
   useEffect(() => {

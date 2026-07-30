@@ -31,6 +31,19 @@ GOOGLE_SERVICE_INFO_PLIST=<GoogleService-Info.plist file>
 GOOGLE_SERVICES_JSON=<google-services.json file>
 ```
 
+### アカウント削除用Functions
+
+RevenueCatの「API keys」でV1 Secret API Keyを作成し、EASではなくFirebase
+Secret Managerへ登録する。SDK用のPublic API Keyは使用しない。
+
+```sh
+npx firebase-tools functions:secrets:set REVENUECAT_SECRET_API_KEY
+npx firebase-tools deploy --only functions,firestore:rules,storage
+```
+
+Functionsは東京リージョン(`asia-northeast1`)へ配置される。秘密値は
+`functions/.env`やGit管理ファイルへ保存しない。
+
 ## 4. Paywall UIの作成
 
 RevenueCatダッシュボードの「Paywalls」機能でライト/スタンダードの2商品を提示するPaywallを作成する(コード変更不要、`lib/subscription.ts`の`presentPaywall()`が自動的にダッシュボード側の最新Paywallを表示する)。
