@@ -9,6 +9,7 @@
     "ios": {
       "supportsTablet": false,
       "buildNumber": "16",
+      "usesAppleSignIn": true,
       "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {

@@ -73,6 +73,7 @@ module.exports = ({ config }) => ({
       'expo-camera',
       { recordAudioAndroid: false },
     ],
+    'expo-apple-authentication',
     [
       'expo-media-library',
       {

@@ -1,6 +1,7 @@
 // app/(tabs)/settings.tsx
 import { useCallback, useMemo, useState } from 'react';
-import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { useFocusEffect, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isAnalyticsEnabled, logEvent, setAnalyticsEnabled, useScreenView } from '../../lib/analytics';
@@ -11,7 +12,7 @@ import { deleteKitPhoto } from '../../lib/kitPhoto';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
 import { useUiPrefs, setFabSide, setListFontSize } from '../../lib/uiPrefs';
-import { ensureSubscriptionIdentity, getCurrentAuthUser, signInWithGoogle, signOutUser, useAuthUser } from '../../lib/auth';
+import { ensureSubscriptionIdentity, getCurrentAuthUser, signInWithApple, signInWithGoogle, signOutUser, useAuthUser } from '../../lib/auth';
 import { fetchBackupSnapshot, isCloudBackupReady, markCloudBackupReady, pushBackupToFirestore, restoreFromSnapshot, runRestoreDecision } from '../../lib/cloudBackup';
 import { presentPaywall, restorePurchases, useEntitlements } from '../../lib/subscription';
 
@@ -23,7 +24,7 @@ const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
 
 export default function SettingsScreen() {
   const [isJa, setIsJa] = useState(getLocale() === 'ja');
-  const { colors, mode } = useTheme();
+  const { colors, mode, isDark } = useTheme();
   const { fabSide, listFontSize } = useUiPrefs();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -170,11 +171,11 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleSignIn = async (provider: 'Apple' | 'Google') => {
     if (busy) return;
     setAccountBusy(true);
     try {
-      await signInWithGoogle();
+      await (provider === 'Apple' ? signInWithApple() : signInWithGoogle());
       const expectedUid = getCurrentAuthUser()?.uid;
       if (!expectedUid) throw new Error('Firebase sign-in did not establish a user.');
       const result = await runRestoreDecision();
@@ -182,12 +183,14 @@ export default function SettingsScreen() {
       refreshAfterRestore();
       await loadLastBackupAt();
     } catch (e) {
-      console.error('handleGoogleSignIn: failed', e);
+      console.error(`handle${provider}SignIn: failed`, e);
       Alert.alert(t('error'), t('cloudBackupError'));
     } finally {
       setAccountBusy(false);
     }
   };
+
+  const signInForPlatform = Platform.OS === 'ios' ? signInWithApple : signInWithGoogle;
 
   const handleBackupNow = async () => {
     if (busy) return;
@@ -228,7 +231,7 @@ export default function SettingsScreen() {
     if (busy) return;
     setPurchaseBusy(true);
     try {
-      if (!authUser) await signInWithGoogle();
+      if (!authUser) await signInForPlatform();
       const { uid } = await ensureSubscriptionIdentity();
       await presentPaywall(uid);
       const result = await runRestoreDecision();
@@ -247,7 +250,7 @@ export default function SettingsScreen() {
     if (busy) return;
     setPurchaseBusy(true);
     try {
-      if (!authUser) await signInWithGoogle();
+      if (!authUser) await signInForPlatform();
       const { uid } = await ensureSubscriptionIdentity();
       await restorePurchases(uid);
       const result = await runRestoreDecision();
@@ -261,6 +264,25 @@ export default function SettingsScreen() {
       setPurchaseBusy(false);
     }
   };
+
+  const signInButtons = !authUser ? (
+    <>
+      {Platform.OS === 'ios' ? (
+        <AppleAuthentication.AppleAuthenticationButton
+          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+          buttonStyle={isDark
+            ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+            : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+          cornerRadius={radius.sm}
+          style={styles.appleSignInBtn}
+          onPress={() => handleSignIn('Apple')}
+        />
+      ) : null}
+      <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={() => handleSignIn('Google')} disabled={busy}>
+        <Text style={styles.accountBtnText}>{t('signInWithGoogle')}</Text>
+      </TouchableOpacity>
+    </>
+  ) : null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
@@ -284,15 +306,12 @@ export default function SettingsScreen() {
                   <Text style={styles.resetBtnText}>{t('signOut')}</Text>
                 </TouchableOpacity>
               </>
-            ) : (
-              <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={handleGoogleSignIn} disabled={busy}>
-                <Text style={styles.accountBtnText}>{t('signInWithGoogle')}</Text>
-              </TouchableOpacity>
-            )}
+            ) : signInButtons}
           </>
         ) : (
           <>
             <Text style={styles.accountSubText}>{t('backupRequiresSubscription')}</Text>
+            {signInButtons}
             <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={handleViewPlans} disabled={busy}>
               <Text style={styles.accountBtnText}>{t('viewPlans')}</Text>
             </TouchableOpacity>
@@ -404,6 +423,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   accountText: { fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: spacing.xs },
   accountSubText: { fontSize: 14, color: colors.textSecondary, marginBottom: spacing.md },
   accountBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
+  appleSignInBtn: { width: '100%', height: 44, marginBottom: spacing.md },
   accountBtnDisabled: { backgroundColor: colors.primaryDisabled },
   accountBtnText: { color: colors.onPrimary, fontWeight: 'bold', textAlign: 'center' },
 });

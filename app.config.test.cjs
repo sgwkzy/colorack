@@ -8,7 +8,7 @@ test('Firebase file environment variables override gitignored local files', () =
   const resolveConfig = require('./app.config.js');
   const config = resolveConfig({
     config: {
-      ios: { googleServicesFile: './GoogleService-Info.plist' },
+      ios: { googleServicesFile: './GoogleService-Info.plist', usesAppleSignIn: true },
       android: { googleServicesFile: './google-services.json' },
       extra: {},
     },
@@ -16,6 +16,8 @@ test('Firebase file environment variables override gitignored local files', () =
 
   assert.equal(config.android.googleServicesFile, '/eas/google-services.json');
   assert.equal(config.ios.googleServicesFile, '/eas/GoogleService-Info.plist');
+  assert.equal(config.ios.usesAppleSignIn, true);
+  assert.ok(config.plugins.includes('expo-apple-authentication'));
 });
 
 test('production Android config rejects a missing Firebase file variable', () => {

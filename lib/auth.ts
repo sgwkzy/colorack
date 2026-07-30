@@ -1,5 +1,7 @@
 import { useEffect, useReducer } from 'react';
 import Constants from 'expo-constants';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import type { FirebaseAuthTypes } from '@react-native-firebase/auth';
 import type { GoogleSignin as GoogleSigninType } from '@react-native-google-signin/google-signin';
 import { getEntitlements, initSubscription, linkSubscriptionUser } from './subscription';
@@ -96,6 +98,14 @@ async function signInWithFirebaseCredential(
   return auth().signInWithCredential(credential);
 }
 
+async function completeFirebaseSignIn(
+  credential: FirebaseAuthTypes.AuthCredential
+): Promise<void> {
+  const { user } = await signInWithFirebaseCredential(credential);
+  await linkSubscriptionUser(user.uid);
+  await waitForRevenueCatClaims(user);
+}
+
 export async function initAuth(): Promise<void> {
   if (initialAuthResolved) return;
   if (initPromise) return initPromise;
@@ -142,9 +152,32 @@ export async function signInWithGoogle(): Promise<void> {
     const { idToken } = await GoogleSignin.getTokens();
     if (!idToken) throw new Error('Google sign-in did not return an idToken.');
     const credential = auth.GoogleAuthProvider.credential(idToken);
-    const { user } = await signInWithFirebaseCredential(credential);
-    await linkSubscriptionUser(user.uid);
-    await waitForRevenueCatClaims(user);
+    await completeFirebaseSignIn(credential);
+  });
+}
+
+export async function signInWithApple(): Promise<void> {
+  return runAccountOperation(async () => {
+    if (!auth || !await AppleAuthentication.isAvailableAsync()) {
+      throw new Error('Apple sign-in is not available.');
+    }
+    const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_';
+    const bytes = await Crypto.getRandomBytesAsync(32);
+    const rawNonce = Array.from(bytes, (byte) => charset[byte % charset.length]).join('');
+    const hashedNonce = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      rawNonce
+    );
+    const result = await AppleAuthentication.signInAsync({
+      nonce: hashedNonce,
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+    if (!result.identityToken) throw new Error('Apple sign-in did not return an identity token.');
+    const credential = auth.AppleAuthProvider.credential(result.identityToken, rawNonce);
+    await completeFirebaseSignIn(credential);
   });
 }
 
