@@ -1,8 +1,14 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function ownsBackup(uid) {
+      return request.auth != null
+        && request.auth.uid == uid
+        && 'backup' in request.auth.token.get('revenueCatEntitlements', []);
+    }
+
     match /backups/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if ownsBackup(uid);
     }
   }
 }

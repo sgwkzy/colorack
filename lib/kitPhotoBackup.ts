@@ -6,6 +6,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import { getDB } from './db';
 import { getEntitlements } from './subscription';
+import { withFreshFirebaseTokenRetry } from './auth';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -49,20 +50,34 @@ interface PendingPhotoRow {
 // バックグラウンド遷移のたびに全量アップロードすると、未変更の写真まで毎回
 // 再送してしまい通信量・書き込み回数コストが無視できなくなる。synced_atが
 // NULLの(未アップロードの)行だけを対象にする差分方式。
-export async function uploadPendingKitPhotos(): Promise<void> {
+function assertCurrentUser(expectedUid: string): void {
+  if (auth?.().currentUser?.uid !== expectedUid) {
+    throw new Error('Firebase user changed during kit photo upload.');
+  }
+}
+
+export async function uploadPendingKitPhotos(expectedUid: string): Promise<void> {
   if (!auth || !storage) return;
   if (!getEntitlements().hasPhotoBackup) return;
-  const user = auth().currentUser;
-  if (!user) return;
+  assertCurrentUser(expectedUid);
 
   const db = getDB();
   const pending = await db.getAllAsync<PendingPhotoRow>('SELECT id, uri FROM kit_photos WHERE synced_at IS NULL');
   for (const photo of pending) {
-    const path = kitPhotoStoragePath(user.uid, generatePhotoFilename());
+    assertCurrentUser(expectedUid);
+    const path = kitPhotoStoragePath(expectedUid, generatePhotoFilename());
     try {
-      await storage().ref(path).putFile(photo.uri);
-      await db.runAsync("UPDATE kit_photos SET synced_at = datetime('now'), storage_path = ? WHERE id = ?", [path, photo.id]);
+      await withFreshFirebaseTokenRetry(() =>
+        storage().ref(path).putFile(photo.uri, { contentType: 'image/jpeg' })
+      );
+      assertCurrentUser(expectedUid);
+      await db.withExclusiveTransactionAsync(async (tx) => {
+        assertCurrentUser(expectedUid);
+        await tx.runAsync("UPDATE kit_photos SET synced_at = datetime('now'), storage_path = ? WHERE id = ?", [path, photo.id]);
+        assertCurrentUser(expectedUid);
+      });
     } catch (e) {
+      if (auth().currentUser?.uid !== expectedUid) throw e;
       console.error('uploadPendingKitPhotos: failed to upload', photo.uri, e);
     }
   }
@@ -86,7 +101,7 @@ export async function downloadKitPhotosForRestore(photos: BackupKitPhoto[]): Pro
     // 既存通りスキップし、次回ユーザーが「クラウドから復元」を再実行すれば拾える。
     for (let attempt = 0; attempt < 2 && !succeeded; attempt++) {
       try {
-        const url = await storage().ref(photo.storagePath).getDownloadURL();
+        const url = await withFreshFirebaseTokenRetry(() => storage().ref(photo.storagePath).getDownloadURL());
         await FileSystem.downloadAsync(url, dest);
         localUriByStoragePath.set(photo.storagePath, dest);
         succeeded = true;

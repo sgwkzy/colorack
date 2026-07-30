@@ -11,8 +11,8 @@ import { deleteKitPhoto } from '../../lib/kitPhoto';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
 import { useUiPrefs, setFabSide, setListFontSize } from '../../lib/uiPrefs';
-import { signInWithGoogle, signOutUser, useAuthUser } from '../../lib/auth';
-import { fetchBackupSnapshot, pushBackupToFirestore, restoreFromSnapshot, runRestoreDecision } from '../../lib/cloudBackup';
+import { ensureSubscriptionIdentity, getCurrentAuthUser, signInWithGoogle, signOutUser, useAuthUser } from '../../lib/auth';
+import { fetchBackupSnapshot, isCloudBackupReady, markCloudBackupReady, pushBackupToFirestore, restoreFromSnapshot, runRestoreDecision } from '../../lib/cloudBackup';
 import { presentPaywall, restorePurchases, useEntitlements } from '../../lib/subscription';
 
 const THEME_OPTIONS: { value: ThemeMode; labelKey: string }[] = [
@@ -33,6 +33,7 @@ export default function SettingsScreen() {
   const authUser = useAuthUser();
   const { hasBackup, hasPhotoBackup } = useEntitlements();
   const [purchaseBusy, setPurchaseBusy] = useState(false);
+  const busy = accountBusy || purchaseBusy;
 
   useScreenView('Settings');
 
@@ -128,36 +129,56 @@ export default function SettingsScreen() {
     notifyKitBoxesChanged();
   };
 
-  const restoreCloudBackup = async () => {
-    const snapshot = await fetchBackupSnapshot();
+  const restoreCloudBackup = async (expectedUid: string) => {
+    const snapshot = await fetchBackupSnapshot(expectedUid);
     if (!snapshot) return;
-    await restoreFromSnapshot(snapshot);
+    await restoreFromSnapshot(snapshot, expectedUid);
+    await markCloudBackupReady(expectedUid);
     refreshAfterRestore();
   };
 
-  const showConflictAlert = () => {
+  const showConflictAlert = (expectedUid: string) => {
     Alert.alert(t('cloudRestoreConflictTitle'), t('cloudRestoreConflictMessage'), [
       {
         text: t('cloudRestoreFromCloud'),
         style: 'destructive',
         onPress: () => {
-          restoreCloudBackup().catch((e) => {
-            console.error('restoreCloudBackup: failed', e);
-            Alert.alert(t('error'), t('cloudBackupError'));
-          });
+          setAccountBusy(true);
+          restoreCloudBackup(expectedUid)
+            .catch((e) => {
+              console.error('restoreCloudBackup: failed', e);
+              Alert.alert(t('error'), t('cloudBackupError'));
+            })
+            .finally(() => setAccountBusy(false));
         },
       },
-      { text: t('cloudKeepDeviceData'), style: 'cancel' },
+      {
+        text: t('cloudKeepDeviceData'),
+        style: 'cancel',
+        onPress: () => {
+          setAccountBusy(true);
+          markCloudBackupReady(expectedUid)
+            .then(() => pushBackupToFirestore())
+            .then(loadLastBackupAt)
+            .catch((e) => {
+              console.error('showConflictAlert: failed to keep device data', e);
+              Alert.alert(t('error'), t('cloudBackupError'));
+            })
+            .finally(() => setAccountBusy(false));
+        },
+      },
     ]);
   };
 
   const handleGoogleSignIn = async () => {
-    if (accountBusy) return;
+    if (busy) return;
     setAccountBusy(true);
     try {
       await signInWithGoogle();
+      const expectedUid = getCurrentAuthUser()?.uid;
+      if (!expectedUid) throw new Error('Firebase sign-in did not establish a user.');
       const result = await runRestoreDecision();
-      if (result === 'conflict') showConflictAlert();
+      if (result === 'conflict') showConflictAlert(expectedUid);
       refreshAfterRestore();
       await loadLastBackupAt();
     } catch (e) {
@@ -169,9 +190,17 @@ export default function SettingsScreen() {
   };
 
   const handleBackupNow = async () => {
-    if (accountBusy) return;
+    if (busy) return;
     setAccountBusy(true);
     try {
+      const { uid } = await ensureSubscriptionIdentity();
+      if (!await isCloudBackupReady(uid)) {
+        const result = await runRestoreDecision();
+        if (result === 'conflict') {
+          showConflictAlert(uid);
+          return;
+        }
+      }
       await pushBackupToFirestore();
       await loadLastBackupAt();
     } catch (e) {
@@ -183,7 +212,7 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = async () => {
-    if (accountBusy) return;
+    if (busy) return;
     setAccountBusy(true);
     try {
       await signOutUser();
@@ -196,10 +225,16 @@ export default function SettingsScreen() {
   };
 
   const handleViewPlans = async () => {
-    if (purchaseBusy) return;
+    if (busy) return;
     setPurchaseBusy(true);
     try {
-      await presentPaywall();
+      if (!authUser) await signInWithGoogle();
+      const { uid } = await ensureSubscriptionIdentity();
+      await presentPaywall(uid);
+      const result = await runRestoreDecision();
+      if (result === 'conflict') showConflictAlert(uid);
+      refreshAfterRestore();
+      await loadLastBackupAt();
     } catch (e) {
       console.error('handleViewPlans: failed', e);
       Alert.alert(t('error'), t('purchaseError'));
@@ -209,10 +244,16 @@ export default function SettingsScreen() {
   };
 
   const handleRestorePurchases = async () => {
-    if (purchaseBusy) return;
+    if (busy) return;
     setPurchaseBusy(true);
     try {
-      await restorePurchases();
+      if (!authUser) await signInWithGoogle();
+      const { uid } = await ensureSubscriptionIdentity();
+      await restorePurchases(uid);
+      const result = await runRestoreDecision();
+      if (result === 'conflict') showConflictAlert(uid);
+      refreshAfterRestore();
+      await loadLastBackupAt();
     } catch (e) {
       console.error('handleRestorePurchases: failed', e);
       Alert.alert(t('error'), t('purchaseError'));
@@ -236,15 +277,15 @@ export default function SettingsScreen() {
                 <Text style={styles.accountText}>{authUser.displayName ?? authUser.email ?? authUser.uid}</Text>
                 {authUser.email ? <Text style={styles.accountSubText}>{authUser.email}</Text> : null}
                 <Text style={styles.accountSubText}>{t('lastBackupAt')}: {lastBackupAt ?? t('lastBackupNever')}</Text>
-                <TouchableOpacity style={[styles.accountBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleBackupNow} disabled={accountBusy}>
+                <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={handleBackupNow} disabled={busy}>
                   <Text style={styles.accountBtnText}>{t('backupNow')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.resetBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleSignOut} disabled={accountBusy}>
+                <TouchableOpacity style={[styles.resetBtn, busy && styles.accountBtnDisabled]} onPress={handleSignOut} disabled={busy}>
                   <Text style={styles.resetBtnText}>{t('signOut')}</Text>
                 </TouchableOpacity>
               </>
             ) : (
-              <TouchableOpacity style={[styles.accountBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleGoogleSignIn} disabled={accountBusy}>
+              <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={handleGoogleSignIn} disabled={busy}>
                 <Text style={styles.accountBtnText}>{t('signInWithGoogle')}</Text>
               </TouchableOpacity>
             )}
@@ -252,17 +293,17 @@ export default function SettingsScreen() {
         ) : (
           <>
             <Text style={styles.accountSubText}>{t('backupRequiresSubscription')}</Text>
-            <TouchableOpacity style={[styles.accountBtn, purchaseBusy && styles.accountBtnDisabled]} onPress={handleViewPlans} disabled={purchaseBusy}>
+            <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={handleViewPlans} disabled={busy}>
               <Text style={styles.accountBtnText}>{t('viewPlans')}</Text>
             </TouchableOpacity>
             {authUser ? (
-              <TouchableOpacity style={[styles.resetBtn, accountBusy && styles.accountBtnDisabled]} onPress={handleSignOut} disabled={accountBusy}>
+              <TouchableOpacity style={[styles.resetBtn, busy && styles.accountBtnDisabled]} onPress={handleSignOut} disabled={busy}>
                 <Text style={styles.resetBtnText}>{t('signOut')}</Text>
               </TouchableOpacity>
             ) : null}
           </>
         )}
-        <TouchableOpacity style={[styles.resetBtn, purchaseBusy && styles.accountBtnDisabled]} onPress={handleRestorePurchases} disabled={purchaseBusy}>
+        <TouchableOpacity style={[styles.resetBtn, busy && styles.accountBtnDisabled]} onPress={handleRestorePurchases} disabled={busy}>
           <Text style={styles.resetBtnText}>{t('restorePurchases')}</Text>
         </TouchableOpacity>
       </View>

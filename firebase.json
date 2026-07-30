@@ -1,0 +1,11 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "extensions": {
+    "revenuecat-purchases": "revenuecat/firestore-revenuecat-purchases@0.1.18"
+  }
+}

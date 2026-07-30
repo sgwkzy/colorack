@@ -19,11 +19,16 @@
 
 ## 3. アプリ側への設定値反映
 
-取得したAPI Keyを`eas.json`の`build.production.env`に追加する(既存のAdMob設定と同じ場所)。ローカル開発時は`.env`ファイル(gitignore対象)に同名の環境変数を設定する。
+取得したPublic SDK KeyをEASプロジェクトの`production` Environment Variablesへ
+`Sensitive`な文字列として登録する。Firebase設定ファイルは`Secret`なFile変数として
+登録する。ローカル開発時は`.env`ファイル(gitignore対象)に同名の環境変数を設定する。
 
 ```
 EXPO_PUBLIC_REVENUECAT_API_KEY_IOS=<iOS Public SDK Key>
 EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID=<Android Public SDK Key>
+EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID=<Firebase Web client ID>
+GOOGLE_SERVICE_INFO_PLIST=<GoogleService-Info.plist file>
+GOOGLE_SERVICES_JSON=<google-services.json file>
 ```
 
 ## 4. Paywall UIの作成
@@ -34,20 +39,36 @@ RevenueCatダッシュボードの「Paywalls」機能でライト/スタンダ�
 
 - iOS: TestFlight配布 or Xcodeのsandboxアカウントで購入・復元フローを確認する。
 - Android: Google Playの内部テストトラック + ライセンステスターアカウントで確認する。
+- 購入・復元の前にGoogleサインインし、Firebase UIDとRevenueCat App User IDが一致する状態で試す。
 - 確認項目: 購入成功時に`hasBackup`が`true`になり広告が消えること、設定画面のバックアップUIが表示されること、「購入を復元」で別端末でも復元できること。
 
-## 6. Firebase Storageセキュリティルールの反映(フェーズ2で追加)
+## 6. RevenueCat Firebase ExtensionとSecurity Rules
 
-キット写真バックアップ機能の追加に伴い、リポジトリ直下に`storage.rules`を追加した。`firestore.rules`と同様、このリポジトリには自動デプロイの仕組みが無いため、Firebaseコンソールの「Storage」→「Rules」タブに`storage.rules`の内容を手動で貼り付けてデプロイする。
+Firebase RulesだけでRevenueCatの購入状態を検証するため、公式Extension
+`revenuecat/firestore-revenuecat-purchases@0.1.18`を使用する。Firebaseプロジェクトは
+Blazeプランが必要。
+
+1. RevenueCatの「Integrations」→「Firebase」でShared Secretを生成する。
+2. `firebase deploy --only extensions`でExtensionをインストールする。SecretはCLIの
+   プロンプトへ入力し、ファイルやGitへ保存しない。
+3. Firebaseの「Functions」でExtensionのTrigger URLを確認し、RevenueCatのFirebase
+   Integrationへ貼り付けて保存する。
+4. RevenueCatからテストイベントを送り、Firebase Authユーザーのcustom claim
+   `revenueCatEntitlements`へ`backup`/`backup_photos`が反映されることを確認する。
+5. 確認後に限り、`firebase deploy --only firestore:rules,storage`でRulesを反映する。
+
+RulesはFirestoreバックアップに`backup`、Storage写真に`backup_photos`を要求する。
+StorageへのアップロードはJPEGかつ5MB以下に限定する。Extension設定前にRulesだけを
+デプロイすると全ユーザーのバックアップが拒否されるため、順序を入れ替えない。
+
+Firebase Extensionsは2027年3月31日に終了予定。Firebaseが移行手段を公開後、
+同等のWebhook/Cloud Functionsへ移行する。
 
 ## 7. Storage孤児オブジェクトの扱い(既知の制限)
 
-キット写真の削除は、ユーザーが写真を個別に削除した場合のみFirebase Storage側の実体も削除する。キット/キットボックスの一括削除・全リセット・クラウド復元時のローカルデータ一掃では、Storage側のクリーンアップを行わない(復元直後に復元元のデータを消してしまう事故を避けるため)。また、スタンダードプランを解約したユーザーの写真も、5.セクションに記載の猶予期間後の自動削除(Cloud Functions、未実装)が無い限りStorageに残り続ける。
+キット写真の削除は、ユーザーが写真を個別に削除した場合のみFirebase Storage側の実体も削除する。キット/キットボックスの一括削除・全リセット・クラウド復元時のローカルデータ一掃では、Storage側のクリーンアップを行わない(復元直後に復元元のデータを消してしまう事故を避けるため)。また、スタンダードプランを解約したユーザーの写真も、猶予期間後の自動削除(Cloud Functions、未実装)が無い限りStorageに残り続ける。
 
 これらは全て「定期的なサーバーサイド整理ジョブ(Cloud Functions)」で解決すべき問題であり、このリポジトリ(Expo Reactネイティブアプリ)側の実装対象ではない。将来Cloud Functionsを実装する際は、この2点をまとめて対応すること。
 
-**復元中のダウンロード失敗による参照喪失**: 別端末で復元する際、一部写真のダウンロードに失敗すると、その写真はkit_photosに再構築されずスキップされる。その後、再復元を試みる前に自動バックアップが走ると、現在のローカル状態でFirestoreのスナップショットが上書きされ、ダウンロードに失敗した写真への参照が失われる(Storage実体は孤児として残る)。
-
-**ダウングレード直後の参照喪失**: スタンダードからライトへダウングレードすると、次回の自動バックアップでFirestore上のkitPhotos参照が即座に空になる(Storage実体は猶予期間の間は残る)。猶予期間内にスタンダードへ再加入すれば、端末側のsynced_atが保持されているため自動的に復元される。
-
-いずれもデータの物理的な破損は起きないが、将来Cloud Functionsによる定期整理を実装する際は、Storage側の孤児オブジェクトとFirestore参照の不整合をあわせて棚卸しすること。
+将来Cloud Functionsによる定期整理を実装する際は、Storage側の孤児オブジェクトと
+Firestore参照の不整合をあわせて棚卸しすること。

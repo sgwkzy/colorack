@@ -4,6 +4,8 @@ import { catalogCode, getDB, getSetting, KitStatus, PaintStatus, setSetting } fr
 import { deleteKitPhoto } from './kitPhoto';
 import { BackupKitPhoto, downloadKitPhotosForRestore, uploadPendingKitPhotos } from './kitPhotoBackup';
 import { getEntitlements } from './subscription';
+import { withFreshFirebaseTokenRetry } from './auth';
+import { runAccountOperation } from './accountOperation';
 
 const isExpoGo = Constants.appOwnership === 'expo';
 
@@ -23,6 +25,13 @@ const firestore: typeof import('@react-native-firebase/firestore').default | nul
 // optional に扱い、無い部分が空のまま復元されても壊れないようにする。
 const BACKUP_SCHEMA_VERSION = 3;
 const LAST_BACKUP_AT_KEY = 'last_backup_at';
+const BACKUP_READY_UID_KEY = 'cloud_backup_ready_uid';
+
+function assertCurrentUser(expectedUid: string): void {
+  if (auth?.().currentUser?.uid !== expectedUid) {
+    throw new Error('Firebase user changed during cloud backup operation.');
+  }
+}
 
 interface BoxRow {
   id: number;
@@ -245,8 +254,8 @@ function kitColorLocalRef(id: number): string {
   return `kitcolor_${id}`;
 }
 
-async function resolvePaintId(catalog_code: string): Promise<number | null> {
-  const row = await getDB().getFirstAsync<{ id: number }>(
+async function resolvePaintId(catalog_code: string, database = getDB()): Promise<number | null> {
+  const row = await database.getFirstAsync<{ id: number }>(
     'SELECT id FROM catalog_paints WHERE catalog_code = ?',
     [catalog_code]
   );
@@ -400,15 +409,6 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
 // 同時に走ると、後から完了した方が新しい内容を古い内容で上書きしかねない。
 // 実行中は同じ Promise を返して重複起動を防ぐ。
 let pushInFlight: Promise<void> | null = null;
-// pushと破壊的なrestoreを直列化し、復元途中のDBをバックアップしない。
-let operationTail: Promise<void> = Promise.resolve();
-
-function runCloudBackupOperation<T>(operation: () => Promise<T>): Promise<T> {
-  const result = operationTail.then(operation, operation);
-  operationTail = result.then(() => undefined, () => undefined);
-  return result;
-}
-
 export async function pushBackupToFirestore(): Promise<void> {
   if (!auth || !firestore) return;
   if (!getEntitlements().hasBackup) return;
@@ -416,20 +416,28 @@ export async function pushBackupToFirestore(): Promise<void> {
 
   const user = auth().currentUser;
   if (!user) return;
+  // 初回サインイン時の復元判定が終わる前にローカル状態をpushすると、別端末の
+  // バックアップを上書きし得る。復元または「端末データを保持」が確定するまで禁止。
+  if (await getSetting(BACKUP_READY_UID_KEY) !== user.uid) return;
 
-  pushInFlight = runCloudBackupOperation(async () => {
+  pushInFlight = runAccountOperation(async () => {
+    assertCurrentUser(user.uid);
     if (getEntitlements().hasPhotoBackup) {
-      await uploadPendingKitPhotos().catch((e) => console.error('pushBackupToFirestore: failed to upload kit photos', e));
+      await uploadPendingKitPhotos(user.uid);
+      assertCurrentUser(user.uid);
     }
     const snapshot = await buildBackupSnapshot();
     const now = new Date().toISOString();
     // merge: true を指定して、既存フィールド(特にプラン降格時の kitPhotos 参照)を保護する。
     // buildBackupSnapshot() が hasPhotoBackup=false 時に kitPhotos を含めないため、
     // set({...snapshot}, {merge: true}) により、Firestore上の既存 kitPhotos は上書きされない。
-    await firestore!().collection('backups').doc(user.uid).set({
-      ...snapshot,
-      updatedAt: firestore!.FieldValue.serverTimestamp(),
-    }, { merge: true });
+    await withFreshFirebaseTokenRetry(() =>
+      firestore!().collection('backups').doc(user.uid).set({
+        ...snapshot,
+        updatedAt: firestore!.FieldValue.serverTimestamp(),
+      }, { merge: true })
+    );
+    assertCurrentUser(user.uid);
     await setSetting(LAST_BACKUP_AT_KEY, now);
   });
 
@@ -440,21 +448,25 @@ export async function pushBackupToFirestore(): Promise<void> {
   }
 }
 
-export async function fetchBackupSnapshot(): Promise<BackupSnapshot | null> {
+export async function fetchBackupSnapshot(expectedUid: string): Promise<BackupSnapshot | null> {
   if (!auth || !firestore) return null;
   const user = auth().currentUser;
   if (!user) return null;
+  assertCurrentUser(expectedUid);
 
-  const doc = await firestore().collection('backups').doc(user.uid).get();
+  const doc = await withFreshFirebaseTokenRetry(() =>
+    firestore().collection('backups').doc(expectedUid).get()
+  );
   if (!doc.exists()) return null;
   return doc.data() as BackupSnapshot;
 }
 
-export async function restoreFromSnapshot(snapshot: BackupSnapshot): Promise<void> {
-  return runCloudBackupOperation(() => restoreFromSnapshotUnlocked(snapshot));
+export async function restoreFromSnapshot(snapshot: BackupSnapshot, expectedUid: string): Promise<void> {
+  return runAccountOperation(() => restoreFromSnapshotUnlocked(snapshot, expectedUid));
 }
 
-async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<void> {
+async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid: string): Promise<void> {
+  assertCurrentUser(expectedUid);
   if (!getEntitlements().hasBackup) return;
   if (!Number.isInteger(snapshot.schemaVersion)
     || snapshot.schemaVersion < 1
@@ -483,14 +495,16 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<vo
   }
 
   try {
-    await db.withTransactionAsync(async () => {
-      await db.runAsync('DELETE FROM inventory');
-      await db.runAsync('DELETE FROM lists');
-      await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
-      await db.runAsync("UPDATE catalog_paints SET notes = NULL WHERE source = 'catalog'");
+    assertCurrentUser(expectedUid);
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      assertCurrentUser(expectedUid);
+      await tx.runAsync('DELETE FROM inventory');
+      await tx.runAsync('DELETE FROM lists');
+      await tx.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
+      await tx.runAsync("UPDATE catalog_paints SET notes = NULL WHERE source = 'catalog'");
 
     for (const p of snapshot.manualPaints ?? []) {
-      await db.runAsync(
+      await tx.runAsync(
         'INSERT INTO catalog_paints' +
         ' (catalog_code, brand, series, series_en, code, name_ja, name_en, hex, r, g, b, l, a_star, b_star, barcode, gloss, paint_type, source, notes)' +
         ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)' +
@@ -507,18 +521,18 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<vo
     }
 
     for (const note of snapshot.officialPaintNotes ?? []) {
-      const paintId = await resolvePaintId(note.catalog_code);
+      const paintId = await resolvePaintId(note.catalog_code, tx);
       if (!paintId) {
         console.warn('restoreFromSnapshot: skipping official note for missing catalog_code', note.catalog_code);
         continue;
       }
-      await db.runAsync('UPDATE catalog_paints SET notes = ? WHERE id = ?', [note.notes, paintId]);
+      await tx.runAsync('UPDATE catalog_paints SET notes = ? WHERE id = ?', [note.notes, paintId]);
     }
 
-    await db.runAsync('DELETE FROM boxes WHERE id NOT IN (SELECT DISTINCT box_id FROM inventory WHERE box_id IS NOT NULL)');
+    await tx.runAsync('DELETE FROM boxes WHERE id NOT IN (SELECT DISTINCT box_id FROM inventory WHERE box_id IS NOT NULL)');
     const boxIdByLocalRef = new Map<string, number>();
     for (const box of snapshot.boxes ?? []) {
-      const result = await db.runAsync(
+      const result = await tx.runAsync(
         'INSERT INTO boxes (name, location, note) VALUES (?, ?, ?)',
         [box.name, box.location, box.note]
       );
@@ -526,37 +540,37 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<vo
     }
 
     for (const item of snapshot.inventory ?? []) {
-      const paintId = await resolvePaintId(item.catalog_code);
+      const paintId = await resolvePaintId(item.catalog_code, tx);
       if (!paintId) {
         console.warn('restoreFromSnapshot: skipping inventory for missing catalog_code', item.catalog_code);
         continue;
       }
       const boxId = item.boxLocalRef ? boxIdByLocalRef.get(item.boxLocalRef) ?? null : null;
-      await db.runAsync(
+      await tx.runAsync(
         'INSERT INTO inventory (paint_id, box_id, status, note, added_at, status_changed_at) VALUES (?, ?, ?, ?, ?, ?)',
         [paintId, boxId, item.status, item.note, item.added_at, item.status_changed_at]
       );
     }
 
     for (const item of snapshot.favorites ?? []) {
-      const paintId = await resolvePaintId(item.catalog_code);
+      const paintId = await resolvePaintId(item.catalog_code, tx);
       if (!paintId) {
         console.warn('restoreFromSnapshot: skipping favorite for missing catalog_code', item.catalog_code);
         continue;
       }
-      await db.runAsync(
+      await tx.runAsync(
         "INSERT INTO lists (name, type, paint_id, note, added_at) VALUES (NULL, 'favorites', ?, ?, ?)",
         [paintId, item.note, item.added_at]
       );
     }
 
     for (const item of snapshot.wishlist ?? []) {
-      const paintId = await resolvePaintId(item.catalog_code);
+      const paintId = await resolvePaintId(item.catalog_code, tx);
       if (!paintId) {
         console.warn('restoreFromSnapshot: skipping wishlist for missing catalog_code', item.catalog_code);
         continue;
       }
-      await db.runAsync(
+      await tx.runAsync(
         "INSERT INTO lists (name, type, paint_id, note, added_at) VALUES (NULL, 'wishlist', ?, ?, ?)",
         [paintId, item.note, item.added_at]
       );
@@ -564,7 +578,7 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<vo
 
     const defaultBoxId = snapshot.defaultBoxLocalRef ? boxIdByLocalRef.get(snapshot.defaultBoxLocalRef) ?? null : null;
     if (defaultBoxId) {
-      await db.runAsync(
+      await tx.runAsync(
         'INSERT INTO app_settings (key, value) VALUES (?, ?)' +
         ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
         ['default_box_id', String(defaultBoxId)]
@@ -574,16 +588,16 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<vo
     // キット関連は塗料ボックスと独立した体系のため、常に全消去して再構築する。
     // 写真は事前ダウンロードが全件成功した場合だけDB行を入れ替え、
     // 古い実ファイルはトランザクション成功後に削除する。
-    orphanedKitPhotoUris = (await db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos')).map((r) => r.uri);
-    await db.runAsync('DELETE FROM kit_color_paints');
-    await db.runAsync('DELETE FROM kit_colors');
-    await db.runAsync('DELETE FROM kit_photos');
-    await db.runAsync('DELETE FROM kits');
-    await db.runAsync('DELETE FROM kit_boxes');
+    orphanedKitPhotoUris = (await tx.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos')).map((r) => r.uri);
+    await tx.runAsync('DELETE FROM kit_color_paints');
+    await tx.runAsync('DELETE FROM kit_colors');
+    await tx.runAsync('DELETE FROM kit_photos');
+    await tx.runAsync('DELETE FROM kits');
+    await tx.runAsync('DELETE FROM kit_boxes');
 
     const kitBoxIdByLocalRef = new Map<string, number>();
     for (const box of snapshot.kitBoxes ?? []) {
-      const result = await db.runAsync(
+      const result = await tx.runAsync(
         'INSERT INTO kit_boxes (name, icon, icon_color, sort_order) VALUES (?, ?, ?, ?)',
         [box.name, box.icon, box.icon_color, box.sort_order]
       );
@@ -592,7 +606,7 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<vo
 
     for (const kit of snapshot.kits ?? []) {
       const kitBoxId = kit.kitBoxLocalRef ? kitBoxIdByLocalRef.get(kit.kitBoxLocalRef) ?? null : null;
-      const result = await db.runAsync(
+      const result = await tx.runAsync(
         'INSERT INTO kits (box_id, name, maker, series, category, scale, note, price, status, added_at, status_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [kitBoxId, kit.name, kit.maker, kit.series, kit.category, kit.scale, kit.note, kit.price, kit.status, kit.added_at, kit.status_changed_at]
       );
@@ -606,7 +620,7 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<vo
         console.warn('restoreFromSnapshot: skipping kit color for missing kit', color.kitLocalRef);
         continue;
       }
-      const result = await db.runAsync(
+      const result = await tx.runAsync(
         'INSERT INTO kit_colors (kit_id, name, note, sort_order, added_at) VALUES (?, ?, ?, ?, ?)',
         [kitId, color.name, color.note, color.sort_order, color.added_at]
       );
@@ -615,19 +629,19 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<vo
 
     for (const cp of snapshot.kitColorPaints ?? []) {
       const kitColorId = kitColorIdByLocalRef.get(cp.kitColorLocalRef);
-      const paintId = await resolvePaintId(cp.catalog_code);
+      const paintId = await resolvePaintId(cp.catalog_code, tx);
       if (!kitColorId || !paintId) {
         console.warn('restoreFromSnapshot: skipping kit color paint for missing kit color or catalog_code', cp.kitColorLocalRef, cp.catalog_code);
         continue;
       }
-      await db.runAsync(
+      await tx.runAsync(
         'INSERT INTO kit_color_paints (kit_color_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
         [kitColorId, paintId, cp.ratio, cp.sort_order]
       );
     }
 
       for (const photo of photosToRestore) {
-        await db.runAsync(
+        await tx.runAsync(
           "INSERT INTO kit_photos (kit_id, uri, sort_order, synced_at, storage_path) VALUES (?, ?, ?, datetime('now'), ?)",
           [kitIdByLocalRef.get(photo.kitLocalRef)!, localUriByStoragePath.get(photo.storagePath)!, photo.sort_order, photo.storagePath]
         );
@@ -635,12 +649,13 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<vo
 
       const defaultKitBoxId = snapshot.defaultKitBoxLocalRef ? kitBoxIdByLocalRef.get(snapshot.defaultKitBoxLocalRef) ?? null : null;
       if (defaultKitBoxId) {
-        await db.runAsync(
+        await tx.runAsync(
           'INSERT INTO app_settings (key, value) VALUES (?, ?)' +
           ' ON CONFLICT(key) DO UPDATE SET value = excluded.value',
           ['default_kit_box_id', String(defaultKitBoxId)]
         );
       }
+      assertCurrentUser(expectedUid);
     });
   } catch (e) {
     for (const uri of localUriByStoragePath.values()) {
@@ -686,13 +701,32 @@ export function initAutoBackup(): void {
 }
 
 export async function runRestoreDecision(): Promise<'restored' | 'conflict' | 'none'> {
-  if (!getEntitlements().hasBackup) return 'none';
-  const snapshot = await fetchBackupSnapshot();
-  if (!snapshot) return 'none';
-  if (await isLocalDbEmpty()) {
-    await restoreFromSnapshot(snapshot);
-    return 'restored';
-  }
-  return 'conflict';
+  const expectedUid = auth?.().currentUser?.uid;
+  if (!expectedUid) return 'none';
+  return runAccountOperation(async () => {
+    assertCurrentUser(expectedUid);
+    if (!getEntitlements().hasBackup || await isCloudBackupReady(expectedUid)) return 'none';
+    const snapshot = await fetchBackupSnapshot(expectedUid);
+    if (!snapshot) {
+      await markCloudBackupReady(expectedUid);
+      return 'none';
+    }
+    if (await isLocalDbEmpty()) {
+      await restoreFromSnapshotUnlocked(snapshot, expectedUid);
+      await markCloudBackupReady(expectedUid);
+      return 'restored';
+    }
+    return 'conflict';
+  });
+}
+
+export async function markCloudBackupReady(expectedUid: string): Promise<void> {
+  assertCurrentUser(expectedUid);
+  await setSetting(BACKUP_READY_UID_KEY, expectedUid);
+}
+
+export async function isCloudBackupReady(expectedUid: string): Promise<boolean> {
+  assertCurrentUser(expectedUid);
+  return await getSetting(BACKUP_READY_UID_KEY) === expectedUid;
 }
 

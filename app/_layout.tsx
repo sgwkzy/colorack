@@ -1,6 +1,6 @@
 // app/_layout.tsx
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator, Platform, Text, UIManager } from 'react-native';
+import { View, ActivityIndicator, Alert, Platform, Text, UIManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
@@ -11,9 +11,9 @@ import { initAppMode } from '../lib/appMode';
 import { initDB } from '../lib/db';
 import { checkForCatalogUpdate, downloadAndApplyCatalogUpdate } from '../lib/catalogUpdate';
 import { initTheme, useTheme } from '../lib/theme';
-import { initLocale } from '../lib/i18n';
-import { initAuth } from '../lib/auth';
-import { initAutoBackup } from '../lib/cloudBackup';
+import { initLocale, t } from '../lib/i18n';
+import { getCurrentAuthUser, initAuth } from '../lib/auth';
+import { fetchBackupSnapshot, initAutoBackup, markCloudBackupReady, pushBackupToFirestore, restoreFromSnapshot, runRestoreDecision } from '../lib/cloudBackup';
 import { initAnalytics } from '../lib/analytics';
 import { initLastScreen } from '../lib/lastScreen';
 import { initUiPrefs } from '../lib/uiPrefs';
@@ -30,6 +30,8 @@ export default function RootLayout() {
   // initDB()/initTheme()/initLocale() 完了まで画面を出さない(getDB()が未初期化で落ちるのを防ぐ)
   const [ready, setReady] = useState(false);
   const [initFailed, setInitFailed] = useState(false);
+  const [startupConflictUid, setStartupConflictUid] = useState<string | null>(null);
+  const [resolvingConflict, setResolvingConflict] = useState(false);
   const { colors, isDark } = useTheme();
 
   useEffect(() => {
@@ -53,6 +55,13 @@ export default function RootLayout() {
           initAuth().catch((e) => console.error('initAuth: failed, continuing without auth', e)),
           initAnalytics().catch((e) => console.error('initAnalytics: failed, continuing without analytics', e)),
         ]);
+        const restoreDecision = await runRestoreDecision().catch((e) => {
+          console.error('RootLayout: failed initial restore decision', e);
+          return 'none' as const;
+        });
+        if (restoreDecision === 'conflict') {
+          setStartupConflictUid(getCurrentAuthUser()?.uid ?? null);
+        }
         initAutoBackup();
         void checkForCatalogUpdate(true).then(({ available, manifest }) => {
           if (available && manifest) return downloadAndApplyCatalogUpdate(manifest);
@@ -66,6 +75,40 @@ export default function RootLayout() {
     };
     void initialize();
   }, []);
+
+  useEffect(() => {
+    if (!ready || !startupConflictUid || resolvingConflict) return;
+    const expectedUid = startupConflictUid;
+    const resolveConflict = async (useCloud: boolean) => {
+      setResolvingConflict(true);
+      try {
+        if (useCloud) {
+          const snapshot = await fetchBackupSnapshot(expectedUid);
+          if (!snapshot) throw new Error('Cloud backup disappeared during conflict resolution.');
+          await restoreFromSnapshot(snapshot, expectedUid);
+        }
+        await markCloudBackupReady(expectedUid);
+        if (!useCloud) await pushBackupToFirestore();
+        setStartupConflictUid(null);
+      } catch (e) {
+        console.error('RootLayout: failed to resolve backup conflict', e);
+        Alert.alert(t('error'), t('cloudBackupError'));
+      } finally {
+        setResolvingConflict(false);
+      }
+    };
+    Alert.alert(t('cloudRestoreConflictTitle'), t('cloudRestoreConflictMessage'), [
+      {
+        text: t('cloudRestoreFromCloud'),
+        style: 'destructive',
+        onPress: () => { void resolveConflict(true); },
+      },
+      {
+        text: t('cloudKeepDeviceData'),
+        onPress: () => { void resolveConflict(false); },
+      },
+    ], { cancelable: false });
+  }, [ready, resolvingConflict, startupConflictUid]);
 
   useEffect(() => {
     if (!ready) return;
@@ -96,7 +139,7 @@ export default function RootLayout() {
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }}>
           <Text style={{ color: colors.text }}>アプリの初期化に失敗しました。再起動してください。</Text>
         </View>
-      ) : ready ? (
+      ) : ready && !startupConflictUid && !resolvingConflict ? (
         <Stack screenOptions={{ animation: 'none' }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack>

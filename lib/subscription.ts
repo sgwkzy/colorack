@@ -30,8 +30,7 @@ const listeners = new Set<() => void>();
 let entitlements: Entitlements = NO_ENTITLEMENTS;
 let configured = false;
 let entitlementUpdateTail: Promise<void> = Promise.resolve();
-let linkedUserId: string | null = null;
-let linkInFlight: { uid: string; promise: Promise<void> } | null = null;
+let identityUpdateTail: Promise<void> = Promise.resolve();
 
 function toEntitlements(active: Record<string, unknown>): Entitlements {
   return {
@@ -86,30 +85,28 @@ export async function initSubscription(): Promise<void> {
 }
 
 // Googleサインインに合わせてRevenueCat側のユーザーIDを紐付ける。
-// uid=null(Googleサインアウト)時は何もしない。configure前(Expo Go含む)も何もしない。
+// uid=null時はストア購読と広告非表示を維持するためRevenueCat identityを変えない。
+// 購入・復元UI側でFirebaseサインインを必須化し、旧UIDのまま購入されるのを防ぐ。
 export async function linkSubscriptionUser(uid: string | null): Promise<void> {
   if (!Purchases || !configured) return;
-  // uid=null(Googleサインアウト)時は何もしない。購読はストアアカウント(Apple ID/
-  // Google Play)に紐づき、バックアップ専用のGoogleサインインとは独立のため、
-  // ここでPurchases.logOut()すると課金継続中のユーザーの広告非表示/バックアップ
-  // 権限まで一時的に失われてしまう(「購入を復元」を押すまで復帰しない)。
   if (!uid) return;
-  if (linkedUserId === uid) return;
-  if (linkInFlight?.uid === uid) return linkInFlight.promise;
 
-  const promise = (async () => {
+  const update = async () => {
+    const [currentId, anonymous] = await Promise.all([
+      Purchases.getAppUserID(),
+      Purchases.isAnonymous(),
+    ]);
+    if (!anonymous && currentId === uid) return;
     const { customerInfo } = await Purchases.logIn(uid);
     await applyEntitlements(customerInfo.entitlements.active);
-    linkedUserId = uid;
-  })();
-  linkInFlight = { uid, promise };
+  };
+  const result = identityUpdateTail.then(update, update);
+  identityUpdateTail = result.then(() => undefined, () => undefined);
   try {
-    await promise;
+    await result;
   } catch (e) {
     console.error('linkSubscriptionUser: failed', e);
     throw e;
-  } finally {
-    if (linkInFlight?.promise === promise) linkInFlight = null;
   }
 }
 
@@ -127,15 +124,28 @@ export function getEntitlements(): Entitlements {
   return entitlements;
 }
 
-export async function presentPaywall(): Promise<void> {
+async function assertSubscriptionUser(expectedUid: string): Promise<void> {
+  if (!Purchases || !configured) throw new Error('Subscriptions are not configured.');
+  const [currentId, anonymous] = await Promise.all([
+    Purchases.getAppUserID(),
+    Purchases.isAnonymous(),
+  ]);
+  if (anonymous || currentId !== expectedUid) throw new Error('RevenueCat user changed before subscription operation.');
+}
+
+export async function presentPaywall(expectedUid: string): Promise<void> {
   if (!RevenueCatUI || !configured) {
     throw new Error('Subscriptions are not available in Expo Go. Use a development build.');
   }
+  await assertSubscriptionUser(expectedUid);
   await RevenueCatUI.presentPaywall();
+  const info = await Purchases!.getCustomerInfo();
+  await applyEntitlements(info.entitlements.active);
 }
 
-export async function restorePurchases(): Promise<void> {
+export async function restorePurchases(expectedUid: string): Promise<void> {
   if (!Purchases || !configured) return;
+  await assertSubscriptionUser(expectedUid);
   const info = await Purchases.restorePurchases();
   await applyEntitlements(info.entitlements.active);
 }
