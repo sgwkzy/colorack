@@ -666,15 +666,22 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot): Promise<vo
 let autoBackupInitialized = false;
 let lastAppState: AppStateStatus = AppState.currentState;
 
+function retryAutoBackup(context: string): void {
+  pushBackupToFirestore().catch((e) => console.error(`${context}: failed to push backup`, e));
+}
+
 export function initAutoBackup(): void {
   if (autoBackupInitialized) return;
   autoBackupInitialized = true;
+  // ponytail: OSによるバックグラウンド停止は防げないため、起動・復帰時にも再試行する。
+  retryAutoBackup('initAutoBackup');
   AppState.addEventListener('change', (nextState) => {
-    const shouldBackup = lastAppState === 'active' && (nextState === 'background' || nextState === 'inactive');
+    const shouldBackup = (lastAppState === 'active' && (nextState === 'background' || nextState === 'inactive'))
+      || (lastAppState !== 'active' && nextState === 'active');
     lastAppState = nextState;
     if (!shouldBackup) return;
 
-    pushBackupToFirestore().catch((e) => console.error('initAutoBackup: failed to push backup', e));
+    retryAutoBackup('initAutoBackup');
   });
 }
 
