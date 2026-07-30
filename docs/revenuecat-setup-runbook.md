@@ -38,6 +38,7 @@ Secret Managerへ登録する。SDK用のPublic API Keyは使用しない。
 
 ```sh
 npx firebase-tools functions:secrets:set REVENUECAT_SECRET_API_KEY
+npx firebase-tools functions:artifacts:setpolicy --location asia-northeast1 --days 1
 npx firebase-tools deploy --only functions,firestore:rules,storage
 ```
 
