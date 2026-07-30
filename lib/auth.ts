@@ -23,6 +23,7 @@ export interface AuthUser {
   uid: string;
   displayName: string | null;
   email: string | null;
+  providerIds: string[];
 }
 
 const listeners = new Set<() => void>();
@@ -36,6 +37,7 @@ function toAuthUser(user: FirebaseAuthTypes.User | null): AuthUser | null {
     uid: user.uid,
     displayName: user.displayName,
     email: user.email,
+    providerIds: [...new Set(user.providerData.map(({ providerId }) => providerId))],
   };
 }
 
@@ -106,6 +108,53 @@ async function completeFirebaseSignIn(
   await waitForRevenueCatClaims(user);
 }
 
+async function linkFirebaseCredential(
+  credential: FirebaseAuthTypes.AuthCredential
+): Promise<void> {
+  if (!auth?.().currentUser) throw new Error('Firebase sign-in is required.');
+  const expectedUid = auth().currentUser!.uid;
+  const { user } = await auth().currentUser!.linkWithCredential(credential);
+  if (user.uid !== expectedUid) throw new Error('Firebase user changed during account linking.');
+  currentUser = toAuthUser(user);
+  notify();
+  await linkSubscriptionUser(expectedUid);
+  await waitForRevenueCatClaims(user);
+}
+
+async function getGoogleCredential(): Promise<FirebaseAuthTypes.AuthCredential> {
+  if (!auth || !GoogleSignin) {
+    throw new Error('Google sign-in is not available in Expo Go. Use a development build.');
+  }
+  configureGoogleSignin();
+  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  await GoogleSignin.signIn();
+  const { idToken } = await GoogleSignin.getTokens();
+  if (!idToken) throw new Error('Google sign-in did not return an idToken.');
+  return auth.GoogleAuthProvider.credential(idToken);
+}
+
+async function getAppleCredential(): Promise<FirebaseAuthTypes.AuthCredential> {
+  if (!auth || !await AppleAuthentication.isAvailableAsync()) {
+    throw new Error('Apple sign-in is not available.');
+  }
+  const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_';
+  const bytes = await Crypto.getRandomBytesAsync(32);
+  const rawNonce = Array.from(bytes, (byte) => charset[byte % charset.length]).join('');
+  const hashedNonce = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    rawNonce
+  );
+  const result = await AppleAuthentication.signInAsync({
+    nonce: hashedNonce,
+    requestedScopes: [
+      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+      AppleAuthentication.AppleAuthenticationScope.EMAIL,
+    ],
+  });
+  if (!result.identityToken) throw new Error('Apple sign-in did not return an identity token.');
+  return auth.AppleAuthProvider.credential(result.identityToken, rawNonce);
+}
+
 export async function initAuth(): Promise<void> {
   if (initialAuthResolved) return;
   if (initPromise) return initPromise;
@@ -143,42 +192,35 @@ export async function initAuth(): Promise<void> {
 
 export async function signInWithGoogle(): Promise<void> {
   return runAccountOperation(async () => {
-    if (!auth || !GoogleSignin) {
-      throw new Error('Google sign-in is not available in Expo Go. Use a development build.');
-    }
-    configureGoogleSignin();
-    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-    await GoogleSignin.signIn();
-    const { idToken } = await GoogleSignin.getTokens();
-    if (!idToken) throw new Error('Google sign-in did not return an idToken.');
-    const credential = auth.GoogleAuthProvider.credential(idToken);
-    await completeFirebaseSignIn(credential);
+    await completeFirebaseSignIn(await getGoogleCredential());
   });
 }
 
 export async function signInWithApple(): Promise<void> {
   return runAccountOperation(async () => {
-    if (!auth || !await AppleAuthentication.isAvailableAsync()) {
-      throw new Error('Apple sign-in is not available.');
-    }
-    const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_';
-    const bytes = await Crypto.getRandomBytesAsync(32);
-    const rawNonce = Array.from(bytes, (byte) => charset[byte % charset.length]).join('');
-    const hashedNonce = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      rawNonce
-    );
-    const result = await AppleAuthentication.signInAsync({
-      nonce: hashedNonce,
-      requestedScopes: [
-        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-        AppleAuthentication.AppleAuthenticationScope.EMAIL,
-      ],
-    });
-    if (!result.identityToken) throw new Error('Apple sign-in did not return an identity token.');
-    const credential = auth.AppleAuthProvider.credential(result.identityToken, rawNonce);
-    await completeFirebaseSignIn(credential);
+    await completeFirebaseSignIn(await getAppleCredential());
   });
+}
+
+export async function linkGoogleAccount(): Promise<void> {
+  return runAccountOperation(async () => {
+    await linkFirebaseCredential(await getGoogleCredential());
+  });
+}
+
+export async function linkAppleAccount(): Promise<void> {
+  return runAccountOperation(async () => {
+    await linkFirebaseCredential(await getAppleCredential());
+  });
+}
+
+export function isAccountLinkConflict(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || !('code' in error)) return false;
+  return [
+    'auth/account-exists-with-different-credential',
+    'auth/credential-already-in-use',
+    'auth/email-already-in-use',
+  ].includes(String(error.code));
 }
 
 export async function ensureSubscriptionIdentity(expectedUid?: string): Promise<AuthUser> {

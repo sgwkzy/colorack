@@ -12,7 +12,17 @@ import { deleteKitPhoto } from '../../lib/kitPhoto';
 import { t, setLocale, getLocale } from '../../lib/i18n';
 import { useTheme, setThemeMode, ThemeMode, radius, spacing, lightColors } from '../../lib/theme';
 import { useUiPrefs, setFabSide, setListFontSize } from '../../lib/uiPrefs';
-import { ensureSubscriptionIdentity, getCurrentAuthUser, signInWithApple, signInWithGoogle, signOutUser, useAuthUser } from '../../lib/auth';
+import {
+  ensureSubscriptionIdentity,
+  getCurrentAuthUser,
+  isAccountLinkConflict,
+  linkAppleAccount,
+  linkGoogleAccount,
+  signInWithApple,
+  signInWithGoogle,
+  signOutUser,
+  useAuthUser,
+} from '../../lib/auth';
 import { fetchBackupSnapshot, isCloudBackupReady, markCloudBackupReady, pushBackupToFirestore, restoreFromSnapshot, runRestoreDecision } from '../../lib/cloudBackup';
 import { presentPaywall, restorePurchases, useEntitlements } from '../../lib/subscription';
 
@@ -190,7 +200,25 @@ export default function SettingsScreen() {
     }
   };
 
-  const signInForPlatform = Platform.OS === 'ios' ? signInWithApple : signInWithGoogle;
+  const handleLinkAccount = async (provider: 'Apple' | 'Google') => {
+    if (busy) return;
+    setAccountBusy(true);
+    try {
+      await (provider === 'Apple' ? linkAppleAccount() : linkGoogleAccount());
+    } catch (e) {
+      console.error(`handleLink${provider}Account: failed`, e);
+      Alert.alert(
+        t('error'),
+        isAccountLinkConflict(e)
+          ? isJa
+            ? 'この認証は別のColorackアカウントで使用されています。バックアップの上書きを防ぐため、自動統合は行いません。'
+            : 'This sign-in is already used by another Colorack account. Automatic merging was stopped to protect both backups.'
+          : t('cloudBackupError')
+      );
+    } finally {
+      setAccountBusy(false);
+    }
+  };
 
   const handleBackupNow = async () => {
     if (busy) return;
@@ -231,7 +259,15 @@ export default function SettingsScreen() {
     if (busy) return;
     setPurchaseBusy(true);
     try {
-      if (!authUser) await signInForPlatform();
+      if (!authUser) {
+        Alert.alert(
+          t('account'),
+          isJa
+            ? '先にAppleまたはGoogleでログインしてください。'
+            : 'Sign in with Apple or Google first.'
+        );
+        return;
+      }
       const { uid } = await ensureSubscriptionIdentity();
       await presentPaywall(uid);
       const result = await runRestoreDecision();
@@ -250,7 +286,15 @@ export default function SettingsScreen() {
     if (busy) return;
     setPurchaseBusy(true);
     try {
-      if (!authUser) await signInForPlatform();
+      if (!authUser) {
+        Alert.alert(
+          t('account'),
+          isJa
+            ? '先にAppleまたはGoogleでログインしてください。'
+            : 'Sign in with Apple or Google first.'
+        );
+        return;
+      }
       const { uid } = await ensureSubscriptionIdentity();
       await restorePurchases(uid);
       const result = await runRestoreDecision();
@@ -322,6 +366,42 @@ export default function SettingsScreen() {
             ) : null}
           </>
         )}
+        {authUser ? (
+          <View style={styles.accountLinkBox}>
+            <Text style={styles.accountText}>
+              {isJa ? '機種変更用のログイン連携' : 'Sign-in methods for device transfer'}
+            </Text>
+            <Text style={styles.accountSubText}>
+              Apple: {authUser.providerIds.includes('apple.com') ? '✓' : '—'}
+            </Text>
+            {!authUser.providerIds.includes('apple.com') && Platform.OS === 'ios' ? (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                buttonStyle={isDark
+                  ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                  : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={radius.sm}
+                style={styles.appleSignInBtn}
+                onPress={() => handleLinkAccount('Apple')}
+              />
+            ) : null}
+            <Text style={styles.accountSubText}>
+              Google: {authUser.providerIds.includes('google.com') ? '✓' : '—'}
+            </Text>
+            {!authUser.providerIds.includes('google.com') ? (
+              <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={() => handleLinkAccount('Google')} disabled={busy}>
+                <Text style={styles.accountBtnText}>
+                  {isJa ? 'Googleアカウントを連携' : 'Link Google account'}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+            <Text style={styles.accountSubText}>
+              {isJa
+                ? 'AppleとGoogleの両方を連携すると、iOSとAndroidのどちらでも同じバックアップを利用できます。'
+                : 'Link both Apple and Google to use the same backup on iOS and Android.'}
+            </Text>
+          </View>
+        ) : null}
         <TouchableOpacity style={[styles.resetBtn, busy && styles.accountBtnDisabled]} onPress={handleRestorePurchases} disabled={busy}>
           <Text style={styles.resetBtnText}>{t('restorePurchases')}</Text>
         </TouchableOpacity>
@@ -422,6 +502,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   resetBtnText: { color: colors.dangerText, fontWeight: 'bold', textAlign: 'center' },
   accountText: { fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: spacing.xs },
   accountSubText: { fontSize: 14, color: colors.textSecondary, marginBottom: spacing.md },
+  accountLinkBox: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: spacing.lg },
   accountBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
   appleSignInBtn: { width: '100%', height: 44, marginBottom: spacing.md },
   accountBtnDisabled: { backgroundColor: colors.primaryDisabled },
