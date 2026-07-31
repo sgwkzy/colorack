@@ -3,6 +3,7 @@ import { useRef, useState, useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { getDB, getListMembership, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
@@ -83,6 +84,11 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      {/* AndroidではRNのModalが別ウィンドウになるため、app/_layout.tsx の
+          GestureHandlerRootView がここまで届かない。これが無いと
+          SwipeDownHeader の PanGestureHandler がタッチを受け取れず、
+          ヘッダーの下スワイプで閉じられなくなる(iOSでは不要)。 */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <SwipeDownHeader onClose={onClose}>
@@ -130,6 +136,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
           />
         </SafeAreaView>
       </SafeAreaProvider>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { addKitPhoto, getDB } from '../lib/db';
 import { t } from '../lib/i18n';
 import { deleteKitPhoto } from '../lib/kitPhoto';
@@ -73,6 +74,11 @@ export default function AddKitModal({ visible, defaultBoxId, addToWishlist = fal
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={cancelAndClose}>
+      {/* AndroidではRNのModalが別ウィンドウになるため、app/_layout.tsx の
+          GestureHandlerRootView がここまで届かない。これが無いと
+          SwipeDownHeader の PanGestureHandler がタッチを受け取れず、
+          ヘッダーの下スワイプで閉じられなくなる(iOSでは不要)。 */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <SwipeDownHeader onClose={cancelAndClose} enabled={!viewerOpen}>
@@ -142,6 +148,7 @@ export default function AddKitModal({ visible, defaultBoxId, addToWishlist = fal
           </KeyboardAvoidingView>
         </SafeAreaView>
       </SafeAreaProvider>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

@@ -6,6 +6,7 @@ import {
 import { IconChevronDown, IconChevronUp, IconSquare, IconSquareCheck } from '@tabler/icons-react-native';
 import ClearableInput from './ClearableInput';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { t } from '../lib/i18n';
 import { useTheme, lightColors, radius, spacing, touch } from '../lib/theme';
 import { useUiPrefs, type ListFontSize } from '../lib/uiPrefs';
@@ -92,6 +93,11 @@ export default function KitFilterModal({ visible, options, initial, onApply, onC
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      {/* AndroidではRNのModalが別ウィンドウになるため、app/_layout.tsx の
+          GestureHandlerRootView がここまで届かない。これが無いと
+          SwipeDownHeader の PanGestureHandler がタッチを受け取れず、
+          ヘッダーの下スワイプで閉じられなくなる(iOSでは不要)。 */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <SwipeDownHeader onClose={onClose}>
@@ -203,6 +209,7 @@ export default function KitFilterModal({ visible, options, initial, onApply, onC
         </TouchableOpacity>
       </SafeAreaView>
       </SafeAreaProvider>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
