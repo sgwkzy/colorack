@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { IconChevronDown, IconChevronLeft, IconChevronUp, IconTrash, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { addKitColor } from '../lib/db';
 import { mixHexColors } from '../lib/colorMix';
 import { t } from '../lib/i18n';
@@ -113,6 +114,11 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      {/* AndroidではRNのModalが別ウィンドウになるため、app/_layout.tsx の
+          GestureHandlerRootView がここまで届かない。これが無いと
+          SwipeDownHeader の PanGestureHandler がタッチを受け取れず、
+          ヘッダーの下スワイプで閉じられなくなる(iOSでは不要)。 */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <SwipeDownHeader onClose={onClose}>
@@ -231,6 +237,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
           )}
         </SafeAreaView>
       </SafeAreaProvider>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
