@@ -54,7 +54,7 @@ python scripts/publish_catalog_release.py --version 20 --notes "変更内容の�
    }
    ```
 
-5. `catalog-releases/latest.json` の変更を `master` ブランチにコミット・プッシュする。これにより `https://raw.githubusercontent.com/sgwkzy/colorack/master/catalog-releases/latest.json` が更新され、アプリからの参照が新しいバージョンを指すようになる。
+5. `catalog-releases/latest.json` の変更を `main` ブランチにコミット・プッシュする。これにより `https://raw.githubusercontent.com/sgwkzy/colorack/main/catalog-releases/latest.json` が更新され、アプリからの参照が新しいバージョンを指すようになる。
 
    **注意**: `raw.githubusercontent.com` はCDNで数分程度キャッシュされることがある。反映確認を急ぐ場合は `?t=<timestamp>` のようなクエリを付けてキャッシュを回避する。
 
