@@ -4,7 +4,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as SQLite from 'expo-sqlite';
 import { applyCatalogUpdate, getCatalogAppliedVersion, getSetting, setSetting, SeedRow } from './db';
 
-const MANIFEST_URL = 'https://raw.githubusercontent.com/sgwkzy/colorack/master/catalog-releases/latest.json';
+const MANIFEST_URL = 'https://raw.githubusercontent.com/sgwkzy/colorack/main/catalog-releases/latest.json';
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 8000;
 const MIN_EXPECTED_ROWS = 100;
