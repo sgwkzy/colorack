@@ -75,6 +75,14 @@ module.exports = ({ config }) => ({
     ],
     'expo-apple-authentication',
     [
+      'expo-build-properties',
+      {
+        ios: {
+          useFrameworks: 'static',
+        },
+      },
+    ],
+    [
       'expo-media-library',
       {
         savePhotosPermission: 'キット写真を写真ライブラリに保存するために使用します',
