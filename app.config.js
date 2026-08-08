@@ -1,4 +1,4 @@
-const isProductionBuild = process.env.EAS_BUILD_PROFILE === 'production';
+const isProductionBuild = process.env.EAS_BUILD_PROFILE === 'production' && process.env.EAS_BUILD === 'true';
 function env(name, fallback) {
   const value = process.env[name];
   if (value) return value;
@@ -34,7 +34,7 @@ module.exports = ({ config }) => ({
     ...config.ios,
     supportsTablet: false,
     bundleIdentifier: env('EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER', 'com.example.colorack'),
-    googleServicesFile: process.env.GOOGLE_SERVICE_INFO_PLIST ?? config.ios?.googleServicesFile,
+    googleServicesFile: process.env.GOOGLE_SERVICE_INFO_PLIST,
     infoPlist: {
       NSCameraUsageDescription: '塗料の色を読み取るためにカメラを使用します',
       ITSAppUsesNonExemptEncryption: false,
@@ -43,7 +43,7 @@ module.exports = ({ config }) => ({
   android: {
     ...config.android,
     package: env('EXPO_PUBLIC_ANDROID_PACKAGE', 'com.example.colorack'),
-    googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? config.android?.googleServicesFile,
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/android-icon-foreground.png',

@@ -9,11 +9,9 @@
     "ios": {
       "supportsTablet": false,
       "buildNumber": "16",
-      "usesAppleSignIn": true,
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "usesAppleSignIn": true
     },
     "android": {
-      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
