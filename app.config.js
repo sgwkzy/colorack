@@ -79,6 +79,13 @@ module.exports = ({ config }) => ({
       {
         ios: {
           useFrameworks: 'static',
+          forceStaticLinking: [
+            'RNFBApp',
+            'RNFBAnalytics',
+            'RNFBAuth',
+            'RNFBFirestore',
+            'RNFBStorage',
+          ],
         },
       },
     ],
