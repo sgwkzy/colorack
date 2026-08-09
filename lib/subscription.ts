@@ -152,19 +152,19 @@ async function assertSubscriptionUser(expectedUid: string): Promise<void> {
   if (anonymous || currentId !== expectedUid) throw new Error('RevenueCat user changed before subscription operation.');
 }
 
-export async function presentPaywall(expectedUid: string): Promise<void> {
+export async function presentPaywall(expectedUid?: string): Promise<void> {
   if (!RevenueCatUI || !configured) {
     throw new Error('Subscriptions are not available in Expo Go. Use a development build.');
   }
-  await assertSubscriptionUser(expectedUid);
+  if (expectedUid) await assertSubscriptionUser(expectedUid);
   await RevenueCatUI.presentPaywall();
   const info = await Purchases!.getCustomerInfo();
   await applyEntitlements(info.entitlements.active);
 }
 
-export async function restorePurchases(expectedUid: string): Promise<void> {
+export async function restorePurchases(expectedUid?: string): Promise<void> {
   if (!Purchases || !configured) return;
-  await assertSubscriptionUser(expectedUid);
+  if (expectedUid) await assertSubscriptionUser(expectedUid);
   const info = await Purchases.restorePurchases();
   await applyEntitlements(info.entitlements.active);
 }
