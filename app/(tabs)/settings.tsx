@@ -261,21 +261,14 @@ export default function SettingsScreen() {
     if (busy) return;
     setPurchaseBusy(true);
     try {
-      if (!authUser) {
-        Alert.alert(
-          t('account'),
-          isJa
-            ? '先にAppleまたはGoogleでログインしてください。'
-            : 'Sign in with Apple or Google first.'
-        );
-        return;
+      const expectedUid = getCurrentAuthUser()?.uid;
+      await presentPaywall(expectedUid);
+      if (expectedUid) {
+        const result = await runRestoreDecision();
+        if (result === 'conflict') showConflictAlert(expectedUid);
+        refreshAfterRestore();
+        await loadLastBackupAt();
       }
-      const { uid } = await ensureSubscriptionIdentity();
-      await presentPaywall(uid);
-      const result = await runRestoreDecision();
-      if (result === 'conflict') showConflictAlert(uid);
-      refreshAfterRestore();
-      await loadLastBackupAt();
     } catch (e) {
       console.error('handleViewPlans: failed', e);
       Alert.alert(t('error'), t('purchaseError'));
@@ -288,21 +281,14 @@ export default function SettingsScreen() {
     if (busy) return;
     setPurchaseBusy(true);
     try {
-      if (!authUser) {
-        Alert.alert(
-          t('account'),
-          isJa
-            ? '先にAppleまたはGoogleでログインしてください。'
-            : 'Sign in with Apple or Google first.'
-        );
-        return;
+      const expectedUid = getCurrentAuthUser()?.uid;
+      await restorePurchases(expectedUid);
+      if (expectedUid) {
+        const result = await runRestoreDecision();
+        if (result === 'conflict') showConflictAlert(expectedUid);
+        refreshAfterRestore();
+        await loadLastBackupAt();
       }
-      const { uid } = await ensureSubscriptionIdentity();
-      await restorePurchases(uid);
-      const result = await runRestoreDecision();
-      if (result === 'conflict') showConflictAlert(uid);
-      refreshAfterRestore();
-      await loadLastBackupAt();
     } catch (e) {
       console.error('handleRestorePurchases: failed', e);
       Alert.alert(t('error'), t('purchaseError'));
@@ -421,7 +407,6 @@ export default function SettingsScreen() {
         ) : (
           <>
             <Text style={styles.accountSubText}>{t('backupRequiresSubscription')}</Text>
-            {signInButtons}
             <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={handleViewPlans} disabled={busy}>
               <Text style={styles.accountBtnText}>{t('viewPlans')}</Text>
             </TouchableOpacity>
