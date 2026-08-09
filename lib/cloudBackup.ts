@@ -729,4 +729,3 @@ export async function isCloudBackupReady(expectedUid: string): Promise<boolean> 
   assertCurrentUser(expectedUid);
   return await getSetting(BACKUP_READY_UID_KEY) === expectedUid;
 }
-

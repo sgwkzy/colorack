@@ -328,4 +328,3 @@ export function useAuthUser(): AuthUser | null {
   }, []);
   return currentUser;
 }
-

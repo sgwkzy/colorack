@@ -273,4 +273,3 @@ Use a fresh TestFlight install and a sandbox tester. Execute the acceptance sequ
 - [ ] **Step 4: Prepare the release handoff.**
 
 Report the branch, commits, test results, manual TestFlight results, and the required RevenueCat/App Store Connect configuration. Open a pull request to `main` for review; do not merge or push directly to `main` without explicit approval.
-

@@ -1,9 +1,28 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-test('Firebase file environment variables override gitignored local files', () => {
-  process.env.GOOGLE_SERVICES_JSON = '/eas/google-services.json';
-  process.env.GOOGLE_SERVICE_INFO_PLIST = '/eas/GoogleService-Info.plist';
+function setTestEnvironment(t, values) {
+  const previous = new Map(
+    Object.keys(values).map((key) => [key, process.env[key]])
+  );
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  t.after(() => {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    delete require.cache[require.resolve('./app.config.js')];
+  });
+}
+
+test('Firebase file environment variables override gitignored local files', (t) => {
+  setTestEnvironment(t, {
+    GOOGLE_SERVICES_JSON: '/eas/google-services.json',
+    GOOGLE_SERVICE_INFO_PLIST: '/eas/GoogleService-Info.plist',
+  });
   delete require.cache[require.resolve('./app.config.js')];
   const resolveConfig = require('./app.config.js');
   const config = resolveConfig({
@@ -20,8 +39,9 @@ test('Firebase file environment variables override gitignored local files', () =
   assert.ok(config.plugins.includes('expo-apple-authentication'));
 });
 
-test('production Android config rejects a missing Firebase file variable', () => {
-  Object.assign(process.env, {
+test('production Android config rejects a missing Firebase file variable', (t) => {
+  setTestEnvironment(t, {
+    EAS_BUILD: 'true',
     EAS_BUILD_PROFILE: 'production',
     EAS_BUILD_PLATFORM: 'android',
     EXPO_PUBLIC_ADMOB_APP_ID_IOS: 'ios-app',
@@ -32,12 +52,9 @@ test('production Android config rejects a missing Firebase file variable', () =>
     EXPO_PUBLIC_ANDROID_PACKAGE: 'com.example.android',
     EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID: 'web-client',
     EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID: 'revenuecat-key',
+    GOOGLE_SERVICES_JSON: undefined,
   });
-  delete process.env.GOOGLE_SERVICES_JSON;
   delete require.cache[require.resolve('./app.config.js')];
 
   assert.throws(() => require('./app.config.js'), /GOOGLE_SERVICES_JSON/);
-
-  delete process.env.EAS_BUILD_PROFILE;
-  delete process.env.EAS_BUILD_PLATFORM;
 });

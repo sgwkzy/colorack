@@ -86,7 +86,7 @@ export async function initSubscription(): Promise<void> {
 
 // Googleサインインに合わせてRevenueCat側のユーザーIDを紐付ける。
 // uid=null時はストア購読と広告非表示を維持するためRevenueCat identityを変えない。
-// 購入・復元UI側でFirebaseサインインを必須化し、旧UIDのまま購入されるのを防ぐ。
+// ログイン済みの購入・復元呼び出しではUID一致を検証し、匿名の購入・復元もサポートする。
 export async function linkSubscriptionUser(uid: string | null): Promise<void> {
   if (!Purchases || !configured) return;
   if (!uid) return;
@@ -97,6 +97,9 @@ export async function linkSubscriptionUser(uid: string | null): Promise<void> {
       Purchases.isAnonymous(),
     ]);
     if (!anonymous && currentId === uid) return;
+    if (!anonymous) {
+      await getDB().runAsync('UPDATE kit_photos SET synced_at = NULL, storage_path = NULL');
+    }
     const { customerInfo } = await Purchases.logIn(uid);
     await applyEntitlements(customerInfo.entitlements.active);
   };
