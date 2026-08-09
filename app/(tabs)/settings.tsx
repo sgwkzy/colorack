@@ -1,6 +1,6 @@
 // app/(tabs)/settings.tsx
 import { useCallback, useMemo, useState } from 'react';
-import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform, Linking } from 'react-native';
+import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform, Linking, ActivityIndicator } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useFocusEffect, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -183,6 +183,82 @@ export default function SettingsScreen() {
     ]);
   };
 
+  const showAccountConflictAlert = (expectedUid: string): Promise<void> => {
+    setAccountBusy(true);
+    return fetchBackupSnapshot(expectedUid)
+      .then((snapshot) => {
+        if (snapshot) {
+          Alert.alert(
+            isJa ? '別アカウントの端末データがあります' : 'This device has data from another account',
+            isJa
+              ? 'クラウドから復元すると端末データは置き換わります。端末データを現在のアカウントへ引き継ぐ場合は、現在のクラウドバックアップを上書きします。'
+              : 'Restoring from cloud replaces this device data. Keeping this device data adopts it into the current account and overwrites its cloud backup.',
+            [
+              {
+                text: t('cloudRestoreFromCloud'),
+                style: 'destructive',
+                onPress: () => {
+                  setAccountBusy(true);
+                  restoreCloudBackup(expectedUid)
+                    .catch((e) => {
+                      console.error('showAccountConflictAlert: restore failed', e);
+                      Alert.alert(t('error'), t('cloudBackupError'));
+                    })
+                    .finally(() => setAccountBusy(false));
+                },
+              },
+              {
+                text: isJa ? '端末データを引き継ぎ（クラウドを上書き）' : 'Adopt device data (overwrite cloud)',
+                onPress: () => {
+                  setAccountBusy(true);
+                  markCloudBackupReady(expectedUid)
+                    .then(() => pushBackupToFirestore())
+                    .then(loadLastBackupAt)
+                    .catch((e) => {
+                      console.error('showAccountConflictAlert: adopt failed', e);
+                      Alert.alert(t('error'), t('cloudBackupError'));
+                    })
+                    .finally(() => setAccountBusy(false));
+                },
+              },
+              { text: t('cancel'), style: 'cancel' },
+            ],
+            { cancelable: false }
+          );
+          return;
+        }
+        Alert.alert(
+          isJa ? '別アカウントの端末データがあります' : 'This device has data from another account',
+          isJa
+            ? 'この端末のデータを現在のアカウントへ引き継ぐ場合だけ、バックアップを開始します。'
+            : 'Backup starts only if you explicitly adopt this device data into the current account.',
+          [
+            { text: t('cancel'), style: 'cancel' },
+            {
+              text: isJa ? 'この端末のデータを引き継ぐ' : 'Use this device data',
+              onPress: () => {
+                setAccountBusy(true);
+                markCloudBackupReady(expectedUid)
+                  .then(() => pushBackupToFirestore())
+                  .then(loadLastBackupAt)
+                  .catch((e) => {
+                    console.error('showAccountConflictAlert: adopt without cloud failed', e);
+                    Alert.alert(t('error'), t('cloudBackupError'));
+                  })
+                  .finally(() => setAccountBusy(false));
+              },
+            },
+          ],
+          { cancelable: true }
+        );
+      })
+      .catch((e) => {
+        console.error('showAccountConflictAlert: failed to inspect cloud', e);
+        Alert.alert(t('error'), t('cloudBackupError'));
+      })
+      .finally(() => setAccountBusy(false));
+  };
+
   const handleSignIn = async (provider: 'Apple' | 'Google') => {
     if (busy) return;
     setAccountBusy(true);
@@ -191,6 +267,10 @@ export default function SettingsScreen() {
       const expectedUid = getCurrentAuthUser()?.uid;
       if (!expectedUid) throw new Error('Firebase sign-in did not establish a user.');
       const result = await runRestoreDecision();
+      if (result === 'account_conflict') {
+        await showAccountConflictAlert(expectedUid);
+        return;
+      }
       if (result === 'conflict') showConflictAlert(expectedUid);
       refreshAfterRestore();
       await loadLastBackupAt();
@@ -228,7 +308,11 @@ export default function SettingsScreen() {
     try {
       const { uid } = await ensureSubscriptionIdentity();
       if (!await isCloudBackupReady(uid)) {
-        const result = await runRestoreDecision();
+          const result = await runRestoreDecision();
+          if (result === 'account_conflict') {
+            await showAccountConflictAlert(uid);
+            return;
+        }
         if (result === 'conflict') {
           showConflictAlert(uid);
           return;
@@ -263,12 +347,6 @@ export default function SettingsScreen() {
     try {
       const expectedUid = getCurrentAuthUser()?.uid;
       await presentPaywall(expectedUid);
-      if (expectedUid) {
-        const result = await runRestoreDecision();
-        if (result === 'conflict') showConflictAlert(expectedUid);
-        refreshAfterRestore();
-        await loadLastBackupAt();
-      }
     } catch (e) {
       console.error('handleViewPlans: failed', e);
       Alert.alert(t('error'), t('purchaseError'));
@@ -285,6 +363,10 @@ export default function SettingsScreen() {
       await restorePurchases(expectedUid);
       if (expectedUid) {
         const result = await runRestoreDecision();
+        if (result === 'account_conflict') {
+          await showAccountConflictAlert(expectedUid);
+          return;
+        }
         if (result === 'conflict') showConflictAlert(expectedUid);
         refreshAfterRestore();
         await loadLastBackupAt();
@@ -395,19 +477,28 @@ export default function SettingsScreen() {
                 <Text style={styles.accountText}>{authUser.displayName ?? authUser.email ?? authUser.uid}</Text>
                 {authUser.email ? <Text style={styles.accountSubText}>{authUser.email}</Text> : null}
                 <Text style={styles.accountSubText}>{t('lastBackupAt')}: {lastBackupAt ?? t('lastBackupNever')}</Text>
-                <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={handleBackupNow} disabled={busy}>
+                <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={handleBackupNow} disabled={busy} accessibilityState={{ disabled: busy, busy }}>
                   <Text style={styles.accountBtnText}>{t('backupNow')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.resetBtn, busy && styles.accountBtnDisabled]} onPress={handleSignOut} disabled={busy}>
                   <Text style={styles.resetBtnText}>{t('signOut')}</Text>
                 </TouchableOpacity>
               </>
-            ) : signInButtons}
+            ) : (
+              <>
+                <Text style={styles.accountSubText}>
+                  {isJa
+                    ? 'クラウドバックアップを使うにはログインしてください。広告非表示とプランの利用はそのまま継続します。'
+                    : 'Sign in to use cloud backup. Your ad-free subscription and plan access stay active.'}
+                </Text>
+                {signInButtons}
+              </>
+            )}
           </>
         ) : (
           <>
             <Text style={styles.accountSubText}>{t('backupRequiresSubscription')}</Text>
-            <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={handleViewPlans} disabled={busy}>
+            <TouchableOpacity style={[styles.accountBtn, busy && styles.accountBtnDisabled]} onPress={handleViewPlans} disabled={busy} accessibilityState={{ disabled: busy, busy }}>
               <Text style={styles.accountBtnText}>{t('viewPlans')}</Text>
             </TouchableOpacity>
             {authUser ? (
@@ -453,9 +544,15 @@ export default function SettingsScreen() {
             </Text>
           </View>
         ) : null}
-        <TouchableOpacity style={[styles.resetBtn, busy && styles.accountBtnDisabled]} onPress={handleRestorePurchases} disabled={busy}>
+        <TouchableOpacity style={[styles.resetBtn, busy && styles.accountBtnDisabled]} onPress={handleRestorePurchases} disabled={busy} accessibilityState={{ disabled: busy, busy }}>
           <Text style={styles.resetBtnText}>{t('restorePurchases')}</Text>
         </TouchableOpacity>
+        {busy ? (
+          <View style={styles.busyRow} accessibilityLiveRegion="polite">
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={styles.accountSubText}>{isJa ? '処理中です…' : 'Processing…'}</Text>
+          </View>
+        ) : null}
         <TouchableOpacity style={styles.resetBtn} onPress={openSubscriptionManagement}>
           <Text style={styles.resetBtnText}>
             {isJa ? 'サブスクリプションを管理' : 'Manage subscription'}
@@ -570,4 +667,5 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   appleSignInBtn: { width: '100%', height: 44, marginBottom: spacing.md },
   accountBtnDisabled: { backgroundColor: colors.primaryDisabled },
   accountBtnText: { color: colors.onPrimary, fontWeight: 'bold', textAlign: 'center' },
+  busyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
 });

@@ -26,11 +26,17 @@ const firestore: typeof import('@react-native-firebase/firestore').default | nul
 const BACKUP_SCHEMA_VERSION = 3;
 const LAST_BACKUP_AT_KEY = 'last_backup_at';
 const BACKUP_READY_UID_KEY = 'cloud_backup_ready_uid';
+const LOCAL_DATA_OWNER_UID_KEY = 'cloud_backup_data_owner_uid';
 
 function assertCurrentUser(expectedUid: string): void {
   if (auth?.().currentUser?.uid !== expectedUid) {
     throw new Error('Firebase user changed during cloud backup operation.');
   }
+}
+
+async function getLocalDataOwnerUid(): Promise<string | null> {
+  return await getSetting(LOCAL_DATA_OWNER_UID_KEY)
+    ?? await getSetting(BACKUP_READY_UID_KEY);
 }
 
 interface BoxRow {
@@ -264,16 +270,22 @@ async function resolvePaintId(catalog_code: string, database = getDB()): Promise
 
 export async function isLocalDbEmpty(): Promise<boolean> {
   // boxes/kit_boxes は initDB() が0件の時に「Box」を1件自動作成するため、
-  // 単純な COUNT(*) では常に1以上になり判定が壊れる。ユーザーが実際に
-  // 追加ボックスを作っている(2件以上)場合だけ「空ではない」とみなす。
+  // 単純な COUNT(*) では常に1以上になり判定が壊れる。一方、初期ボックスを
+  // 名前変更・メモ追加・並べ替えした場合は、1件でもユーザーデータとして扱う。
   const row = await getDB().getFirstAsync<{ n: number }>(
     "SELECT (SELECT COUNT(*) FROM inventory)" +
     " + (SELECT COUNT(*) FROM lists)" +
     " + (SELECT COUNT(*) FROM catalog_paints WHERE source = 'manual')" +
     " + (SELECT COUNT(*) FROM catalog_paints WHERE source = 'catalog' AND notes IS NOT NULL AND notes <> '')" +
     " + (SELECT COUNT(*) FROM kits)" +
-    " + (SELECT CASE WHEN (SELECT COUNT(*) FROM boxes) > 1 THEN 1 ELSE 0 END)" +
-    " + (SELECT CASE WHEN (SELECT COUNT(*) FROM kit_boxes) > 1 THEN 1 ELSE 0 END)" +
+    " + (SELECT CASE WHEN (SELECT COUNT(*) FROM boxes) > 1 OR EXISTS (" +
+    "SELECT 1 FROM boxes WHERE id = (SELECT CAST(value AS INTEGER) FROM app_settings WHERE key = 'default_box_id')" +
+    " AND (name <> 'Box' OR location IS NOT NULL OR note IS NOT NULL OR icon <> 'box' OR icon_color <> '#4a90d9')" +
+    ") THEN 1 ELSE 0 END)" +
+    " + (SELECT CASE WHEN (SELECT COUNT(*) FROM kit_boxes) > 1 OR EXISTS (" +
+    "SELECT 1 FROM kit_boxes WHERE id = (SELECT CAST(value AS INTEGER) FROM app_settings WHERE key = 'default_kit_box_id')" +
+    " AND (name <> 'Box' OR icon <> 'box' OR icon_color <> '#4a90d9')" +
+    ") THEN 1 ELSE 0 END)" +
     " AS n"
   );
   return (row?.n ?? 0) === 0;
@@ -419,6 +431,10 @@ export async function pushBackupToFirestore(): Promise<void> {
   // 初回サインイン時の復元判定が終わる前にローカル状態をpushすると、別端末の
   // バックアップを上書きし得る。復元または「端末データを保持」が確定するまで禁止。
   if (await getSetting(BACKUP_READY_UID_KEY) !== user.uid) return;
+  // 同じ端末で別のFirebaseユーザーに切り替えた場合、端末内データを
+  // 新しいユーザーへ自動移送しない。明示的な引き継ぎで所有者を更新する。
+  const localOwnerUid = await getLocalDataOwnerUid();
+  if (localOwnerUid !== user.uid) return;
 
   pushInFlight = runAccountOperation(async () => {
     assertCurrentUser(user.uid);
@@ -700,18 +716,21 @@ export function initAutoBackup(): void {
   });
 }
 
-export async function runRestoreDecision(): Promise<'restored' | 'conflict' | 'none'> {
+export async function runRestoreDecision(): Promise<'restored' | 'conflict' | 'account_conflict' | 'none'> {
   const expectedUid = auth?.().currentUser?.uid;
   if (!expectedUid) return 'none';
   return runAccountOperation(async () => {
     assertCurrentUser(expectedUid);
     if (!getEntitlements().hasBackup || await isCloudBackupReady(expectedUid)) return 'none';
+    const localDbEmpty = await isLocalDbEmpty();
+    const localOwnerUid = await getLocalDataOwnerUid();
+    if (!localDbEmpty && localOwnerUid !== expectedUid) return 'account_conflict';
     const snapshot = await fetchBackupSnapshot(expectedUid);
     if (!snapshot) {
       await markCloudBackupReady(expectedUid);
       return 'none';
     }
-    if (await isLocalDbEmpty()) {
+    if (localDbEmpty) {
       await restoreFromSnapshotUnlocked(snapshot, expectedUid);
       await markCloudBackupReady(expectedUid);
       return 'restored';
@@ -722,10 +741,12 @@ export async function runRestoreDecision(): Promise<'restored' | 'conflict' | 'n
 
 export async function markCloudBackupReady(expectedUid: string): Promise<void> {
   assertCurrentUser(expectedUid);
+  await setSetting(LOCAL_DATA_OWNER_UID_KEY, expectedUid);
   await setSetting(BACKUP_READY_UID_KEY, expectedUid);
 }
 
 export async function isCloudBackupReady(expectedUid: string): Promise<boolean> {
   assertCurrentUser(expectedUid);
-  return await getSetting(BACKUP_READY_UID_KEY) === expectedUid;
+  return await getSetting(BACKUP_READY_UID_KEY) === expectedUid
+    && await getLocalDataOwnerUid() === expectedUid;
 }

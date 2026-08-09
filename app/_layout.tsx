@@ -11,7 +11,7 @@ import { initAppMode } from '../lib/appMode';
 import { initDB } from '../lib/db';
 import { checkForCatalogUpdate, downloadAndApplyCatalogUpdate } from '../lib/catalogUpdate';
 import { initTheme, useTheme } from '../lib/theme';
-import { initLocale, t } from '../lib/i18n';
+import { getLocale, initLocale, t } from '../lib/i18n';
 import { getCurrentAuthUser, initAuth } from '../lib/auth';
 import { fetchBackupSnapshot, initAutoBackup, markCloudBackupReady, pushBackupToFirestore, restoreFromSnapshot, runRestoreDecision } from '../lib/cloudBackup';
 import { initAnalytics } from '../lib/analytics';
@@ -31,6 +31,8 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [initFailed, setInitFailed] = useState(false);
   const [startupConflictUid, setStartupConflictUid] = useState<string | null>(null);
+  const [startupConflictKind, setStartupConflictKind] = useState<'cloud' | 'account' | null>(null);
+  const [startupConflictDialogShown, setStartupConflictDialogShown] = useState(false);
   const [resolvingConflict, setResolvingConflict] = useState(false);
   const { colors, isDark } = useTheme();
 
@@ -59,8 +61,10 @@ export default function RootLayout() {
           console.error('RootLayout: failed initial restore decision', e);
           return 'none' as const;
         });
-        if (restoreDecision === 'conflict') {
+        if (restoreDecision === 'conflict' || restoreDecision === 'account_conflict') {
           setStartupConflictUid(getCurrentAuthUser()?.uid ?? null);
+          setStartupConflictKind(restoreDecision === 'account_conflict' ? 'account' : 'cloud');
+          setStartupConflictDialogShown(false);
         }
         initAutoBackup();
         void checkForCatalogUpdate(true).then(({ available, manifest }) => {
@@ -77,8 +81,13 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (!ready || !startupConflictUid || resolvingConflict) return;
+    if (!ready || !startupConflictUid || resolvingConflict || startupConflictDialogShown) return;
     const expectedUid = startupConflictUid;
+    const clearConflict = () => {
+      setStartupConflictUid(null);
+      setStartupConflictKind(null);
+      setStartupConflictDialogShown(false);
+    };
     const resolveConflict = async (useCloud: boolean) => {
       setResolvingConflict(true);
       try {
@@ -89,14 +98,53 @@ export default function RootLayout() {
         }
         await markCloudBackupReady(expectedUid);
         if (!useCloud) await pushBackupToFirestore();
-        setStartupConflictUid(null);
+        clearConflict();
       } catch (e) {
         console.error('RootLayout: failed to resolve backup conflict', e);
+        clearConflict();
         Alert.alert(t('error'), t('cloudBackupError'));
       } finally {
         setResolvingConflict(false);
       }
     };
+    setStartupConflictDialogShown(true);
+    if (startupConflictKind === 'account') {
+      void fetchBackupSnapshot(expectedUid)
+        .then((snapshot) => {
+          if (!snapshot) {
+            Alert.alert(
+              getLocale() === 'ja' ? '別アカウントの端末データがあります' : 'This device has data from another account',
+              getLocale() === 'ja'
+                ? 'この端末のデータを現在のアカウントへ引き継ぐ場合だけ、バックアップを開始します。'
+                : 'Backup starts only if you explicitly adopt this device data into the current account.',
+              [
+                { text: t('cancel'), style: 'cancel', onPress: clearConflict },
+                { text: getLocale() === 'ja' ? 'この端末のデータを引き継ぐ' : 'Use this device data', onPress: () => { void resolveConflict(false); } },
+              ],
+              { cancelable: false }
+            );
+            return;
+          }
+          Alert.alert(
+            getLocale() === 'ja' ? '別アカウントの端末データがあります' : 'This device has data from another account',
+            getLocale() === 'ja'
+              ? 'クラウドから復元すると端末データは置き換わります。端末データを引き継ぐと、現在のクラウドバックアップを上書きします。'
+              : 'Restoring from cloud replaces this device data. Adopting this device data overwrites the current cloud backup.',
+            [
+              { text: t('cloudRestoreFromCloud'), style: 'destructive', onPress: () => { void resolveConflict(true); } },
+              { text: getLocale() === 'ja' ? '端末データを引き継ぎ（クラウドを上書き）' : 'Adopt device data (overwrite cloud)', onPress: () => { void resolveConflict(false); } },
+              { text: t('cancel'), style: 'cancel', onPress: clearConflict },
+            ],
+            { cancelable: false }
+          );
+        })
+        .catch((e) => {
+          console.error('RootLayout: failed to inspect account conflict', e);
+          clearConflict();
+          Alert.alert(t('error'), t('cloudBackupError'));
+        });
+      return;
+    }
     Alert.alert(t('cloudRestoreConflictTitle'), t('cloudRestoreConflictMessage'), [
       {
         text: t('cloudRestoreFromCloud'),
@@ -108,7 +156,7 @@ export default function RootLayout() {
         onPress: () => { void resolveConflict(false); },
       },
     ], { cancelable: false });
-  }, [ready, resolvingConflict, startupConflictUid]);
+  }, [ready, resolvingConflict, startupConflictDialogShown, startupConflictKind, startupConflictUid]);
 
   useEffect(() => {
     if (!ready) return;
