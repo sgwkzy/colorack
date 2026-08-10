@@ -25,6 +25,7 @@ const firestore: typeof import('@react-native-firebase/firestore').default | nul
 // optional に扱い、無い部分が空のまま復元されても壊れないようにする。
 const BACKUP_SCHEMA_VERSION = 3;
 const LAST_BACKUP_AT_KEY = 'last_backup_at';
+const LAST_BACKUP_AT_UID_KEY = 'last_backup_at_uid';
 const BACKUP_READY_UID_KEY = 'cloud_backup_ready_uid';
 const LOCAL_DATA_OWNER_UID_KEY = 'cloud_backup_data_owner_uid';
 
@@ -455,6 +456,7 @@ export async function pushBackupToFirestore(): Promise<void> {
     );
     assertCurrentUser(user.uid);
     await setSetting(LAST_BACKUP_AT_KEY, now);
+    await setSetting(LAST_BACKUP_AT_UID_KEY, user.uid);
   });
 
   try {

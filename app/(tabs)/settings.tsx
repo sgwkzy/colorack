@@ -1,5 +1,5 @@
 // app/(tabs)/settings.tsx
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform, Linking, ActivityIndicator } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useFocusEffect, router } from 'expo-router';
@@ -51,8 +51,29 @@ export default function SettingsScreen() {
   useScreenView('Settings');
 
   const loadLastBackupAt = useCallback(async () => {
-    setLastBackupAt(await getSetting('last_backup_at'));
+    const capturedUid = getCurrentAuthUser()?.uid ?? null;
+    if (!capturedUid) {
+      setLastBackupAt(null);
+      return;
+    }
+    const localOwnerUid = await getSetting('cloud_backup_data_owner_uid')
+      ?? await getSetting('cloud_backup_ready_uid');
+    const backupAtUid = await getSetting('last_backup_at_uid');
+    const value = localOwnerUid === capturedUid && backupAtUid === capturedUid
+      ? await getSetting('last_backup_at')
+      : null;
+    // The account can change while settings are being read. Never publish a
+    // value that was resolved for a different Firebase user.
+    if (getCurrentAuthUser()?.uid !== capturedUid) return;
+    setLastBackupAt(value);
   }, []);
+
+  useEffect(() => {
+    // Clear the previous user's metadata immediately on sign-out/account switch;
+    // the focus reload below may finish later.
+    setLastBackupAt(null);
+    if (authUser?.uid) void loadLastBackupAt();
+  }, [authUser?.uid, loadLastBackupAt]);
 
   useFocusEffect(useCallback(() => {
     loadLastBackupAt();
@@ -452,7 +473,9 @@ export default function SettingsScreen() {
             ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
             : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
           cornerRadius={radius.sm}
-          style={styles.appleSignInBtn}
+          style={[styles.appleSignInBtn, busy && styles.appleSignInBtnDisabled]}
+          pointerEvents={busy ? 'none' : 'auto'}
+          accessibilityState={{ disabled: busy, busy }}
           onPress={() => handleSignIn('Apple')}
         />
       ) : null}
@@ -523,7 +546,9 @@ export default function SettingsScreen() {
                   ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
                   : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
                 cornerRadius={radius.sm}
-                style={styles.appleSignInBtn}
+                style={[styles.appleSignInBtn, busy && styles.appleSignInBtnDisabled]}
+                pointerEvents={busy ? 'none' : 'auto'}
+                accessibilityState={{ disabled: busy, busy }}
                 onPress={() => handleLinkAccount('Apple')}
               />
             ) : null}
@@ -665,6 +690,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   accountLinkBox: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: spacing.lg },
   accountBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
   appleSignInBtn: { width: '100%', height: 44, marginBottom: spacing.md },
+  appleSignInBtnDisabled: { opacity: 0.5 },
   accountBtnDisabled: { backgroundColor: colors.primaryDisabled },
   accountBtnText: { color: colors.onPrimary, fontWeight: 'bold', textAlign: 'center' },
   busyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md },
