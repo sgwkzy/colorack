@@ -8,7 +8,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "buildNumber": "18",
+      "buildNumber": "19",
       "usesAppleSignIn": true
     },
     "android": {
