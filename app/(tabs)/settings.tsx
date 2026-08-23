@@ -495,6 +495,14 @@ export default function SettingsScreen() {
         {hasBackup ? (
           <>
             <Text style={styles.accountSubText}>{hasPhotoBackup ? t('cloudBackupPhotosIncluded') : t('cloudBackupPhotosNote')}</Text>
+            <TouchableOpacity
+              style={[styles.accountBtn, busy && styles.accountBtnDisabled]}
+              onPress={handleViewPlans}
+              disabled={busy}
+              accessibilityState={{ disabled: busy, busy }}
+            >
+              <Text style={styles.accountBtnText}>{isJa ? 'プランを変更' : 'Change plan'}</Text>
+            </TouchableOpacity>
             {authUser ? (
               <>
                 <Text style={styles.accountText}>{authUser.displayName ?? authUser.email ?? authUser.uid}</Text>
