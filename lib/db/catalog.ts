@@ -11,8 +11,8 @@ export class PaintReferencedByColorError extends Error {
   }
 }
 
-async function assertPaintNotReferenced(paintId: number): Promise<void> {
-  const reference = await getDB().getFirstAsync(
+async function assertPaintNotReferenced(db: ReturnType<typeof getDB>, paintId: number): Promise<void> {
+  const reference = await db.getFirstAsync(
     'SELECT 1 WHERE EXISTS (SELECT 1 FROM kit_color_paints WHERE paint_id = ?) OR EXISTS (SELECT 1 FROM mix_recipe_paints WHERE paint_id = ?)',
     [paintId, paintId]
   );
@@ -23,17 +23,16 @@ async function assertPaintNotReferenced(paintId: number): Promise<void> {
 // 公式カタログはシードの内容(未編集の状態)へ戻す。
 export async function resetCatalogToMaster(): Promise<void> {
   const db = getDB();
-  const reference = await db.getFirstAsync(
-    "SELECT 1 WHERE EXISTS (SELECT 1 FROM kit_color_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')) OR EXISTS (SELECT 1 FROM mix_recipe_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual'))"
-  );
-  if (reference) throw new PaintReferencedByColorError();
-
-  await db.withTransactionAsync(async () => {
-    await db.runAsync("DELETE FROM inventory WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
-    await db.runAsync("DELETE FROM lists WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
-    await db.runAsync("DELETE FROM kit_color_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
-    await db.runAsync('DELETE FROM kit_colors WHERE id NOT IN (SELECT DISTINCT kit_color_id FROM kit_color_paints)');
-    await db.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    const reference = await tx.getFirstAsync(
+      "SELECT 1 WHERE EXISTS (SELECT 1 FROM kit_color_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')) OR EXISTS (SELECT 1 FROM mix_recipe_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual'))"
+    );
+    if (reference) throw new PaintReferencedByColorError();
+    await tx.runAsync("DELETE FROM inventory WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await tx.runAsync("DELETE FROM lists WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await tx.runAsync("DELETE FROM kit_color_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await tx.runAsync('DELETE FROM kit_colors WHERE id NOT IN (SELECT DISTINCT kit_color_id FROM kit_color_paints)');
+    await tx.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
   });
   await upsertCatalogFromSeed(db);
 }
@@ -64,14 +63,13 @@ export async function applyCatalogUpdate(rows: SeedRow[], version: number): Prom
 // 塗料削除時は、参照中のキット色/混色レシピを保護し、在庫・リストを掃除する。
 export async function deletePaint(paintId: number): Promise<void> {
   const db = getDB();
-  await assertPaintNotReferenced(paintId);
-
-  await db.withTransactionAsync(async () => {
-    await db.runAsync('DELETE FROM inventory WHERE paint_id = ?', [paintId]);
-    await db.runAsync('DELETE FROM lists WHERE paint_id = ?', [paintId]);
-    await db.runAsync('DELETE FROM kit_color_paints WHERE paint_id = ?', [paintId]);
-    await db.runAsync('DELETE FROM kit_colors WHERE id NOT IN (SELECT DISTINCT kit_color_id FROM kit_color_paints)');
-    await db.runAsync('DELETE FROM catalog_paints WHERE id = ?', [paintId]);
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    await assertPaintNotReferenced(tx, paintId);
+    await tx.runAsync('DELETE FROM inventory WHERE paint_id = ?', [paintId]);
+    await tx.runAsync('DELETE FROM lists WHERE paint_id = ?', [paintId]);
+    await tx.runAsync('DELETE FROM kit_color_paints WHERE paint_id = ?', [paintId]);
+    await tx.runAsync('DELETE FROM kit_colors WHERE id NOT IN (SELECT DISTINCT kit_color_id FROM kit_color_paints)');
+    await tx.runAsync('DELETE FROM catalog_paints WHERE id = ?', [paintId]);
   });
 }
 

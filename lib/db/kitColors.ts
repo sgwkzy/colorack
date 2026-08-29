@@ -37,7 +37,7 @@ export async function addKitColor(
     );
     const result = await db.runAsync(
       'INSERT INTO kit_colors (kit_id, name, note, sort_order) VALUES (?, ?, ?, ?)',
-      [kitId, name, note, row?.n ?? 0]
+      [kitId, name?.trim() === '' ? null : name, note?.trim() === '' ? null : note, row?.n ?? 0]
     );
     const kitColorId = result.lastInsertRowId;
     for (const [index, p] of paints.entries()) {
