@@ -63,6 +63,21 @@ export async function initDB(): Promise<void> {
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     '  kit_color_id INTEGER NOT NULL, paint_id INTEGER NOT NULL, ratio REAL NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0' +
     ');' +
+    'CREATE TABLE IF NOT EXISTS mix_recipes (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name TEXT,' +
+    '  note TEXT,' +
+    '  sort_order INTEGER NOT NULL DEFAULT 0,' +
+    '  added_at TEXT DEFAULT (datetime(\'now\')),' +
+    '  updated_at TEXT DEFAULT (datetime(\'now\'))' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS mix_recipe_paints (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  mix_recipe_id INTEGER NOT NULL,' +
+    '  paint_id INTEGER NOT NULL,' +
+    '  ratio REAL NOT NULL,' +
+    '  sort_order INTEGER NOT NULL DEFAULT 0' +
+    ');' +
     'CREATE TABLE IF NOT EXISTS kit_photos (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     '  kit_id INTEGER NOT NULL, uri TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0,' +
