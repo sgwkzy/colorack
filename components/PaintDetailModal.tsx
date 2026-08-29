@@ -24,6 +24,7 @@ import {
   updateCatalogPaintNotes,
   updateManualPaint,
 } from '../lib/db';
+import { PaintReferencedByColorError } from '../lib/db/catalog';
 import { glossLabel } from '../lib/gloss';
 import { t, useLocale } from '../lib/i18n';
 import { paintName, seriesLabel } from '../lib/paintLabel';
@@ -238,9 +239,18 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       {
         text: t('delete'), style: 'destructive',
         onPress: async () => {
-          await deletePaint(detail.id);
-          onChanged?.();
-          onClose();
+          try {
+            await deletePaint(detail.id);
+            onChanged?.();
+            onClose();
+          } catch (e) {
+            if (e instanceof PaintReferencedByColorError) {
+              Alert.alert(t('error'), t('paintReferencedByColor'));
+              return;
+            }
+            console.error('PaintDetailModal: failed to delete paint', e);
+            throw e;
+          }
         },
       },
     ]);

@@ -6,6 +6,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isAnalyticsEnabled, logEvent, setAnalyticsEnabled, useScreenView } from '../../lib/analytics';
 import { getDB, getSetting, resetCatalogToMaster, setSetting } from '../../lib/db';
+import { PaintReferencedByColorError } from '../../lib/db/catalog';
 import { notifyBoxesChanged, setActiveBox } from '../../lib/activeBox';
 import { notifyKitBoxesChanged, setActiveKitBox } from '../../lib/activeKitBox';
 import { deleteKitPhoto } from '../../lib/kitPhoto';
@@ -145,8 +146,17 @@ export default function SettingsScreen() {
   });
 
   const resetCatalog = () => confirmReset(t('resetCatalog'), async () => {
-    await resetCatalogToMaster();
-    logEvent('reset_data', { target: 'catalog' });
+    try {
+      await resetCatalogToMaster();
+      logEvent('reset_data', { target: 'catalog' });
+    } catch (e) {
+      if (e instanceof PaintReferencedByColorError) {
+        Alert.alert(t('error'), t('paintReferencedByColor'));
+        return;
+      }
+      console.error('SettingsScreen: failed to reset catalog', e);
+      throw e;
+    }
   });
 
   const resetKitWishlist = () => confirmReset(t('resetKitWishlist'), async () => {
