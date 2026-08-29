@@ -1,7 +1,7 @@
 // components/KitDetailModal.tsx
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconChevronDown, IconChevronLeft, IconEdit, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
+import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { IconChevronDown, IconChevronLeft, IconChevronUp, IconEdit, IconShoppingCartPlus, IconTrash, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   addKitPhoto,
@@ -22,7 +22,7 @@ import {
   setKitStatus,
   updateKitBox,
   updateKitCategory,
-  updateKitColorName,
+  updateKitColor,
   updateKitMaker,
   updateKitName,
   updateKitNote,
@@ -31,6 +31,7 @@ import {
   updateKitSeries,
 } from '../lib/db';
 import { deleteKitPhoto } from '../lib/kitPhoto';
+import { draftFromSummary, normalizeDraftPaints } from '../lib/colorMixDraft';
 import { t } from '../lib/i18n';
 import { useModalLock } from '../lib/modalLock';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
@@ -39,6 +40,8 @@ import ActionSheet from './ActionSheet';
 import ClearableInput from './ClearableInput';
 import KitColorComposerModal from './KitColorComposerModal';
 import KitColorRow from './KitColorRow';
+import ColorMixDetailModal from './ColorMixDetailModal';
+import ColorMixEditorModal from './ColorMixEditorModal';
 import KitPhotoGrid from './KitPhotoGrid';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
@@ -79,9 +82,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<'details' | 'colors'>('details');
-  // 使用する色タブのツールチップは1つだけ開けるよう、ここで一元管理する。
-  const [openTooltipKey, setOpenTooltipKey] = useState<string | null>(null);
-  const toggleTooltip = (key: string) => setOpenTooltipKey((current) => (current === key ? null : key));
+  const [selectedColor, setSelectedColor] = useState<KitColorSummary | null>(null);
+  const [colorDetailOpen, setColorDetailOpen] = useState(false);
+  const [editingColor, setEditingColor] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [inWishlist, setInWishlist] = useState(false);
@@ -136,7 +139,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setEditMode(false);
       setViewerOpen(false);
       setInWishlist(false);
-      setOpenTooltipKey(null);
+      setSelectedColor(null);
+      setColorDetailOpen(false);
+      setEditingColor(false);
     }
   }, [visible, load]);
 
@@ -276,12 +281,28 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
 
   const removeColor = async (kitColorId: number) => {
     await removeKitColor(kitColorId);
+    setColorDetailOpen(false);
+    setSelectedColor(null);
     await load();
   };
 
-  const changeColorName = async (kitColorId: number, next: string) => {
-    await updateKitColorName(kitColorId, next);
+  const confirmRemoveColor = (color: KitColorSummary) => {
+    Alert.alert(color.name || t('mixResult'), t('deleteMixConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('delete'), style: 'destructive', onPress: () => removeColor(color.id) },
+    ]);
+  };
+
+  const saveColor = async (draft: ReturnType<typeof draftFromSummary>) => {
+    if (!selectedColor) return;
+    await updateKitColor(
+      selectedColor.id,
+      draft.name.trim() || null,
+      draft.note.trim() || null,
+      normalizeDraftPaints(draft.paints),
+    );
     await load();
+    setEditingColor(false);
   };
 
   const moveColor = async (kitColorId: number, direction: -1 | 1) => {
@@ -473,10 +494,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                   </View>
                 </>
               ) : (
-                // 色以外(見出し・パディング部分)をタップした時にもツールチップを閉じたいので、
-                // セクション全体をPressableにする。子のTouchableOpacity/KitColorRow内のタップは
-                // それぞれが先に消費するため、ここのonPressは「何もつかまなかった時」だけ発火する。
-                <Pressable style={styles.paintsSection} onPress={() => setOpenTooltipKey(null)}>
+                <View style={styles.paintsSection}>
                   <View style={styles.paintsHeader}>
                     <Text style={styles.sectionTitle}>{t('usedPaints')}</Text>
                     <TouchableOpacity onPress={() => setPickerOpen(true)}>
@@ -484,21 +502,45 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                     </TouchableOpacity>
                   </View>
                   {kitColors.map((color, index) => (
-                    <KitColorRow
-                      key={color.id}
-                      color={color}
-                      editable={editMode}
-                      ownedMap={ownedMap}
-                      canMoveLeft={index > 0}
-                      canMoveRight={index < kitColors.length - 1}
-                      onNameChange={(next) => changeColorName(color.id, next)}
-                      onRemove={() => removeColor(color.id)}
-                      onMove={(direction) => moveColor(color.id, direction)}
-                      openTooltipKey={openTooltipKey}
-                      onToggleTooltip={toggleTooltip}
-                    />
+                    <View key={color.id} style={styles.colorItem}>
+                      <KitColorRow
+                        color={color}
+                        ownedMap={ownedMap}
+                        onPress={() => { setSelectedColor(color); setColorDetailOpen(true); }}
+                      />
+                      {editMode ? (
+                        <View style={styles.colorActions}>
+                          <TouchableOpacity
+                            style={styles.colorAction}
+                            onPress={() => moveColor(color.id, -1)}
+                            disabled={index === 0}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('moveUp')}
+                          >
+                            <IconChevronUp color={colors.text} size={20} opacity={index === 0 ? 0.35 : 1} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.colorAction}
+                            onPress={() => moveColor(color.id, 1)}
+                            disabled={index === kitColors.length - 1}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('moveDown')}
+                          >
+                            <IconChevronDown color={colors.text} size={20} opacity={index === kitColors.length - 1 ? 0.35 : 1} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.colorAction, styles.colorDelete]}
+                            onPress={() => confirmRemoveColor(color)}
+                            accessibilityRole="button"
+                            accessibilityLabel={t('delete')}
+                          >
+                            <IconTrash color={colors.danger} size={20} />
+                          </TouchableOpacity>
+                        </View>
+                      ) : null}
+                    </View>
                   ))}
-                </Pressable>
+                </View>
               )}
             </SwipeDownScrollView>
           )}
@@ -540,6 +582,22 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
               onAdded={load}
             />
           ) : null}
+          <ColorMixDetailModal
+            visible={colorDetailOpen}
+            color={selectedColor}
+            editable={editMode}
+            ownedMap={ownedMap}
+            onEdit={() => { setColorDetailOpen(false); setEditingColor(true); }}
+            onDelete={() => selectedColor && confirmRemoveColor(selectedColor)}
+            onClose={() => setColorDetailOpen(false)}
+          />
+          <ColorMixEditorModal
+            visible={editingColor}
+            title={t('editMix')}
+            initialDraft={draftFromSummary(selectedColor)}
+            onSave={saveColor}
+            onClose={() => setEditingColor(false)}
+          />
         </SafeAreaView>
         </SwipeBack>
       </SafeAreaProvider>
