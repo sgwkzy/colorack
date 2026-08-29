@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { IconChevronLeft, IconPlus, IconTrash } from '@tabler/icons-react-native';
 import { brandLabel } from '../lib/brands';
@@ -46,6 +46,7 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const initialKey = JSON.stringify(initialDraft);
   const [draft, setDraft] = useState<MixDraft>(() => ({ ...initialDraft, paints: [...initialDraft.paints] }));
+  const paintsRef = useRef<MixDraftPaint[]>([...initialDraft.paints]);
   const [partTexts, setPartTexts] = useState<Record<number, string>>(() => Object.fromEntries(initialDraft.paints.map((paint) => [paint.paint_id, String(paint.parts)])));
   const [paintType, setPaintType] = useState<string | null>(initialDraft.paints[0]?.paint_type ?? null);
   const [step, setStep] = useState<'edit' | 'pick'>('edit');
@@ -54,7 +55,9 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setDraft({ ...initialDraft, paints: [...initialDraft.paints] });
+    const paints = [...initialDraft.paints];
+    paintsRef.current = paints;
+    setDraft({ ...initialDraft, paints });
     setPartTexts(Object.fromEntries(initialDraft.paints.map((paint) => [paint.paint_id, String(paint.parts)])));
     setPaintType(initialDraft.paints[0]?.paint_type ?? null);
     setStep('edit');
@@ -95,8 +98,9 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
       hex: paint.hex,
       paint_type: paint.paint_type,
     };
-    const next = tryAddDraftPaint(draft.paints, candidate);
+    const next = tryAddDraftPaint(paintsRef.current, candidate);
     if (next.error) { showDraftError(next.error); return; }
+    paintsRef.current = next.paints;
     setDraft((current) => ({ ...current, paints: next.paints }));
     setPartTexts((current) => ({ ...current, [paint.id]: '1' }));
     setError('');
@@ -104,15 +108,16 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
 
   const updateParts = (paintId: number, value: string) => {
     const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
+    const paints = paintsRef.current.map((paint) => paint.paint_id === paintId ? { ...paint, parts: digits === '' ? 0 : Number(digits) } : paint);
+    paintsRef.current = paints;
     setPartTexts((current) => ({ ...current, [paintId]: digits }));
-    setDraft((current) => ({
-      ...current,
-      paints: current.paints.map((paint) => paint.paint_id === paintId ? { ...paint, parts: digits === '' ? 0 : Number(digits) } : paint),
-    }));
+    setDraft((current) => ({ ...current, paints }));
   };
 
   const removePaint = (paintId: number) => {
-    setDraft((current) => ({ ...current, paints: removeDraftPaint(current.paints, paintId) }));
+    const paints = removeDraftPaint(paintsRef.current, paintId);
+    paintsRef.current = paints;
+    setDraft((current) => ({ ...current, paints }));
     setPartTexts((current) => {
       const next = { ...current };
       delete next[paintId];
@@ -126,6 +131,7 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
       { text: t('cancel'), style: 'cancel' },
       {
         text: t('clear'), style: 'destructive', onPress: () => {
+          paintsRef.current = [];
           setDraft({ name: '', note: '', paints: [] });
           setPartTexts({});
           setPaintType(null);
