@@ -159,7 +159,7 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
         <View style={[styles.resultSwatch, { backgroundColor: resultHex ?? colors.chip }]} />
         <View style={styles.resultText}>
           <Text style={styles.sectionLabel}>{t('mixResult')}</Text>
-          <Text selectable style={styles.resultHex}>{resultHex?.toUpperCase() ?? '—'}</Text>
+          <Text selectable style={styles.resultHex}>{resultHex?.toUpperCase() ?? (draft.paints.length ? t('cannotCalculateMix') : '—')}</Text>
           {!draft.paints.length ? <Text style={styles.resultHint}>{getLocale() === 'en' ? 'Add paints to preview the mixed color.' : '塗料を追加すると混色結果が表示されます'}</Text> : null}
         </View>
       </View>
