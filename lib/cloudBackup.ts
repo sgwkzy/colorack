@@ -21,9 +21,10 @@ const firestore: typeof import('@react-native-firebase/firestore').default | nul
 
 // v2: kit_boxes/kits/kit_colors/kit_color_paints(キット管理機能)を追加。
 // v3: kitPhotos(スタンダードプラン限定のキット写真)を追加。
+// v4: mix_recipes/mix_recipe_paints(保存した色レシピ)を追加。
 // v1/v2スナップショットにはこれらのフィールドが無いため、復元側は `?? []` で
 // optional に扱い、無い部分が空のまま復元されても壊れないようにする。
-const BACKUP_SCHEMA_VERSION = 3;
+const BACKUP_SCHEMA_VERSION = 4;
 const LAST_BACKUP_AT_KEY = 'last_backup_at';
 const LAST_BACKUP_AT_UID_KEY = 'last_backup_at_uid';
 const BACKUP_READY_UID_KEY = 'cloud_backup_ready_uid';
@@ -133,6 +134,25 @@ interface KitColorPaintRow {
   sort_order: number;
 }
 
+interface MixRecipeRow {
+  id: number;
+  name: string | null;
+  note: string | null;
+  sort_order: number;
+  added_at: string | null;
+  updated_at: string | null;
+}
+
+interface MixRecipePaintRow {
+  mix_recipe_id: number;
+  catalog_code: string | null;
+  brand: string;
+  series: string;
+  code: string;
+  ratio: number;
+  sort_order: number;
+}
+
 export interface BackupBox {
   localRef: string;
   name: string;
@@ -220,6 +240,22 @@ export interface BackupKitColorPaint {
   sort_order: number;
 }
 
+export interface BackupMixRecipe {
+  localRef: string;
+  name: string | null;
+  note: string | null;
+  sort_order: number;
+  added_at: string | null;
+  updated_at: string | null;
+}
+
+export interface BackupMixRecipePaint {
+  mixRecipeLocalRef: string;
+  catalog_code: string;
+  ratio: number;
+  sort_order: number;
+}
+
 export interface BackupSnapshot {
   schemaVersion: number;
   updatedAt?: unknown;
@@ -238,6 +274,9 @@ export interface BackupSnapshot {
   defaultKitBoxLocalRef?: string | null;
   // v3で追加。スタンダードプラン(hasPhotoBackup)加入者のみ書き込まれる。
   kitPhotos?: BackupKitPhoto[];
+  // v4で追加。旧スナップショットには存在しないため optional。
+  mixRecipes?: BackupMixRecipe[];
+  mixRecipePaints?: BackupMixRecipePaint[];
 }
 
 function paintCatalogCode(row: { catalog_code: string | null; brand: string; series: string; code: string }): string {
@@ -261,6 +300,10 @@ function kitColorLocalRef(id: number): string {
   return `kitcolor_${id}`;
 }
 
+function mixRecipeLocalRef(id: number): string {
+  return 'mixrecipe_' + id;
+}
+
 async function resolvePaintId(catalog_code: string, database = getDB()): Promise<number | null> {
   const row = await database.getFirstAsync<{ id: number }>(
     'SELECT id FROM catalog_paints WHERE catalog_code = ?',
@@ -279,6 +322,7 @@ export async function isLocalDbEmpty(): Promise<boolean> {
     " + (SELECT COUNT(*) FROM catalog_paints WHERE source = 'manual')" +
     " + (SELECT COUNT(*) FROM catalog_paints WHERE source = 'catalog' AND notes IS NOT NULL AND notes <> '')" +
     " + (SELECT COUNT(*) FROM kits)" +
+    " + (SELECT COUNT(*) FROM mix_recipes)" +
     " + (SELECT CASE WHEN (SELECT COUNT(*) FROM boxes) > 1 OR EXISTS (" +
     "SELECT 1 FROM boxes WHERE id = (SELECT CAST(value AS INTEGER) FROM app_settings WHERE key = 'default_box_id')" +
     " AND (name <> 'Box' OR location IS NOT NULL OR note IS NOT NULL OR icon <> 'box' OR icon_color <> '#4a90d9')" +
@@ -320,6 +364,13 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
   const kitColorPaintRows = await db.getAllAsync<KitColorPaintRow>(
     'SELECT kcp.kit_color_id, c.catalog_code, c.brand, c.series, c.code, kcp.ratio, kcp.sort_order' +
     ' FROM kit_color_paints kcp JOIN catalog_paints c ON kcp.paint_id = c.id ORDER BY kcp.sort_order, kcp.id'
+  );
+  const mixRecipeRows = await db.getAllAsync<MixRecipeRow>(
+    'SELECT id, name, note, sort_order, added_at, updated_at FROM mix_recipes ORDER BY sort_order, id'
+  );
+  const mixRecipePaintRows = await db.getAllAsync<MixRecipePaintRow>(
+    'SELECT mrp.mix_recipe_id, c.catalog_code, c.brand, c.series, c.code, mrp.ratio, mrp.sort_order' +
+    ' FROM mix_recipe_paints mrp JOIN catalog_paints c ON mrp.paint_id = c.id ORDER BY mrp.sort_order, mrp.id'
   );
   const defaultKitBoxId = await getSetting('default_kit_box_id');
   const defaultKitBoxExists = defaultKitBoxId ? kitBoxRows.some((b) => b.id === Number(defaultKitBoxId)) : false;
@@ -398,6 +449,20 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
     })),
     kitColorPaints: kitColorPaintRows.map((cp) => ({
       kitColorLocalRef: kitColorLocalRef(cp.kit_color_id),
+      catalog_code: paintCatalogCode(cp),
+      ratio: cp.ratio,
+      sort_order: cp.sort_order,
+    })),
+    mixRecipes: mixRecipeRows.map((recipe) => ({
+      localRef: mixRecipeLocalRef(recipe.id),
+      name: recipe.name,
+      note: recipe.note,
+      sort_order: recipe.sort_order,
+      added_at: recipe.added_at,
+      updated_at: recipe.updated_at,
+    })),
+    mixRecipePaints: mixRecipePaintRows.map((cp) => ({
+      mixRecipeLocalRef: mixRecipeLocalRef(cp.mix_recipe_id),
       catalog_code: paintCatalogCode(cp),
       ratio: cp.ratio,
       sort_order: cp.sort_order,
@@ -494,6 +559,7 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
   const db = getDB();
   let orphanedKitPhotoUris: string[] = [];
   const kitIdByLocalRef = new Map<string, number>();
+  const mixRecipeIdByLocalRef = new Map<string, number>();
   const photosToRestore = getEntitlements().hasPhotoBackup ? snapshot.kitPhotos ?? [] : [];
   const kitRefs = new Set((snapshot.kits ?? []).map((kit) => kit.localRef));
   const invalidPhoto = photosToRestore.find((photo) => !kitRefs.has(photo.kitLocalRef));
@@ -518,6 +584,10 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
       assertCurrentUser(expectedUid);
       await tx.runAsync('DELETE FROM inventory');
       await tx.runAsync('DELETE FROM lists');
+      await tx.runAsync('DELETE FROM mix_recipe_paints');
+      await tx.runAsync('DELETE FROM mix_recipes');
+      await tx.runAsync('DELETE FROM kit_color_paints');
+      await tx.runAsync('DELETE FROM kit_colors');
       await tx.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
       await tx.runAsync("UPDATE catalog_paints SET notes = NULL WHERE source = 'catalog'");
 
@@ -603,12 +673,31 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
       );
     }
 
+    for (const recipe of snapshot.mixRecipes ?? []) {
+      const result = await tx.runAsync(
+        'INSERT INTO mix_recipes (name, note, sort_order, added_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+        [recipe.name, recipe.note, recipe.sort_order, recipe.added_at, recipe.updated_at]
+      );
+      mixRecipeIdByLocalRef.set(recipe.localRef, result.lastInsertRowId);
+    }
+
+    for (const cp of snapshot.mixRecipePaints ?? []) {
+      const mixRecipeId = mixRecipeIdByLocalRef.get(cp.mixRecipeLocalRef);
+      const paintId = await resolvePaintId(cp.catalog_code, tx);
+      if (!mixRecipeId || !paintId) {
+        console.warn('restoreFromSnapshot: skipping mix recipe paint for missing mix recipe or catalog_code', cp.mixRecipeLocalRef, cp.catalog_code);
+        continue;
+      }
+      await tx.runAsync(
+        'INSERT INTO mix_recipe_paints (mix_recipe_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
+        [mixRecipeId, paintId, cp.ratio, cp.sort_order]
+      );
+    }
+
     // キット関連は塗料ボックスと独立した体系のため、常に全消去して再構築する。
     // 写真は事前ダウンロードが全件成功した場合だけDB行を入れ替え、
     // 古い実ファイルはトランザクション成功後に削除する。
     orphanedKitPhotoUris = (await tx.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos')).map((r) => r.uri);
-    await tx.runAsync('DELETE FROM kit_color_paints');
-    await tx.runAsync('DELETE FROM kit_colors');
     await tx.runAsync('DELETE FROM kit_photos');
     await tx.runAsync('DELETE FROM kits');
     await tx.runAsync('DELETE FROM kit_boxes');
