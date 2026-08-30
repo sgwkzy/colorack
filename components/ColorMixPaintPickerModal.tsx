@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronLeft, IconX } from '@tabler/icons-react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '../lib/i18n';
 import { useModalLock } from '../lib/modalLock';
 import { lightColors, spacing, touch, useTheme } from '../lib/theme';
@@ -24,6 +24,7 @@ interface Props {
 export default function ColorMixPaintPickerModal({ visible, paintType, title, embedded = false, onBack, onSelect, onClose }: Props) {
   useModalLock(visible && !embedded);
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [tab, setTab] = useState<'hierarchy' | 'colorMatch'>('hierarchy');
   const selectingRef = useRef(false);
@@ -39,7 +40,11 @@ export default function ColorMixPaintPickerModal({ visible, paintType, title, em
   };
 
   const screen = (
-    <SafeAreaView accessibilityViewIsModal={embedded} style={[styles.container, embedded && styles.embedded]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      accessibilityViewIsModal={embedded}
+      style={[styles.container, embedded && styles.embedded, embedded && { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+      edges={embedded ? [] : ['top', 'bottom']}
+    >
       <SwipeDownHeader onClose={onClose}>
         <View style={styles.header}>
           {onBack ? (

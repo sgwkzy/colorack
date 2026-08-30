@@ -1,7 +1,7 @@
 import { type MutableRefObject, useEffect, useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronLeft, IconX } from '@tabler/icons-react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MixDraft } from '../lib/colorMixDraft';
 import { useAndroidBack } from '../lib/androidBack';
 import { t } from '../lib/i18n';
@@ -24,6 +24,7 @@ interface Props {
 
 export default function ColorMixEditorModal({ visible, title, initialDraft, saveLabel, embedded = false, requestCloseRef, onBack, onSave, onClose }: Props) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = makeStyles(colors);
   const [dirty, setDirty] = useState(false);
   useEffect(() => { if (!visible) setDirty(false); }, [visible]);
@@ -50,7 +51,11 @@ export default function ColorMixEditorModal({ visible, title, initialDraft, save
   };
 
   const screen = (
-    <SafeAreaView accessibilityViewIsModal={embedded} style={[styles.container, embedded && styles.embedded]} edges={['top', 'bottom']}>
+    <SafeAreaView
+      accessibilityViewIsModal={embedded}
+      style={[styles.container, embedded && styles.embedded, embedded && { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+      edges={embedded ? [] : ['top', 'bottom']}
+    >
       <SwipeDownHeader onClose={close}>
         <View style={styles.header}>
           {onBack ? (

@@ -1,7 +1,7 @@
 import { type MutableRefObject, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconFlask, IconPalette, IconPlus, IconX } from '@tabler/icons-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAndroidBack } from '../lib/androidBack';
 import { addKitColor, addKitColorFromSummary, getDB, getMixRecipes } from '../lib/db';
 import { ColorMixSummary, draftFromSummary, normalizeDraftPaints } from '../lib/colorMixDraft';
@@ -53,6 +53,7 @@ function SourceOption({ icon, title, help, onPress, styles, chevronColor }: Sour
 export default function KitColorComposerModal({ visible, kitId, requestCloseRef, onClose, onAdded }: Props) {
   useLocale();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const initialDraft = useMemo(() => draftFromSummary(), [visible]);
   const [route, setRoute] = useState<Route>('source');
@@ -152,7 +153,7 @@ export default function KitColorComposerModal({ visible, kitId, requestCloseRef,
 
   if (!visible) return null;
   return (
-    <SafeAreaView accessibilityViewIsModal style={styles.container} edges={['top', 'bottom']}>
+    <View accessibilityViewIsModal style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       {route === 'newMix' ? (
         <ColorMixEditorModal
           visible
@@ -271,7 +272,7 @@ export default function KitColorComposerModal({ visible, kitId, requestCloseRef,
           />
         </>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
