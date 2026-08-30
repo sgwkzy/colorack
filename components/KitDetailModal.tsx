@@ -335,7 +335,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
 
   return (
     <>
-    <Modal visible={visible && !pickerOpen && !colorDetailOpen && !editingColor} animationType="slide" onRequestClose={closeAfterSavingFields}>
+    <Modal visible={visible} animationType="slide" onRequestClose={closeAfterSavingFields}>
       <SafeAreaProvider>
         <SwipeBack enabled={visible && !viewerOpen} onBack={closeAfterSavingFields}>
         <SafeAreaView style={styles.container} edges={['top']}>

@@ -138,7 +138,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
 
   return (
     <>
-    <Modal visible={visible && (route === 'source' || route === 'saved')} animationType="slide" onRequestClose={back}>
+    <Modal visible={visible} animationType="slide" onRequestClose={back}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <SwipeDownHeader onClose={back}>
