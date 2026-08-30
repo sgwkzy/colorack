@@ -49,6 +49,18 @@ export async function addKitColor(
   });
 }
 
+export async function addKitColorFromSummary(
+  kitId: number,
+  summary: ColorMixSummary,
+): Promise<void> {
+  await addKitColor(
+    kitId,
+    summary.name,
+    summary.note,
+    summary.paints.map((paint) => ({ paintId: paint.paint_id, ratio: paint.ratio })),
+  );
+}
+
 export async function updateKitColor(
   kitColorId: number,
   name: string | null,

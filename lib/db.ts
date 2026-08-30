@@ -22,5 +22,5 @@ export { type KitPhoto, getKitPhotos, addKitPhoto, removeKitPhoto, reorderKitPho
 export { getMixRecipes, addMixRecipe, updateMixRecipe, removeMixRecipe } from './db/mixRecipes';
 export {
   type KitColorPaint, type KitColorSummary, getKitColors, addKitColor,
-  updateKitColor, removeKitColor, reorderKitColors,
+  addKitColorFromSummary, updateKitColor, removeKitColor, reorderKitColors,
 } from './db/kitColors';
