@@ -150,7 +150,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly
           alwaysBounceVertical
         >
           {[ALL, ...brands].map((item) => (
-            <TouchableOpacity key={item} style={[styles.item, item === ALL && styles.allItem]} onPress={() => selectBrand(item)}>
+            <TouchableOpacity accessibilityRole="button" key={item} style={[styles.item, item === ALL && styles.allItem]} onPress={() => selectBrand(item)}>
               <Text style={[styles.itemText, item === ALL && styles.allText]}>{item === ALL ? t('all') : brandLabel(item)}</Text>
               <IconChevronRight color={colors.textPlaceholder} size={18} />
             </TouchableOpacity>
@@ -164,7 +164,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly
     return (
       <SwipeBack enabled onBack={() => setSelectedBrand(null)}>
       <View style={styles.container}>
-        <TouchableOpacity style={styles.back} onPress={() => setSelectedBrand(null)}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} style={styles.back} onPress={() => setSelectedBrand(null)}>
           <IconChevronLeft color={colors.primary} size={18} />
           <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
         </TouchableOpacity>
@@ -174,7 +174,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly
           alwaysBounceVertical
         >
           {[{ series: ALL, series_en: null }, ...seriesList].map((item) => (
-            <TouchableOpacity key={item.series} style={[styles.item, item.series === ALL && styles.allItem]} onPress={() => selectSeries(item.series)}>
+            <TouchableOpacity accessibilityRole="button" key={item.series} style={[styles.item, item.series === ALL && styles.allItem]} onPress={() => selectSeries(item.series)}>
               <Text style={[styles.itemText, item.series === ALL && styles.allText]}>{item.series === ALL ? t('all') : seriesLabel(item.series, item.series_en)}</Text>
               <IconChevronRight color={colors.textPlaceholder} size={18} />
             </TouchableOpacity>
@@ -189,7 +189,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly
     <SwipeBack enabled onBack={backFromPaints}>
     <View style={styles.container}>
       <View style={styles.listHeader}>
-        <TouchableOpacity style={[styles.back, styles.listHeaderBack]} onPress={backFromPaints}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} style={[styles.back, styles.listHeaderBack]} onPress={backFromPaints}>
           <IconChevronLeft color={colors.primary} size={18} />
           <Text style={styles.backText} numberOfLines={1}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries, paints.find((p) => p.series === selectedSeries)?.series_en)}</Text>
         </TouchableOpacity>

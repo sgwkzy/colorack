@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type MutableRefObject, useEffect, useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -16,11 +16,12 @@ interface Props {
   initialDraft: MixDraft;
   saveLabel?: string;
   embedded?: boolean;
+  requestCloseRef?: MutableRefObject<() => void>;
   onSave: (draft: MixDraft) => Promise<void>;
   onClose: () => void;
 }
 
-export default function ColorMixEditorModal({ visible, title, initialDraft, saveLabel, embedded = false, onSave, onClose }: Props) {
+export default function ColorMixEditorModal({ visible, title, initialDraft, saveLabel, embedded = false, requestCloseRef, onSave, onClose }: Props) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const [dirty, setDirty] = useState(false);
@@ -35,6 +36,9 @@ export default function ColorMixEditorModal({ visible, title, initialDraft, save
   };
   useModalLock(visible && !embedded);
   useAndroidBack(visible && embedded, close);
+  useEffect(() => {
+    if (visible && embedded && requestCloseRef) requestCloseRef.current = close;
+  }, [visible, embedded, requestCloseRef, close]);
 
   const save = async (draft: MixDraft) => {
     await onSave(draft);
@@ -43,7 +47,7 @@ export default function ColorMixEditorModal({ visible, title, initialDraft, save
   };
 
   const screen = (
-    <SafeAreaView style={styles.container} edges={embedded ? [] : ['top', 'bottom']}>
+    <SafeAreaView accessibilityViewIsModal={embedded} style={[styles.container, embedded && styles.embedded]} edges={embedded ? [] : ['top', 'bottom']}>
       <SwipeDownHeader onClose={close}>
         <View style={styles.header}>
           <Text style={styles.title}>{title}</Text>
@@ -62,6 +66,7 @@ export default function ColorMixEditorModal({ visible, title, initialDraft, save
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
+  embedded: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100 },
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: spacing.xl, paddingRight: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   title: { color: colors.text, fontSize: 18, fontWeight: '700' },
   closeButton: { width: touch.min, height: touch.min, alignItems: 'center', justifyContent: 'center' },

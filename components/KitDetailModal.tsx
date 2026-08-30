@@ -1,5 +1,5 @@
 // components/KitDetailModal.tsx
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronDown, IconChevronLeft, IconChevronUp, IconEdit, IconPlus, IconShoppingCartPlus, IconTrash, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -88,6 +88,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [editMode, setEditMode] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [inWishlist, setInWishlist] = useState(false);
+  const childRequestCloseRef = useRef<() => void>(() => {});
 
   const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
 
@@ -280,10 +281,16 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   };
 
   const removeColor = async (kitColorId: number) => {
-    await removeKitColor(kitColorId);
-    setColorDetailOpen(false);
-    setSelectedColor(null);
-    await load();
+    try {
+      await removeKitColor(kitColorId);
+      setKitColors((current) => current.filter((color) => color.id !== kitColorId));
+      setColorDetailOpen(false);
+      setSelectedColor(null);
+      await load();
+    } catch (error) {
+      console.error('KitDetailModal: failed to remove kit color', error);
+      Alert.alert(t('error'), t('saveFailed'));
+    }
   };
 
   const confirmRemoveColor = (color: KitColorSummary) => {
@@ -311,8 +318,14 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     if (index < 0 || targetIndex < 0 || targetIndex >= kitColors.length) return;
     const next = [...kitColors];
     [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
-    await reorderKitColors(next.map((c) => c.id));
-    await load();
+    try {
+      await reorderKitColors(next.map((c) => c.id));
+      setKitColors(next);
+      await load();
+    } catch (error) {
+      console.error('KitDetailModal: failed to reorder kit colors', error);
+      Alert.alert(t('error'), t('saveFailed'));
+    }
   };
 
   const confirmDelete = () => {
@@ -332,13 +345,14 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   };
 
   const boxName = boxes.find((b) => b.id === detail?.box_id)?.name ?? t('unassigned');
+  const childOverlayOpen = pickerOpen || editingColor;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={pickerOpen ? () => {} : closeAfterSavingFields}>
+    <Modal visible={visible} animationType="slide" onRequestClose={childOverlayOpen ? () => childRequestCloseRef.current() : closeAfterSavingFields}>
       <SafeAreaProvider>
-        <SwipeBack enabled={visible && !viewerOpen && !pickerOpen} onBack={closeAfterSavingFields}>
+        <SwipeBack enabled={visible && !viewerOpen && !childOverlayOpen} onBack={closeAfterSavingFields}>
         <SafeAreaView style={styles.container} edges={['top']}>
-          <SwipeDownHeader onClose={closeAfterSavingFields} enabled={!viewerOpen && !pickerOpen}>
+          <SwipeDownHeader onClose={closeAfterSavingFields} enabled={!viewerOpen && !childOverlayOpen}>
             <View style={styles.header}>
               {editMode ? (
                 <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('editKitTitle')} onPress={exitEditMode} style={styles.backBtn}>
@@ -359,7 +373,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           {!detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
-            <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingFields} closeEnabled={!viewerOpen && !pickerOpen} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+            <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingFields} closeEnabled={!viewerOpen && !childOverlayOpen} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <View style={styles.titleBlock}>
                 {editMode ? (
                   <>
@@ -596,6 +610,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
             <KitColorComposerModal
               visible={pickerOpen}
               kitId={detail.id}
+              requestCloseRef={childRequestCloseRef}
               onClose={() => setPickerOpen(false)}
               onAdded={load}
             />
@@ -611,6 +626,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           />
           <ColorMixEditorModal
             visible={editingColor}
+            embedded
+            requestCloseRef={childRequestCloseRef}
             title={t('editMix')}
             initialDraft={draftFromSummary(selectedColor)}
             onSave={saveColor}

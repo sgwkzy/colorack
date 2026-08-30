@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { type MutableRefObject, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconFlask, IconPalette, IconPlus, IconX } from '@tabler/icons-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ type Route = 'source' | 'paint' | 'saved' | 'newMix';
 interface Props {
   visible: boolean;
   kitId: number;
+  requestCloseRef: MutableRefObject<() => void>;
   onClose: () => void;
   onAdded: () => void | Promise<void>;
 }
@@ -49,7 +50,7 @@ function SourceOption({ icon, title, help, onPress, styles, chevronColor }: Sour
   );
 }
 
-export default function KitColorComposerModal({ visible, kitId, onClose, onAdded }: Props) {
+export default function KitColorComposerModal({ visible, kitId, requestCloseRef, onClose, onAdded }: Props) {
   useLocale();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -59,6 +60,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const savingRef = useRef(false);
 
   const loadRecipes = useCallback(async () => {
     setLoading(true);
@@ -85,21 +87,30 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
     if (route === 'saved') void loadRecipes();
   }, [visible, route, loadRecipes]);
 
-  const back = () => {
+  const back = useCallback(() => {
+    if (savingRef.current) return;
     if (route === 'source') onClose();
     else setRoute('source');
-  };
-  useAndroidBack(visible && route !== 'paint' && route !== 'newMix', back);
+  }, [route, onClose]);
+  const close = () => { if (!savingRef.current) onClose(); };
+  useAndroidBack(visible && route !== 'newMix', back);
+  useEffect(() => {
+    if (visible && route !== 'newMix') requestCloseRef.current = back;
+  }, [visible, route, requestCloseRef, back]);
 
-  const finishAdd = () => {
-    onClose();
-    void Promise.resolve().then(onAdded).catch((error) => {
+  const finishAdd = async () => {
+    try {
+      await onAdded();
+    } catch (error) {
       console.error('KitColorComposerModal: failed to refresh kit colors', error);
-    });
+      Alert.alert(t('error'), t('loadFailed'));
+    }
+    onClose();
   };
 
   const addPaint = async ({ id }: { id: number }): Promise<boolean> => {
-    if (savingId != null) return false;
+    if (savingRef.current) return false;
+    savingRef.current = true;
     setSavingId(id);
     try {
       const paint = await getDB().getFirstAsync<{ id: number; name_ja: string; name_en: string | null }>(
@@ -108,27 +119,30 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
       );
       if (!paint) throw new Error('paint_not_found');
       await addKitColor(kitId, paintName(paint.name_ja, paint.name_en), null, [{ paintId: paint.id, ratio: 1 }]);
-      finishAdd();
+      await finishAdd();
       return true;
     } catch (error) {
       console.error('KitColorComposerModal: failed to add paint', error);
       Alert.alert(t('error'), t('saveFailed'));
       return false;
     } finally {
+      savingRef.current = false;
       setSavingId(null);
     }
   };
 
   const addSavedMix = async (recipe: ColorMixSummary) => {
-    if (savingId != null) return;
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSavingId(recipe.id);
     try {
       await addKitColorFromSummary(kitId, recipe);
-      finishAdd();
+      await finishAdd();
     } catch (error) {
       console.error('KitColorComposerModal: failed to copy saved mix', error);
       Alert.alert(t('error'), t('saveFailed'));
     } finally {
+      savingRef.current = false;
       setSavingId(null);
     }
   };
@@ -138,11 +152,12 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
 
   if (!visible) return null;
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView accessibilityViewIsModal style={styles.container} edges={['bottom']}>
       {route === 'newMix' ? (
         <ColorMixEditorModal
           visible
           embedded
+          requestCloseRef={requestCloseRef}
           title={t('createKitMix')}
           saveLabel={t('saveToKit')}
           initialDraft={initialDraft}
@@ -153,21 +168,21 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
               draft.note.trim() || null,
               normalizeDraftPaints(draft.paints),
             );
-            finishAdd();
+            await finishAdd();
           }}
           onClose={() => setRoute('source')}
         />
       ) : (
         <>
-          <SwipeDownHeader onClose={back}>
+          <SwipeDownHeader onClose={back} enabled={savingId == null}>
             <View style={styles.header}>
               {route === 'saved' ? (
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} onPress={back} style={styles.headerButton}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} accessibilityState={{ disabled: savingId != null }} disabled={savingId != null} onPress={back} style={styles.headerButton}>
                   <IconChevronLeft color={colors.primary} size={24} />
                 </TouchableOpacity>
               ) : <View style={styles.headerButton} />}
               <Text numberOfLines={1} style={styles.headerTitle}>{t(route === 'saved' ? 'pickMixForKit' : 'chooseColorSource')}</Text>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} onPress={onClose} style={styles.headerButton}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} accessibilityState={{ disabled: savingId != null }} disabled={savingId != null} onPress={close} style={styles.headerButton}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
@@ -202,9 +217,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
                           <View style={styles.cardAction}><ActivityIndicator color={colors.primary} /></View>
                         ) : (
                           <TouchableOpacity
-                            accessibilityRole="button"
-                            accessibilityLabel={`${displayName(item)}。${t('addMixToKit')}`}
-                            accessibilityState={{ disabled: savingId != null }}
+                            accessible={false}
                             disabled={savingId != null}
                             onPress={() => addSavedMix(item)}
                             style={styles.cardAction}
@@ -249,9 +262,10 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
 
           <ColorMixPaintPickerModal
             visible={visible && route === 'paint'}
+            embedded
             title={t('pickPaintForKit')}
             onSelect={addPaint}
-            onClose={() => setRoute('source')}
+            onClose={back}
           />
         </>
       )}

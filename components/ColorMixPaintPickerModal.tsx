@@ -15,12 +15,13 @@ interface Props {
   visible: boolean;
   paintType?: string;
   title?: string;
+  embedded?: boolean;
   onSelect: (paint: PickerPaint) => Promise<boolean>;
   onClose: () => void;
 }
 
-export default function ColorMixPaintPickerModal({ visible, paintType, title, onSelect, onClose }: Props) {
-  useModalLock(visible);
+export default function ColorMixPaintPickerModal({ visible, paintType, title, embedded = false, onSelect, onClose }: Props) {
+  useModalLock(visible && !embedded);
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [tab, setTab] = useState<'hierarchy' | 'colorMatch'>('hierarchy');
@@ -36,38 +37,38 @@ export default function ColorMixPaintPickerModal({ visible, paintType, title, on
     }
   };
 
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaProvider>
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={onClose}>
-            <View style={styles.header}>
-              <Text style={styles.title}>{title ?? t('addPaint')}</Text>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} onPress={onClose} style={styles.closeButton}>
-                <IconX color={colors.text} size={24} />
-              </TouchableOpacity>
-            </View>
-          </SwipeDownHeader>
-          <View accessibilityRole="tablist" style={styles.tabs}>
-            {(['hierarchy', 'colorMatch'] as const).map((key) => (
-              <TouchableOpacity key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }} onPress={() => setTab(key)} style={[styles.tab, tab === key && styles.tabActive]}>
-                <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{t(key)}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={styles.content}>
-            {tab === 'hierarchy'
-              ? <HierarchyBrowser key={paintType ?? 'all'} paintType={paintType} selectionOnly onSelect={select} onSelectView={select} onRequestClose={onClose} />
-              : <ColorMatcher key={paintType ?? 'all'} lockedPaintType={paintType} selectionOnly onSelect={select} onSelectView={select} onRequestClose={onClose} />}
-          </View>
-        </SafeAreaView>
-      </SafeAreaProvider>
-    </Modal>
+  const screen = (
+    <SafeAreaView accessibilityViewIsModal={embedded} style={[styles.container, embedded && styles.embedded]} edges={embedded ? [] : ['top', 'bottom']}>
+      <SwipeDownHeader onClose={onClose}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{title ?? t('addPaint')}</Text>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} onPress={onClose} style={styles.closeButton}>
+            <IconX color={colors.text} size={24} />
+          </TouchableOpacity>
+        </View>
+      </SwipeDownHeader>
+      <View accessibilityRole="tablist" style={styles.tabs}>
+        {(['hierarchy', 'colorMatch'] as const).map((key) => (
+          <TouchableOpacity key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }} onPress={() => setTab(key)} style={[styles.tab, tab === key && styles.tabActive]}>
+            <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{t(key)}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <View style={styles.content}>
+        {tab === 'hierarchy'
+          ? <HierarchyBrowser key={paintType ?? 'all'} paintType={paintType} selectionOnly onSelect={select} onSelectView={select} onRequestClose={onClose} />
+          : <ColorMatcher key={paintType ?? 'all'} lockedPaintType={paintType} selectionOnly onSelect={select} onSelectView={select} onRequestClose={onClose} />}
+      </View>
+    </SafeAreaView>
   );
+
+  if (embedded) return visible ? screen : null;
+  return <Modal visible={visible} animationType="slide" onRequestClose={onClose}><SafeAreaProvider>{screen}</SafeAreaProvider></Modal>;
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
+  embedded: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100 },
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: spacing.xl, paddingRight: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   title: { color: colors.text, fontSize: 18, fontWeight: '700' },
   closeButton: { width: touch.min, height: touch.min, alignItems: 'center', justifyContent: 'center' },
