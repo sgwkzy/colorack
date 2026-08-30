@@ -334,14 +334,15 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const boxName = boxes.find((b) => b.id === detail?.box_id)?.name ?? t('unassigned');
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={closeAfterSavingFields}>
+    <>
+    <Modal visible={visible && !pickerOpen && !colorDetailOpen && !editingColor} animationType="slide" onRequestClose={closeAfterSavingFields}>
       <SafeAreaProvider>
         <SwipeBack enabled={visible && !viewerOpen} onBack={closeAfterSavingFields}>
         <SafeAreaView style={styles.container} edges={['top']}>
           <SwipeDownHeader onClose={closeAfterSavingFields} enabled={!viewerOpen}>
             <View style={styles.header}>
               {editMode ? (
-                <TouchableOpacity onPress={exitEditMode} hitSlop={8} style={styles.backBtn}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('editKitTitle')} onPress={exitEditMode} style={styles.backBtn}>
                   <IconChevronLeft color={colors.primary} size={22} />
                   <Text style={styles.title}>{t('editKitTitle')}</Text>
                 </TouchableOpacity>
@@ -349,7 +350,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 <Text style={styles.title}>{t('kitDetailTitle')}</Text>
               )}
               {!editMode ? (
-                <TouchableOpacity onPress={closeAfterSavingFields} hitSlop={8} accessibilityLabel={t('close')}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} onPress={closeAfterSavingFields} style={styles.headerButton}>
                   <IconX color={colors.text} size={24} />
                 </TouchableOpacity>
               ) : null}
@@ -514,7 +515,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                     </TouchableOpacity>
                   </View>
                   {kitColors.length === 0 ? <Text style={styles.empty}>{t('emptyKitColors')}</Text> : null}
-                  {kitColors.map((color, index) => (
+                  {kitColors.map((color, index) => {
+                    const colorLabel = color.name?.trim() || color.paints[0]?.code || t('mixResult');
+                    return (
                     <View key={color.id} style={styles.colorItem}>
                       <KitColorRow
                         color={color}
@@ -528,7 +531,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                             onPress={() => moveColor(color.id, -1)}
                             disabled={index === 0}
                             accessibilityRole="button"
-                            accessibilityLabel={t('moveUp')}
+                            accessibilityLabel={`${colorLabel} ${t('moveUp')}`}
+                            accessibilityState={{ disabled: index === 0 }}
                           >
                             <IconChevronUp color={colors.text} size={20} opacity={index === 0 ? 0.35 : 1} />
                           </TouchableOpacity>
@@ -537,7 +541,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                             onPress={() => moveColor(color.id, 1)}
                             disabled={index === kitColors.length - 1}
                             accessibilityRole="button"
-                            accessibilityLabel={t('moveDown')}
+                            accessibilityLabel={`${colorLabel} ${t('moveDown')}`}
+                            accessibilityState={{ disabled: index === kitColors.length - 1 }}
                           >
                             <IconChevronDown color={colors.text} size={20} opacity={index === kitColors.length - 1 ? 0.35 : 1} />
                           </TouchableOpacity>
@@ -545,14 +550,15 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                             style={[styles.colorAction, styles.colorDelete]}
                             onPress={() => confirmRemoveColor(color)}
                             accessibilityRole="button"
-                            accessibilityLabel={t('delete')}
+                            accessibilityLabel={`${colorLabel} ${t('delete')}`}
                           >
                             <IconTrash color={colors.danger} size={20} />
                           </TouchableOpacity>
                         </View>
                       ) : null}
                     </View>
-                  ))}
+                    );
+                  })}
                 </View>
               )}
             </SwipeDownScrollView>
@@ -587,33 +593,34 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
             ]}
             onClose={() => setStatusPickerOpen(false)}
           />
-          {detail ? (
-            <KitColorComposerModal
-              visible={pickerOpen}
-              kitId={detail.id}
-              onClose={() => setPickerOpen(false)}
-              onAdded={load}
-            />
-          ) : null}
-          <ColorMixDetailModal
-            visible={colorDetailOpen}
-            color={selectedColor}
-            editable={editMode}
-            ownedMap={ownedMap}
-            onEdit={() => { setColorDetailOpen(false); setEditingColor(true); }}
-            onDelete={() => selectedColor && confirmRemoveColor(selectedColor)}
-            onClose={() => setColorDetailOpen(false)}
-          />
-          <ColorMixEditorModal
-            visible={editingColor}
-            title={t('editMix')}
-            initialDraft={draftFromSummary(selectedColor)}
-            onSave={saveColor}
-            onClose={() => setEditingColor(false)}
-          />
         </SafeAreaView>
         </SwipeBack>
       </SafeAreaProvider>
     </Modal>
+    {detail ? (
+      <KitColorComposerModal
+        visible={pickerOpen}
+        kitId={detail.id}
+        onClose={() => setPickerOpen(false)}
+        onAdded={load}
+      />
+    ) : null}
+    <ColorMixDetailModal
+      visible={colorDetailOpen}
+      color={selectedColor}
+      editable
+      ownedMap={ownedMap}
+      onEdit={() => { setColorDetailOpen(false); setEditingColor(true); }}
+      onDelete={() => selectedColor && confirmRemoveColor(selectedColor)}
+      onClose={() => setColorDetailOpen(false)}
+    />
+    <ColorMixEditorModal
+      visible={editingColor}
+      title={t('editMix')}
+      initialDraft={draftFromSummary(selectedColor)}
+      onSave={saveColor}
+      onClose={() => setEditingColor(false)}
+    />
+    </>
   );
 }

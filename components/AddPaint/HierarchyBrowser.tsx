@@ -241,8 +241,8 @@ const makeStyles = (colors: typeof lightColors, listFontSize: ListFontSize) => {
   const ITEM_TEXT_SIZE: Record<ListFontSize, number> = { small: 14, medium: 15, large: 17 };
   return StyleSheet.create({
   container: { flex: 1, justifyContent: 'flex-start' },
-  item: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  itemPaint: { padding: 14 },
+  item: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  itemPaint: { minHeight: touch.min, padding: 14 },
   allItem: { backgroundColor: colors.primarySoft },
   itemText: { flex: 1, fontSize: ITEM_TEXT_SIZE[listFontSize], color: colors.text },
   allText: { color: colors.primaryText, fontWeight: 'bold' },

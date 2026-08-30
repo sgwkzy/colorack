@@ -137,7 +137,8 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
     || (recipe.paints[0] ? paintName(recipe.paints[0].name_ja, recipe.paints[0].name_en) : t('mixResult'));
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={back}>
+    <>
+    <Modal visible={visible && (route === 'source' || route === 'saved')} animationType="slide" onRequestClose={back}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <SwipeDownHeader onClose={back}>
@@ -179,11 +180,20 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
                       accessibilityLabel={`${displayName(item)}。${t('addMixToKit')}`}
                       onPress={() => addSavedMix(item)}
                       dragHandle={
-                        <View pointerEvents="none" style={styles.cardAction}>
-                          {savingId === item.id
-                            ? <ActivityIndicator color={colors.primary} />
-                            : <IconPlus color={colors.primary} size={22} />}
-                        </View>
+                        savingId === item.id ? (
+                          <View style={styles.cardAction}><ActivityIndicator color={colors.primary} /></View>
+                        ) : (
+                          <TouchableOpacity
+                            accessibilityRole="button"
+                            accessibilityLabel={`${displayName(item)}。${t('addMixToKit')}`}
+                            accessibilityState={{ disabled: savingId != null }}
+                            disabled={savingId != null}
+                            onPress={() => addSavedMix(item)}
+                            style={styles.cardAction}
+                          >
+                            <IconPlus color={colors.primary} size={22} />
+                          </TouchableOpacity>
+                        )
                       }
                     />
                   </View>
@@ -219,31 +229,32 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
             </View>
           )}
 
-          <ColorMixPaintPickerModal
-            visible={visible && route === 'paint'}
-            title={t('pickPaintForKit')}
-            onSelect={addPaint}
-            onClose={() => setRoute('source')}
-          />
-          <ColorMixEditorModal
-            visible={visible && route === 'newMix'}
-            title={t('createKitMix')}
-            saveLabel={t('saveToKit')}
-            initialDraft={initialDraft}
-            onSave={async (draft) => {
-              await addKitColor(
-                kitId,
-                draft.name.trim() || null,
-                draft.note.trim() || null,
-                normalizeDraftPaints(draft.paints),
-              );
-              finishAdd();
-            }}
-            onClose={() => setRoute('source')}
-          />
         </SafeAreaView>
       </SafeAreaProvider>
     </Modal>
+    <ColorMixPaintPickerModal
+      visible={visible && route === 'paint'}
+      title={t('pickPaintForKit')}
+      onSelect={addPaint}
+      onClose={() => setRoute('source')}
+    />
+    <ColorMixEditorModal
+      visible={visible && route === 'newMix'}
+      title={t('createKitMix')}
+      saveLabel={t('saveToKit')}
+      initialDraft={initialDraft}
+      onSave={async (draft) => {
+        await addKitColor(
+          kitId,
+          draft.name.trim() || null,
+          draft.note.trim() || null,
+          normalizeDraftPaints(draft.paints),
+        );
+        finishAdd();
+      }}
+      onClose={() => setRoute('source')}
+    />
+    </>
   );
 }
 
@@ -265,6 +276,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   message: { color: colors.textMuted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   retryButton: { minWidth: 120, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primary, borderRadius: radius.md },
   retryText: { color: colors.primaryText, fontWeight: '700' },
-  cardAction: { width: 44, alignItems: 'center', justifyContent: 'center' },
+  cardAction: { width: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.55 },
 });

@@ -4,8 +4,9 @@ import { lightColors, radius, spacing } from '../../lib/theme';
 
 export const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: spacing.xl, paddingRight: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  backBtn: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 2 },
+  headerButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   scroll: { flex: 1 },
   content: { padding: spacing.xl, gap: spacing.lg },
@@ -36,7 +37,7 @@ export const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   paintsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   colorItem: { gap: spacing.sm },
   colorActions: { flexDirection: 'row', gap: spacing.sm },
-  colorAction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm },
+  colorAction: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm },
   colorDelete: { marginLeft: 'auto', borderColor: colors.danger },
   addColorButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   addLink: { color: colors.primaryText, fontWeight: '700', fontSize: 14 },
