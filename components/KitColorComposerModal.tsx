@@ -137,7 +137,6 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
     || (recipe.paints[0] ? paintName(recipe.paints[0].name_ja, recipe.paints[0].name_en) : t('mixResult'));
 
   return (
-    <>
     <Modal visible={visible} animationType="slide" onRequestClose={back}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -229,32 +228,31 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
             </View>
           )}
 
+          <ColorMixPaintPickerModal
+            visible={visible && route === 'paint'}
+            title={t('pickPaintForKit')}
+            onSelect={addPaint}
+            onClose={() => setRoute('source')}
+          />
+          <ColorMixEditorModal
+            visible={visible && route === 'newMix'}
+            title={t('createKitMix')}
+            saveLabel={t('saveToKit')}
+            initialDraft={initialDraft}
+            onSave={async (draft) => {
+              await addKitColor(
+                kitId,
+                draft.name.trim() || null,
+                draft.note.trim() || null,
+                normalizeDraftPaints(draft.paints),
+              );
+              finishAdd();
+            }}
+            onClose={() => setRoute('source')}
+          />
         </SafeAreaView>
       </SafeAreaProvider>
     </Modal>
-    <ColorMixPaintPickerModal
-      visible={visible && route === 'paint'}
-      title={t('pickPaintForKit')}
-      onSelect={addPaint}
-      onClose={() => setRoute('source')}
-    />
-    <ColorMixEditorModal
-      visible={visible && route === 'newMix'}
-      title={t('createKitMix')}
-      saveLabel={t('saveToKit')}
-      initialDraft={initialDraft}
-      onSave={async (draft) => {
-        await addKitColor(
-          kitId,
-          draft.name.trim() || null,
-          draft.note.trim() || null,
-          normalizeDraftPaints(draft.paints),
-        );
-        finishAdd();
-      }}
-      onClose={() => setRoute('source')}
-    />
-    </>
   );
 }
 

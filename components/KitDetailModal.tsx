@@ -334,7 +334,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const boxName = boxes.find((b) => b.id === detail?.box_id)?.name ?? t('unassigned');
 
   return (
-    <>
     <Modal visible={visible} animationType="slide" onRequestClose={closeAfterSavingFields}>
       <SafeAreaProvider>
         <SwipeBack enabled={visible && !viewerOpen} onBack={closeAfterSavingFields}>
@@ -593,34 +592,33 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
             ]}
             onClose={() => setStatusPickerOpen(false)}
           />
+          {detail ? (
+            <KitColorComposerModal
+              visible={pickerOpen}
+              kitId={detail.id}
+              onClose={() => setPickerOpen(false)}
+              onAdded={load}
+            />
+          ) : null}
+          <ColorMixDetailModal
+            visible={colorDetailOpen}
+            color={selectedColor}
+            editable
+            ownedMap={ownedMap}
+            onEdit={() => { setColorDetailOpen(false); setEditingColor(true); }}
+            onDelete={() => selectedColor && confirmRemoveColor(selectedColor)}
+            onClose={() => setColorDetailOpen(false)}
+          />
+          <ColorMixEditorModal
+            visible={editingColor}
+            title={t('editMix')}
+            initialDraft={draftFromSummary(selectedColor)}
+            onSave={saveColor}
+            onClose={() => setEditingColor(false)}
+          />
         </SafeAreaView>
         </SwipeBack>
       </SafeAreaProvider>
     </Modal>
-    {detail ? (
-      <KitColorComposerModal
-        visible={pickerOpen}
-        kitId={detail.id}
-        onClose={() => setPickerOpen(false)}
-        onAdded={load}
-      />
-    ) : null}
-    <ColorMixDetailModal
-      visible={colorDetailOpen}
-      color={selectedColor}
-      editable
-      ownedMap={ownedMap}
-      onEdit={() => { setColorDetailOpen(false); setEditingColor(true); }}
-      onDelete={() => selectedColor && confirmRemoveColor(selectedColor)}
-      onClose={() => setColorDetailOpen(false)}
-    />
-    <ColorMixEditorModal
-      visible={editingColor}
-      title={t('editMix')}
-      initialDraft={draftFromSummary(selectedColor)}
-      onSave={saveColor}
-      onClose={() => setEditingColor(false)}
-    />
-    </>
   );
 }
