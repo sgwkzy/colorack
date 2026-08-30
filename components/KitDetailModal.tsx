@@ -627,6 +627,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           <ColorMixEditorModal
             visible={editingColor}
             embedded
+            embeddedSafeArea
             requestCloseRef={childRequestCloseRef}
             title={t('editMix')}
             initialDraft={draftFromSummary(selectedColor)}

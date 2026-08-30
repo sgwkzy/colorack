@@ -152,7 +152,7 @@ export default function KitColorComposerModal({ visible, kitId, requestCloseRef,
 
   if (!visible) return null;
   return (
-    <SafeAreaView accessibilityViewIsModal style={styles.container} edges={['bottom']}>
+    <SafeAreaView accessibilityViewIsModal style={styles.container} edges={['top', 'bottom']}>
       {route === 'newMix' ? (
         <ColorMixEditorModal
           visible
