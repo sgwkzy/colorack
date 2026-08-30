@@ -16,13 +16,12 @@ interface Props {
   initialDraft: MixDraft;
   saveLabel?: string;
   embedded?: boolean;
-  embeddedSafeArea?: boolean;
   requestCloseRef?: MutableRefObject<() => void>;
   onSave: (draft: MixDraft) => Promise<void>;
   onClose: () => void;
 }
 
-export default function ColorMixEditorModal({ visible, title, initialDraft, saveLabel, embedded = false, embeddedSafeArea = false, requestCloseRef, onSave, onClose }: Props) {
+export default function ColorMixEditorModal({ visible, title, initialDraft, saveLabel, embedded = false, requestCloseRef, onSave, onClose }: Props) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const [dirty, setDirty] = useState(false);
@@ -48,7 +47,7 @@ export default function ColorMixEditorModal({ visible, title, initialDraft, save
   };
 
   const screen = (
-    <SafeAreaView accessibilityViewIsModal={embedded} style={[styles.container, embedded && styles.embedded]} edges={!embedded || embeddedSafeArea ? ['top', 'bottom'] : []}>
+    <SafeAreaView accessibilityViewIsModal={embedded} style={[styles.container, embedded && styles.embedded]} edges={['top', 'bottom']}>
       <SwipeDownHeader onClose={close}>
         <View style={styles.header}>
           <Text style={styles.title}>{title}</Text>

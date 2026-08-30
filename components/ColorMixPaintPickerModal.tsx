@@ -38,7 +38,7 @@ export default function ColorMixPaintPickerModal({ visible, paintType, title, em
   };
 
   const screen = (
-    <SafeAreaView accessibilityViewIsModal={embedded} style={[styles.container, embedded && styles.embedded]} edges={embedded ? [] : ['top', 'bottom']}>
+    <SafeAreaView accessibilityViewIsModal={embedded} style={[styles.container, embedded && styles.embedded]} edges={['top', 'bottom']}>
       <SwipeDownHeader onClose={onClose}>
         <View style={styles.header}>
           <Text style={styles.title}>{title ?? t('addPaint')}</Text>
