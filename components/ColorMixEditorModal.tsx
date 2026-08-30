@@ -1,6 +1,6 @@
 import { type MutableRefObject, useEffect, useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconX } from '@tabler/icons-react-native';
+import { IconChevronLeft, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import type { MixDraft } from '../lib/colorMixDraft';
 import { useAndroidBack } from '../lib/androidBack';
@@ -17,28 +17,31 @@ interface Props {
   saveLabel?: string;
   embedded?: boolean;
   requestCloseRef?: MutableRefObject<() => void>;
+  onBack?: () => void;
   onSave: (draft: MixDraft) => Promise<void>;
   onClose: () => void;
 }
 
-export default function ColorMixEditorModal({ visible, title, initialDraft, saveLabel, embedded = false, requestCloseRef, onSave, onClose }: Props) {
+export default function ColorMixEditorModal({ visible, title, initialDraft, saveLabel, embedded = false, requestCloseRef, onBack, onSave, onClose }: Props) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const [dirty, setDirty] = useState(false);
   useEffect(() => { if (!visible) setDirty(false); }, [visible]);
 
-  const close = () => {
-    if (!dirty) { onClose(); return; }
+  const leave = (action: () => void) => {
+    if (!dirty) { action(); return; }
     Alert.alert(t('discardChangesConfirm'), '', [
       { text: t('cancel'), style: 'cancel' },
-      { text: t('discard'), style: 'destructive', onPress: onClose },
+      { text: t('discard'), style: 'destructive', onPress: action },
     ]);
   };
+  const close = () => leave(onClose);
+  const back = () => leave(onBack ?? onClose);
   useModalLock(visible && !embedded);
-  useAndroidBack(visible && embedded, close);
+  useAndroidBack(visible && embedded, back);
   useEffect(() => {
-    if (visible && embedded && requestCloseRef) requestCloseRef.current = close;
-  }, [visible, embedded, requestCloseRef, close]);
+    if (visible && embedded && requestCloseRef) requestCloseRef.current = back;
+  }, [visible, embedded, requestCloseRef, back]);
 
   const save = async (draft: MixDraft) => {
     await onSave(draft);
@@ -50,8 +53,13 @@ export default function ColorMixEditorModal({ visible, title, initialDraft, save
     <SafeAreaView accessibilityViewIsModal={embedded} style={[styles.container, embedded && styles.embedded]} edges={['top', 'bottom']}>
       <SwipeDownHeader onClose={close}>
         <View style={styles.header}>
-          <Text style={styles.title}>{title}</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} onPress={close} style={styles.closeButton}>
+          {onBack ? (
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} onPress={back} style={styles.headerButton}>
+              <IconChevronLeft color={colors.primary} size={24} />
+            </TouchableOpacity>
+          ) : <View style={styles.headerButton} />}
+          <Text numberOfLines={1} style={styles.title}>{title}</Text>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} onPress={close} style={styles.headerButton}>
             <IconX color={colors.text} size={24} />
           </TouchableOpacity>
         </View>
@@ -67,7 +75,7 @@ export default function ColorMixEditorModal({ visible, title, initialDraft, save
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   embedded: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100 },
-  header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: spacing.xl, paddingRight: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  title: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  closeButton: { width: touch.min, height: touch.min, alignItems: 'center', justifyContent: 'center' },
+  header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  headerButton: { width: touch.min, height: touch.min, alignItems: 'center', justifyContent: 'center' },
+  title: { flex: 1, color: colors.text, fontSize: 18, fontWeight: '700', textAlign: 'center' },
 });

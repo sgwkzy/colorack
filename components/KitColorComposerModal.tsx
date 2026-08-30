@@ -161,6 +161,7 @@ export default function KitColorComposerModal({ visible, kitId, requestCloseRef,
           title={t('createKitMix')}
           saveLabel={t('saveToKit')}
           initialDraft={initialDraft}
+          onBack={back}
           onSave={async (draft) => {
             await addKitColor(
               kitId,
@@ -170,7 +171,7 @@ export default function KitColorComposerModal({ visible, kitId, requestCloseRef,
             );
             await finishAdd();
           }}
-          onClose={() => setRoute('source')}
+          onClose={close}
         />
       ) : (
         <>
@@ -264,8 +265,9 @@ export default function KitColorComposerModal({ visible, kitId, requestCloseRef,
             visible={visible && route === 'paint'}
             embedded
             title={t('pickPaintForKit')}
+            onBack={back}
             onSelect={addPaint}
-            onClose={back}
+            onClose={close}
           />
         </>
       )}
