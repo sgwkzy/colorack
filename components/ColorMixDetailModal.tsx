@@ -1,11 +1,15 @@
+/* Hallmark · component: mix-result summary · genre: modern-minimal · tone: technical
+ * pre-emit critique: P5 H5 E4 S5 R5 V4 · contrast: existing Colorack theme tokens
+ */
 import { useMemo } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconCheck, IconPencil, IconTrash, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { brandLabel } from '../lib/brands';
+import { readableTextColor } from '../lib/color';
 import { mixHexColors } from '../lib/colorMix';
-import { ColorMixSummary } from '../lib/colorMixDraft';
-import { t, useLocale } from '../lib/i18n';
+import { ColorMixSummary, wholePercentagesFromRatios } from '../lib/colorMixDraft';
+import { getLocale, t, useLocale } from '../lib/i18n';
 import { paintName, seriesLabel } from '../lib/paintLabel';
 import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
 import { useModalLock } from '../lib/modalLock';
@@ -33,6 +37,13 @@ export default function ColorMixDetailModal({ visible, color, editable, ownedMap
     ? mixHexColors(color.paints.map((paint) => ({ hex: paint.hex as string, ratio: paint.ratio })))
     : null;
   const name = color?.name?.trim() || (color?.paints[0] ? paintName(color.paints[0].name_ja, color.paints[0].name_en) : t('mixResult'));
+  const resultTextColor = resultHex ? readableTextColor(resultHex) : colors.text;
+  const percentages = wholePercentagesFromRatios(color?.paints.map((paint) => paint.ratio) ?? []);
+  const isEnglish = getLocale() === 'en';
+  const balanceTitle = isEnglish ? 'Mix balance' : '配合バランス';
+  const mixBalanceLabel = color
+    ? `${balanceTitle}. ${color.paints.map((paint, index) => `${paint.code || paintName(paint.name_ja, paint.name_en)} ${percentages[index]}${isEnglish ? ' percent' : 'パーセント'}`).join(isEnglish ? ', ' : '、')}`
+    : balanceTitle;
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -59,10 +70,36 @@ export default function ColorMixDetailModal({ visible, color, editable, ownedMap
                 keyboardShouldPersistTaps="handled"
               >
                 <View style={styles.resultCard}>
-                  <View style={[styles.resultSwatch, { backgroundColor: resultHex ?? colors.chip }]} />
-                  <View style={styles.resultInfo}>
-                    <Text selectable style={styles.resultName}>{name}</Text>
-                    <Text selectable style={styles.resultHex}>{resultHex?.toUpperCase() ?? t('cannotCalculateMix')}</Text>
+                  <View
+                    style={[styles.resultHero, { backgroundColor: resultHex ?? colors.chip }]}
+                  >
+                    <View style={styles.resultInfo}>
+                      <Text selectable numberOfLines={2} style={[styles.resultName, { color: resultTextColor }]}>{name}</Text>
+                      <Text selectable style={[styles.resultHex, { color: resultTextColor }]}>{resultHex?.toUpperCase() ?? t('cannotCalculateMix')}</Text>
+                    </View>
+                  </View>
+                  <View accessible accessibilityLabel={mixBalanceLabel} style={styles.mixBalance}>
+                    <View style={styles.mixBalanceHeader}>
+                      <Text style={styles.mixBalanceTitle}>{balanceTitle}</Text>
+                      <Text style={styles.mixBalanceValues}>{percentages.map((percentage) => `${percentage}%`).join(' · ')}</Text>
+                    </View>
+                    <View
+                      accessibilityElementsHidden
+                      importantForAccessibility="no-hide-descendants"
+                      pointerEvents="none"
+                      style={styles.mixBar}
+                    >
+                      {color.paints.map((paint, index) => (
+                        <View
+                          key={paint.paint_id}
+                          style={[
+                            styles.mixBarSegment,
+                            { backgroundColor: paint.hex ?? colors.chip, flex: Math.max(paint.ratio, 0.0001) },
+                            index < color.paints.length - 1 && styles.mixBarDivider,
+                          ]}
+                        />
+                      ))}
+                    </View>
                   </View>
                 </View>
 
@@ -74,7 +111,7 @@ export default function ColorMixDetailModal({ visible, color, editable, ownedMap
                 <View style={styles.card}>
                   <Text style={styles.sectionTitle}>{t('usedPaints')}</Text>
                   <View style={styles.paintList}>
-                    {color.paints.map((paint) => {
+                    {color.paints.map((paint, index) => {
                       const owned = (ownedMap?.get(paint.paint_id) ?? 0) > 0;
                       return (
                         <View key={paint.paint_id} style={styles.paintRow}>
@@ -84,7 +121,7 @@ export default function ColorMixDetailModal({ visible, color, editable, ownedMap
                             <Text selectable style={styles.paintSeries}>{seriesLabel(paint.series, paint.series_en) || '—'}</Text>
                             <Text selectable style={styles.paintCodeName}>{paint.code || '—'} · {paintName(paint.name_ja, paint.name_en) || '—'}</Text>
                             <View style={styles.paintMeta}>
-                              <Text style={styles.ratio}>{Math.round(paint.ratio * 100)}%</Text>
+                              <Text style={styles.ratio}>{percentages[index]}%</Text>
                               {owned ? (
                                 <View style={styles.owned}>
                                   <IconCheck color={colors.success} size={16} />
@@ -127,11 +164,18 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   headerAction: { width: touch.min, height: touch.min, alignItems: 'center', justifyContent: 'center' },
   scroll: { flex: 1 },
   content: { padding: spacing.xl, gap: spacing.lg },
-  resultCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, padding: spacing.lg, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md },
-  resultSwatch: { width: 128, height: 128, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
-  resultInfo: { flex: 1, gap: spacing.sm },
-  resultName: { color: colors.text, fontSize: 24, lineHeight: 30, fontWeight: '700' },
-  resultHex: { color: colors.textMuted, fontSize: 14, fontWeight: '600', letterSpacing: 0.5 },
+  resultCard: { overflow: 'hidden', backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, borderCurve: 'continuous' },
+  resultHero: { height: 156, justifyContent: 'flex-end', paddingVertical: spacing.xxl, paddingHorizontal: spacing.xl },
+  resultInfo: { minWidth: 0, gap: spacing.xs },
+  resultName: { fontSize: 26, lineHeight: 32, fontWeight: '700', letterSpacing: -0.3 },
+  resultHex: { fontSize: 13, lineHeight: 20, fontWeight: '600', opacity: 0.84, letterSpacing: 0.6, fontVariant: ['tabular-nums'] },
+  mixBalance: { gap: spacing.sm, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.swatchToneDivider },
+  mixBalanceHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  mixBalanceTitle: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+  mixBalanceValues: { flexShrink: 1, color: colors.textSecondary, fontSize: 12, fontWeight: '600', textAlign: 'right', fontVariant: ['tabular-nums'] },
+  mixBar: { height: 12, flexDirection: 'row', overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: colors.chip },
+  mixBarSegment: { height: '100%' },
+  mixBarDivider: { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.swatchToneDivider },
   card: { padding: spacing.lg, gap: spacing.md, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md },
   sectionTitle: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   note: { color: colors.textSecondary, fontSize: 15, lineHeight: 21 },

@@ -1,15 +1,18 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { IconFlask } from '@tabler/icons-react-native';
+import { IconFlask, IconGripVertical } from '@tabler/icons-react-native';
+import Animated, { useAnimatedRef } from 'react-native-reanimated';
+import Sortable, { type SortableGridRenderItem } from 'react-native-sortables';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import ColorMixCard from '../../components/ColorMixCard';
 import ColorMixDetailModal from '../../components/ColorMixDetailModal';
 import ColorMixEditor from '../../components/ColorMixEditor';
 import ColorMixEditorModal from '../../components/ColorMixEditorModal';
 import EmptyState from '../../components/EmptyState';
 import { useScreenView } from '../../lib/analytics';
-import { addMixRecipe, getDB, getMixRecipes, removeMixRecipe, updateMixRecipe } from '../../lib/db';
-import { ColorMixSummary, draftFromSummary, MixDraft, normalizeDraftPaints } from '../../lib/colorMixDraft';
+import { addMixRecipe, getDB, getMixRecipes, removeMixRecipe, reorderMixRecipes, updateMixRecipe } from '../../lib/db';
+import { ColorMixSummary, draftFromSummary, MixDraft, moveMixRecipe, normalizeDraftPaints } from '../../lib/colorMixDraft';
 import { t, useLocale } from '../../lib/i18n';
 import { lightColors, spacing, touch, useTheme } from '../../lib/theme';
 
@@ -20,6 +23,7 @@ export default function MixingScreen() {
   useScreenView('MixingSimulator');
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const savedScrollRef = useAnimatedRef<Animated.ScrollView>();
   const [segment, setSegment] = useState<'simulator' | 'saved'>('simulator');
   const [recipes, setRecipes] = useState<ColorMixSummary[]>([]);
   const [ownedMap, setOwnedMap] = useState<Map<number, number>>(new Map());
@@ -29,6 +33,7 @@ export default function MixingScreen() {
   const [detailVisible, setDetailVisible] = useState(false);
   const [editing, setEditing] = useState(false);
   const [simulatorKey, setSimulatorKey] = useState(0);
+  const [orderSaving, setOrderSaving] = useState(false);
 
   const loadRecipes = useCallback(async () => {
     setLoading(true);
@@ -88,8 +93,64 @@ export default function MixingScreen() {
     ]);
   };
 
+  const saveRecipeOrder = useCallback(async (next: ColorMixSummary[]) => {
+    const previous = recipes;
+    if (orderSaving || next === previous || next.every((recipe, index) => recipe.id === previous[index]?.id)) return;
+    setRecipes(next);
+    setOrderSaving(true);
+    try {
+      await reorderMixRecipes(next.map((recipe) => recipe.id));
+    } catch (error) {
+      console.error('MixingScreen: failed to reorder recipes', error);
+      setRecipes(previous);
+      Alert.alert(t('error'), t('saveFailed'));
+    } finally {
+      setOrderSaving(false);
+    }
+  }, [orderSaving, recipes]);
+
+  const moveRecipe = useCallback((recipeId: number, direction: -1 | 1) => {
+    const next = moveMixRecipe(recipes, recipeId, direction);
+    if (next !== recipes) void saveRecipeOrder(next);
+  }, [recipes, saveRecipeOrder]);
+
+  const renderSavedRecipe = useCallback<SortableGridRenderItem<ColorMixSummary>>(({ item, index }) => {
+    const handleLabel = `${item.name?.trim() || t('mixResult')} ${t('sort')}`;
+    return (
+      <ColorMixCard
+        color={item}
+        ownedMap={ownedMap}
+        onPress={() => { setSelected(item); setDetailVisible(true); }}
+        dragHandle={(
+          <Sortable.Handle style={styles.dragHandle}>
+            <View
+              pointerEvents="none"
+              accessible
+              accessibilityRole="adjustable"
+              accessibilityLabel={handleLabel}
+              accessibilityState={{ disabled: orderSaving }}
+              accessibilityValue={{ min: 1, max: recipes.length, now: index + 1, text: `${index + 1}/${recipes.length}` }}
+              accessibilityActions={[
+                { name: 'decrement', label: t('moveUp') },
+                { name: 'increment', label: t('moveDown') },
+              ]}
+              onAccessibilityAction={({ nativeEvent }) => {
+                if (orderSaving) return;
+                if (nativeEvent.actionName === 'decrement') moveRecipe(item.id, -1);
+                if (nativeEvent.actionName === 'increment') moveRecipe(item.id, 1);
+              }}
+              style={[styles.dragHandleContent, orderSaving && styles.dragHandleDisabled]}
+            >
+              <IconGripVertical color={colors.textMuted} size={22} />
+            </View>
+          </Sortable.Handle>
+        )}
+      />
+    );
+  }, [colors.textMuted, moveRecipe, orderSaving, ownedMap, recipes.length, styles]);
+
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['bottom']}>
       <View accessibilityRole="tablist" style={styles.segments}>
         {(['simulator', 'saved'] as const).map((key) => {
           const active = segment === key;
@@ -126,16 +187,27 @@ export default function MixingScreen() {
         ) : recipes.length === 0 ? (
           <EmptyState icon={IconFlask} title={t('emptySavedMixes')} />
         ) : (
-          <ScrollView contentContainerStyle={styles.savedList}>
-            {recipes.map((recipe) => (
-              <ColorMixCard
-                key={recipe.id}
-                color={recipe}
-                ownedMap={ownedMap}
-                onPress={() => { setSelected(recipe); setDetailVisible(true); }}
-              />
-            ))}
-          </ScrollView>
+          <Animated.ScrollView ref={savedScrollRef} style={styles.savedScroll} contentContainerStyle={styles.savedList}>
+            <Sortable.Grid
+              columns={1}
+              customHandle
+              data={recipes}
+              keyExtractor={(recipe) => String(recipe.id)}
+              renderItem={renderSavedRecipe}
+              onDragEnd={({ data }) => { void saveRecipeOrder(data); }}
+              rowGap={spacing.lg}
+              scrollableRef={savedScrollRef}
+              sortEnabled={!orderSaving}
+              dragActivationDelay={180}
+              dragActivationFailOffset={8}
+              reorderTriggerOrigin="touch"
+              overDrag="vertical"
+              activeItemScale={1.015}
+              inactiveItemOpacity={0.92}
+              autoScrollActivationOffset={80}
+              autoScrollMaxVelocity={500}
+            />
+          </Animated.ScrollView>
         )
       ) : null}
 
@@ -155,7 +227,7 @@ export default function MixingScreen() {
         onSave={saveEdit}
         onClose={() => setEditing(false)}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -168,7 +240,11 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   segmentTextActive: { color: colors.primaryText, fontWeight: '700' },
   content: { flex: 1 },
   hidden: { display: 'none' },
-  savedList: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
+  savedScroll: { flex: 1 },
+  savedList: { padding: spacing.xl, paddingBottom: spacing.xxl },
+  dragHandle: { width: touch.min, minHeight: 72, alignSelf: 'stretch' },
+  dragHandleContent: { flex: 1, alignItems: 'center', justifyContent: 'center', borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.borderLight },
+  dragHandleDisabled: { opacity: 0.35 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.lg, padding: spacing.xxl },
   errorText: { color: colors.textMuted },
   retryButton: { minHeight: touch.min, paddingHorizontal: spacing.xl, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.primary },

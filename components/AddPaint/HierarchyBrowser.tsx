@@ -31,6 +31,7 @@ interface Paint {
 interface Props {
   onSelect: (paint: Paint) => void;
   onSelectView: (paint: Paint) => void;
+  selectionOnly?: boolean;
   // 一覧を最上部からさらに引っ張って離した時に親モーダルを閉じる
   onRequestClose?: () => void;
   // paintType が指定された場合、ブランド/シリーズ/塗料の全階層をその種別のみに絞り込む
@@ -41,7 +42,7 @@ interface Props {
 const ALL = 'ALL';
 type Sort = 'name' | 'code';
 
-export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClose, paintType }: Props) {
+export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly = false, onRequestClose, paintType }: Props) {
   const { colors } = useTheme();
   const { listFontSize } = useUiPrefs();
   const styles = useMemo(() => makeStyles(colors, listFontSize), [colors, listFontSize]);
@@ -212,11 +213,15 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
         keyboardShouldPersistTaps="handled"
         keyExtractor={(p) => String(p.id)}
         renderItem={({ item }) => (
-          <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)} accessibilityRole={selectionOnly ? 'button' : undefined} accessibilityLabel={selectionOnly ? `${t('add')} ${item.code} ${item.name_ja}` : undefined}>
             <PaintRow paint={item} style={styles.itemPaint} ownedCount={ownedCounts.get(item.id) ?? 0} quietOwnedBadge>
-              <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)} accessibilityLabel={t('add')}>
-                <IconPlus color={colors.primary} size={20} />
-              </TouchableOpacity>
+              {selectionOnly ? (
+                <View pointerEvents="none" style={styles.addBtn}><IconPlus color={colors.primary} size={20} /></View>
+              ) : (
+                <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)} accessibilityLabel={t('add')}>
+                  <IconPlus color={colors.primary} size={20} />
+                </TouchableOpacity>
+              )}
             </PaintRow>
           </TouchableOpacity>
         )}

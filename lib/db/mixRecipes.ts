@@ -31,9 +31,12 @@ export async function addMixRecipe(
 ): Promise<void> {
   const db = getDB();
   await db.withTransactionAsync(async () => {
+    const row = await db.getFirstAsync<{ n: number }>(
+      'SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM mix_recipes'
+    );
     const result = await db.runAsync(
       'INSERT INTO mix_recipes (name, note, sort_order) VALUES (?, ?, ?)',
-      [normalizeText(name), normalizeText(note), 0]
+      [normalizeText(name), normalizeText(note), row?.n ?? 0]
     );
     for (const [index, paint] of paints.entries()) {
       await db.runAsync(
@@ -71,5 +74,14 @@ export async function removeMixRecipe(id: number): Promise<void> {
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM mix_recipe_paints WHERE mix_recipe_id = ?', [id]);
     await db.runAsync('DELETE FROM mix_recipes WHERE id = ?', [id]);
+  });
+}
+
+export async function reorderMixRecipes(recipeIds: number[]): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    for (const [index, id] of recipeIds.entries()) {
+      await db.runAsync('UPDATE mix_recipes SET sort_order = ? WHERE id = ?', [index, id]);
+    }
   });
 }

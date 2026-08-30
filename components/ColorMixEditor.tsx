@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { IconChevronLeft, IconPlus, IconTrash } from '@tabler/icons-react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { IconChevronDown, IconPlus, IconTrash } from '@tabler/icons-react-native';
 import { brandLabel } from '../lib/brands';
 import { mixHexColors } from '../lib/colorMix';
 import {
   MixDraft,
   MixDraftError,
   MixDraftPaint,
-  normalizedPercent,
   removeDraftPaint,
+  totalPercentage,
   tryAddDraftPaint,
   validateMixDraft,
 } from '../lib/colorMixDraft';
@@ -17,9 +17,9 @@ import { getLocale, t, useLocale } from '../lib/i18n';
 import { paintName, seriesLabel } from '../lib/paintLabel';
 import { paintTypeLabel } from '../lib/paintType';
 import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
+import ActionSheet, { ActionSheetButton } from './ActionSheet';
 import ClearableInput from './ClearableInput';
-import ColorMatcher from './AddPaint/ColorMatcher';
-import HierarchyBrowser from './AddPaint/HierarchyBrowser';
+import ColorMixPaintPickerModal from './ColorMixPaintPickerModal';
 
 interface Props {
   initialDraft: MixDraft;
@@ -35,7 +35,8 @@ const ERROR_TEXT: Record<MixDraftError, { ja: string; en: string }> = {
   max_paints: { ja: '混色に使える塗料は5色までです', en: 'A mix can contain up to five paints.' },
   paint_type_mismatch: { ja: '同じ塗料種別の色だけを組み合わせられます', en: 'Only paints of the same type can be mixed.' },
   invalid_hex: { ja: '色情報が不正な塗料は混色できません', en: 'This paint does not have valid color data.' },
-  invalid_parts: { ja: '比率は1〜9999の整数で入力してください', en: 'Enter each part as a whole number from 1 to 9999.' },
+  invalid_percentage: { ja: '各色の配合率は1〜100%の整数で入力してください', en: 'Enter each paint as a whole percentage from 1 to 100.' },
+  invalid_percentage_total: { ja: '配合率の合計を100%にしてください', en: 'The percentages must total 100%.' },
 };
 
 type PickerPaint = { id: number };
@@ -47,10 +48,10 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
   const initialKey = JSON.stringify(initialDraft);
   const [draft, setDraft] = useState<MixDraft>(() => ({ ...initialDraft, paints: [...initialDraft.paints] }));
   const paintsRef = useRef<MixDraftPaint[]>([...initialDraft.paints]);
-  const [partTexts, setPartTexts] = useState<Record<number, string>>(() => Object.fromEntries(initialDraft.paints.map((paint) => [paint.paint_id, String(paint.parts)])));
+  const [percentageTexts, setPercentageTexts] = useState<Record<number, string>>(() => Object.fromEntries(initialDraft.paints.map((paint) => [paint.paint_id, String(paint.percentage)])));
   const [paintType, setPaintType] = useState<string | null>(initialDraft.paints[0]?.paint_type ?? null);
-  const [step, setStep] = useState<'edit' | 'pick'>('edit');
-  const [tab, setTab] = useState<'hierarchy' | 'colorMatch'>('hierarchy');
+  const [paintTypeSheetVisible, setPaintTypeSheetVisible] = useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -58,9 +59,10 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
     const paints = [...initialDraft.paints];
     paintsRef.current = paints;
     setDraft({ ...initialDraft, paints });
-    setPartTexts(Object.fromEntries(initialDraft.paints.map((paint) => [paint.paint_id, String(paint.parts)])));
+    setPercentageTexts(Object.fromEntries(initialDraft.paints.map((paint) => [paint.paint_id, String(paint.percentage)])));
     setPaintType(initialDraft.paints[0]?.paint_type ?? null);
-    setStep('edit');
+    setPaintTypeSheetVisible(false);
+    setPickerVisible(false);
     setError('');
   }, [initialKey]);
 
@@ -69,8 +71,12 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
 
   const resultHex = useMemo(() => {
     if (draft.paints.length === 0 || draft.paints.some((paint) => !paint.hex || !/^#?[0-9a-fA-F]{6}$/.test(paint.hex))) return null;
-    return mixHexColors(draft.paints.map((paint) => ({ hex: paint.hex as string, ratio: Math.max(paint.parts, 0) })));
+    return mixHexColors(draft.paints.map((paint) => ({ hex: paint.hex as string, ratio: Math.max(paint.percentage, 0) })));
   }, [draft.paints]);
+  const percentageTotal = totalPercentage(draft.paints);
+  const draftError = validateMixDraft(draft);
+  const balanceScale = percentageTotal > 100 ? 100 / percentageTotal : 1;
+  const footerInvalid = draft.paints.length > 0 && draftError != null;
 
   const showDraftError = (draftError: MixDraftError) => {
     const message = ERROR_TEXT[draftError][getLocale() === 'en' ? 'en' : 'ja'];
@@ -79,6 +85,7 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
   };
 
   const addPaint = async (picked: PickerPaint) => {
+    try {
     const paint = await getDB().getFirstAsync<{
       id: number; name_ja: string; name_en: string | null; brand: string; series: string;
       series_en: string | null; code: string; hex: string | null; paint_type: string | null;
@@ -86,8 +93,8 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
       'SELECT id, name_ja, name_en, brand, series, series_en, code, hex, paint_type FROM catalog_paints WHERE id = ?',
       [picked.id]
     );
-    if (!paint) return;
-    const candidate: Omit<MixDraftPaint, 'parts'> = {
+    if (!paint) return false;
+    const candidate: Omit<MixDraftPaint, 'percentage'> = {
       paint_id: paint.id,
       name_ja: paint.name_ja,
       name_en: paint.name_en,
@@ -99,30 +106,40 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
       paint_type: paint.paint_type,
     };
     const next = tryAddDraftPaint(paintsRef.current, candidate);
-    if (next.error) { showDraftError(next.error); return; }
+    if (next.error) { showDraftError(next.error); return false; }
     paintsRef.current = next.paints;
     setDraft((current) => ({ ...current, paints: next.paints }));
-    setPartTexts((current) => ({ ...current, [paint.id]: '1' }));
+    setPercentageTexts(Object.fromEntries(next.paints.map((item) => [item.paint_id, String(item.percentage)])));
     setError('');
+    return true;
+    } catch (loadError) {
+      console.error('ColorMixEditor: failed to load selected paint', loadError);
+      const message = getLocale() === 'en' ? 'Unable to load this paint.' : '塗料を読み込めませんでした';
+      setError(message);
+      Alert.alert(t('error'), message);
+      return false;
+    }
   };
 
-  const updateParts = (paintId: number, value: string) => {
-    const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
-    const paints = paintsRef.current.map((paint) => paint.paint_id === paintId ? { ...paint, parts: digits === '' ? 0 : Number(digits) } : paint);
+  const updatePercentage = (paintId: number, value: string) => {
+    const digits = value.replace(/[^0-9]/g, '').slice(0, 3);
+    const paints = paintsRef.current.map((paint) => paint.paint_id === paintId ? { ...paint, percentage: digits === '' ? 0 : Number(digits) } : paint);
     paintsRef.current = paints;
-    setPartTexts((current) => ({ ...current, [paintId]: digits }));
+    setPercentageTexts((current) => ({ ...current, [paintId]: digits }));
     setDraft((current) => ({ ...current, paints }));
+  };
+
+  const stepPercentage = (paintId: number, delta: number) => {
+    const paint = paintsRef.current.find((item) => item.paint_id === paintId);
+    if (!paint) return;
+    updatePercentage(paintId, String(Math.min(100, Math.max(1, paint.percentage + delta))));
   };
 
   const removePaint = (paintId: number) => {
     const paints = removeDraftPaint(paintsRef.current, paintId);
     paintsRef.current = paints;
     setDraft((current) => ({ ...current, paints }));
-    setPartTexts((current) => {
-      const next = { ...current };
-      delete next[paintId];
-      return next;
-    });
+    setPercentageTexts(Object.fromEntries(paints.map((paint) => [paint.paint_id, String(paint.percentage)])));
   };
 
   const clear = () => {
@@ -133,9 +150,10 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
         text: t('clear'), style: 'destructive', onPress: () => {
           paintsRef.current = [];
           setDraft({ name: '', note: '', paints: [] });
-          setPartTexts({});
+          setPercentageTexts({});
           setPaintType(null);
-          setStep('edit');
+          setPaintTypeSheetVisible(false);
+          setPickerVisible(false);
           setError('');
         },
       },
@@ -159,154 +177,280 @@ export default function ColorMixEditor({ initialDraft, onSave, onDirtyChange, sa
     }
   };
 
+  const footerMessage = draft.paints.length === 0
+    ? (getLocale() === 'en' ? 'Add a paint to begin' : '塗料を追加してください')
+    : draftError === 'invalid_percentage'
+      ? (getLocale() === 'en' ? 'Set every paint from 1–100%' : '各色を1〜100%に修正')
+      : draftError === 'invalid_hex'
+        ? (getLocale() === 'en' ? 'Check the paint color data' : '塗料の色情報を確認')
+        : draftError && draftError !== 'invalid_percentage_total'
+          ? ERROR_TEXT[draftError][getLocale() === 'en' ? 'en' : 'ja']
+          : percentageTotal === 100
+            ? (getLocale() === 'en' ? 'Ready to save' : '保存できます')
+            : percentageTotal < 100
+              ? (getLocale() === 'en' ? `${100 - percentageTotal}% remaining` : `残り${100 - percentageTotal}%`)
+              : (getLocale() === 'en' ? `${percentageTotal - 100}% over` : `${percentageTotal - 100}%超過`);
+  const paintTypeButtons: ActionSheetButton[] = [
+    ...PAINT_TYPES.map((type) => ({
+      text: `${paintType === type ? '✓ ' : ''}${paintTypeLabel(type)}`,
+      onPress: () => setPaintType(type),
+    })),
+    { text: t('cancel'), style: 'cancel' },
+  ];
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.resultCard}>
-        <View style={[styles.resultSwatch, { backgroundColor: resultHex ?? colors.chip }]} />
-        <View style={styles.resultText}>
-          <Text style={styles.sectionLabel}>{t('mixResult')}</Text>
-          <Text selectable style={styles.resultHex}>{resultHex?.toUpperCase() ?? (draft.paints.length ? t('cannotCalculateMix') : '—')}</Text>
-          {!draft.paints.length ? <Text style={styles.resultHint}>{getLocale() === 'en' ? 'Add paints to preview the mixed color.' : '塗料を追加すると混色結果が表示されます'}</Text> : null}
-        </View>
-      </View>
-
-      <ClearableInput style={styles.input} value={draft.name} onChangeText={(name) => setDraft((current) => ({ ...current, name }))} placeholder={t('mixName')} />
-      <ClearableInput style={[styles.input, styles.noteInput]} value={draft.note} onChangeText={(note) => setDraft((current) => ({ ...current, note }))} placeholder={t('note')} multiline textAlignVertical="top" />
-
-      <View style={styles.selectedHeader}>
-        <Text style={styles.sectionTitle}>{t('currentColor')}</Text>
-        <Text style={styles.count}>{draft.paints.length}/5</Text>
-      </View>
-      {draft.paints.map((paint) => (
-        <View key={paint.paint_id} style={styles.paintRow} accessibilityLabel={`${brandLabel(paint.brand)} ${seriesLabel(paint.series, paint.series_en)} ${paint.code} ${paintName(paint.name_ja, paint.name_en)}`}>
-          <View style={[styles.paintSwatch, { backgroundColor: paint.hex ?? colors.chip }]} />
-          <View style={styles.paintInfo}>
-            <Text numberOfLines={1} style={styles.paintMeta}>{brandLabel(paint.brand)} · {seriesLabel(paint.series, paint.series_en)}</Text>
-            <Text numberOfLines={1} style={styles.paintName}>{paint.code} · {paintName(paint.name_ja, paint.name_en)}</Text>
-          </View>
-          <TextInput
-            accessibilityLabel={`${t('parts')} ${paint.code} ${paintName(paint.name_ja, paint.name_en)}`}
-            keyboardType="number-pad"
-            maxLength={4}
-            style={styles.partsInput}
-            value={partTexts[paint.paint_id] ?? String(paint.parts)}
-            onChangeText={(value) => updateParts(paint.paint_id, value)}
-          />
-          <Text style={styles.percent}>{Math.round(normalizedPercent(draft.paints, paint.paint_id))}%</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${t('removeFromMix')} ${paint.code} ${paintName(paint.name_ja, paint.name_en)}`} onPress={() => removePaint(paint.paint_id)} style={styles.iconButton}>
-            <IconTrash color={colors.danger} size={19} />
-          </TouchableOpacity>
-        </View>
-      ))}
-
-      {step === 'edit' ? (
-        <>
-          {!draft.paints.length ? (
-            <View style={styles.typeSection}>
-              <Text style={styles.sectionLabel}>{t('paintType')}</Text>
-              <View style={styles.typeGrid}>
-                {PAINT_TYPES.map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: paintType === type }}
-                    style={[styles.typeChip, paintType === type && styles.typeChipActive]}
-                    onPress={() => setPaintType(type)}
-                  >
-                    <Text style={[styles.typeText, paintType === type && styles.typeTextActive]}>{paintTypeLabel(type)}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+    <>
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
+          <View style={styles.selectedHeader}>
+            <View style={styles.sectionHeading}>
+              <Text style={styles.sectionTitle}>{getLocale() === 'en' ? 'Paints to mix' : '配合する塗料'}</Text>
+              {draft.paints.length && paintType ? <Text style={styles.sectionMeta}>{paintTypeLabel(paintType)}</Text> : null}
             </View>
+            <Text style={styles.count}>
+              {getLocale() === 'en' ? `${draft.paints.length} colors · max 5` : `${draft.paints.length}色・最大5色`}
+            </Text>
+          </View>
+
+          {!draft.paints.length ? (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={`${t('paintType')} ${paintType ? paintTypeLabel(paintType) : getLocale() === 'en' ? 'Not selected' : '未選択'}`}
+              onPress={() => setPaintTypeSheetVisible(true)}
+              style={styles.typeSelect}
+            >
+              <View style={styles.typeSelectText}>
+                <Text style={styles.fieldLabel}>{t('paintType')}</Text>
+                <Text style={[styles.typeValue, !paintType && styles.typePlaceholder]}>
+                  {paintType ? paintTypeLabel(paintType) : (getLocale() === 'en' ? 'Select a paint type' : '塗料種別を選択')}
+                </Text>
+              </View>
+              <IconChevronDown color={colors.textMuted} size={20} />
+            </TouchableOpacity>
           ) : null}
+
+          {draft.paints.map((paint) => {
+            const percentageInvalid = !Number.isInteger(paint.percentage) || paint.percentage < 1 || paint.percentage > 100;
+            return <View key={paint.paint_id} style={styles.paintCard}>
+              <View style={styles.paintIdentity}>
+                <View style={[styles.paintSwatch, { backgroundColor: paint.hex ?? colors.chip }]} />
+                <View style={styles.paintInfo}>
+                  <Text numberOfLines={1} style={styles.paintMeta}>{brandLabel(paint.brand)} · {seriesLabel(paint.series, paint.series_en)}</Text>
+                  <Text numberOfLines={1} style={styles.paintName}>{paint.code} · {paintName(paint.name_ja, paint.name_en)}</Text>
+                </View>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${t('removeFromMix')} ${paint.code} ${paintName(paint.name_ja, paint.name_en)}`} onPress={() => removePaint(paint.paint_id)} style={styles.iconButton}>
+                  <IconTrash color={colors.danger} size={19} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.percentageControls}>
+                <Text style={styles.percentageLabel}>{getLocale() === 'en' ? 'Percentage' : '配合率'}</Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`${paint.code} ${getLocale() === 'en' ? 'decrease by 5 percent' : '5%減らす'}`}
+                  accessibilityState={{ disabled: paint.percentage <= 1 }}
+                  disabled={paint.percentage <= 1}
+                  onPress={() => stepPercentage(paint.paint_id, -5)}
+                  style={[styles.stepButton, paint.percentage <= 1 && styles.disabled]}
+                >
+                  <Text style={styles.stepText}>−5</Text>
+                </TouchableOpacity>
+                <View style={[styles.percentageInputWrap, percentageInvalid && styles.percentageInputInvalid]}>
+                  <TextInput
+                    accessibilityLabel={`${getLocale() === 'en' ? 'Percentage' : '配合率'} ${paint.code} ${paintName(paint.name_ja, paint.name_en)}`}
+                    accessibilityHint={percentageInvalid
+                      ? (getLocale() === 'en'
+                        ? 'Enter a whole percentage from 1 to 100.'
+                        : '1〜100%の整数で入力してください')
+                      : undefined}
+                    keyboardType="number-pad"
+                    maxLength={3}
+                    selectTextOnFocus
+                    style={styles.percentageInput}
+                    value={percentageTexts[paint.paint_id] ?? String(paint.percentage)}
+                    onChangeText={(value) => updatePercentage(paint.paint_id, value)}
+                  />
+                  <Text style={styles.percentSign}>%</Text>
+                </View>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={`${paint.code} ${getLocale() === 'en' ? 'increase by 5 percent' : '5%増やす'}`}
+                  accessibilityState={{ disabled: paint.percentage >= 100 }}
+                  disabled={paint.percentage >= 100}
+                  onPress={() => stepPercentage(paint.paint_id, 5)}
+                  style={[styles.stepButton, paint.percentage >= 100 && styles.disabled]}
+                >
+                  <Text style={styles.stepText}>＋5</Text>
+                </TouchableOpacity>
+              </View>
+            </View>;
+          })}
+
           <TouchableOpacity
             accessibilityRole="button"
             style={[styles.addButton, (!paintType || draft.paints.length >= 5) && styles.disabled]}
             disabled={!paintType || draft.paints.length >= 5}
-            onPress={() => setStep('pick')}
+            onPress={() => setPickerVisible(true)}
           >
             <IconPlus color={colors.primary} size={20} />
             <Text style={styles.addText}>{t('addPaint')}</Text>
           </TouchableOpacity>
-        </>
-      ) : (
-        <View style={styles.pickerSection}>
-          <TouchableOpacity accessibilityRole="button" onPress={() => setStep('edit')} style={styles.backButton}>
-            <IconChevronLeft color={colors.primary} size={20} />
-            <Text style={styles.backText}>{t('back')}</Text>
+
+          <View style={styles.saveDetails}>
+            <Text style={styles.sectionTitle}>{getLocale() === 'en' ? 'Save details' : '保存情報'}</Text>
+            <Text style={styles.optionalLabel}>{getLocale() === 'en' ? 'Optional' : '任意'}</Text>
+          </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>{t('mixName')}</Text>
+            <ClearableInput
+              accessibilityLabel={t('mixName')}
+              style={styles.input}
+              value={draft.name}
+              onChangeText={(name) => setDraft((current) => ({ ...current, name }))}
+              placeholder={getLocale() === 'en' ? 'e.g. Warm skin tone' : '例：暖色の肌色'}
+            />
+          </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>{t('note')}</Text>
+            <ClearableInput
+              accessibilityLabel={t('note')}
+              style={[styles.input, styles.noteInput]}
+              value={draft.note}
+              onChangeText={(note) => setDraft((current) => ({ ...current, note }))}
+              placeholder={getLocale() === 'en' ? 'Add notes about use or finish' : '用途や仕上がりなどを記録'}
+              multiline
+              textAlignVertical="top"
+            />
+          </View>
+
+          {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+          <TouchableOpacity accessibilityRole="button" disabled={!dirty} onPress={clear} style={[styles.clearButton, !dirty && styles.disabled]}>
+            <Text style={styles.clearText}>{t('clearMix')}</Text>
           </TouchableOpacity>
-          <View accessibilityRole="tablist" style={styles.tabs}>
-            {(['hierarchy', 'colorMatch'] as const).map((key) => (
-              <TouchableOpacity key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }} onPress={() => setTab(key)} style={[styles.tab, tab === key && styles.tabActive]}>
-                <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>{t(key)}</Text>
-              </TouchableOpacity>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <View style={styles.footerMain}>
+            <View
+              accessible
+              accessibilityLabel={`${t('mixResult')} ${resultHex?.toUpperCase() ?? t('cannotCalculateMix')} ${getLocale() === 'en' ? `Total ${percentageTotal}%` : `合計 ${percentageTotal}%`} ${footerMessage}`}
+              style={styles.footerStatus}
+            >
+              <View style={[styles.footerSwatch, { backgroundColor: resultHex ?? colors.chip }]} />
+              <View style={styles.footerStatusText}>
+                <View style={styles.footerHeadline}>
+                  <Text selectable numberOfLines={1} style={styles.footerHex}>{resultHex?.toUpperCase() ?? '—'}</Text>
+                  <Text numberOfLines={1} style={[styles.footerTotal, !draft.paints.length && styles.footerNeutral, footerInvalid && styles.footerInvalid]}>
+                    {percentageTotal}%
+                  </Text>
+                </View>
+                <Text
+                  accessibilityLiveRegion="polite"
+                  style={[styles.footerHint, !draft.paints.length && styles.footerNeutral, footerInvalid && styles.footerInvalid]}
+                  numberOfLines={1}
+                >
+                  {footerMessage}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityState={{ disabled: busy || draftError != null }}
+              disabled={busy || draftError != null}
+              onPress={save}
+              style={[styles.saveButton, (busy || draftError != null) && styles.disabled]}
+            >
+              <Text numberOfLines={1} style={styles.saveText}>{saveLabel ?? t('save')}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.footerMixBar} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            {draft.paints.map((paint) => (
+              <View
+                key={paint.paint_id}
+                style={[
+                  styles.mixBarSegment,
+                  {
+                    width: `${Math.min(100, Math.max(0, paint.percentage * balanceScale))}%`,
+                    backgroundColor: paint.hex ?? colors.chip,
+                  },
+                ]}
+              />
             ))}
           </View>
-          <View style={styles.picker}>
-            {tab === 'hierarchy'
-              ? <HierarchyBrowser paintType={paintType ?? undefined} onSelect={addPaint} onSelectView={addPaint} />
-              : <ColorMatcher lockedPaintType={paintType ?? undefined} onSelect={addPaint} onSelectView={addPaint} />}
-          </View>
         </View>
-      )}
-
-      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      <View style={styles.actions}>
-        <TouchableOpacity accessibilityRole="button" disabled={!dirty} onPress={clear} style={[styles.clearButton, !dirty && styles.disabled]}>
-          <Text style={styles.clearText}>{t('clearMix')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button" disabled={busy} onPress={save} style={[styles.saveButton, busy && styles.disabled]}>
-          <Text style={styles.saveText}>{saveLabel ?? t('save')}</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </KeyboardAvoidingView>
+      <ColorMixPaintPickerModal
+        visible={pickerVisible}
+        paintType={paintType ?? ''}
+        onSelect={addPaint}
+        onClose={() => setPickerVisible(false)}
+      />
+      <ActionSheet
+        visible={paintTypeSheetVisible}
+        title={t('paintType')}
+        buttons={paintTypeButtons}
+        onClose={() => setPaintTypeSheetVisible(false)}
+      />
+    </>
   );
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
-  resultCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
-  resultSwatch: { width: 76, height: 76, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  resultText: { flex: 1, gap: spacing.xs },
-  resultHex: { color: colors.text, fontSize: 19, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  resultHint: { color: colors.textMuted, fontSize: 12, lineHeight: 17 },
+  content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xl },
   input: { minHeight: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.lg, color: colors.text },
   noteInput: { minHeight: 72, alignItems: 'flex-start' },
-  selectedHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  selectedHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md },
+  sectionHeading: { flex: 1, minWidth: 0, gap: 2 },
   sectionTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  sectionLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
-  count: { color: colors.textFaint, fontVariant: ['tabular-nums'] },
-  paintRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md },
+  sectionMeta: { color: colors.textMuted, fontSize: 12 },
+  count: { color: colors.textFaint, fontSize: 12, fontVariant: ['tabular-nums'] },
+  mixBarSegment: { height: '100%' },
+  paintCard: { gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md },
+  paintIdentity: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   paintSwatch: { width: 42, height: 42, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
   paintInfo: { flex: 1, minWidth: 0 },
   paintMeta: { color: colors.textMuted, fontSize: 11 },
   paintName: { color: colors.text, fontSize: 13, fontWeight: '600', marginTop: 2 },
-  partsInput: { width: 48, height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, color: colors.text, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  percent: { width: 38, color: colors.textMuted, textAlign: 'right', fontVariant: ['tabular-nums'] },
   iconButton: { width: touch.min, height: touch.min, alignItems: 'center', justifyContent: 'center' },
-  typeSection: { gap: spacing.md },
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  typeChip: { minHeight: touch.min, justifyContent: 'center', paddingHorizontal: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, backgroundColor: colors.chip },
-  typeChipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  typeText: { color: colors.text, fontSize: 13 },
-  typeTextActive: { color: colors.primaryText, fontWeight: '700' },
+  percentageControls: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  percentageLabel: { flex: 1, color: colors.textMuted, fontSize: 12, fontWeight: '600' },
+  stepButton: { width: 54, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primary, borderRadius: radius.sm, backgroundColor: colors.primarySoft },
+  stepText: { color: colors.primaryText, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  percentageInputWrap: { width: 76, minHeight: touch.min, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm },
+  percentageInputInvalid: { borderColor: colors.danger },
+  percentageInput: { flex: 1, height: touch.min, paddingLeft: spacing.sm, paddingRight: 0, color: colors.text, textAlign: 'right', fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  percentSign: { paddingHorizontal: spacing.sm, color: colors.textMuted, fontWeight: '700' },
+  typeSelect: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+  typeSelectText: { flex: 1, gap: 2 },
+  typeValue: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  typePlaceholder: { color: colors.textMuted, fontWeight: '400' },
   addButton: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderWidth: 1, borderColor: colors.primary, borderRadius: radius.md },
   addText: { color: colors.primaryText, fontWeight: '700' },
-  pickerSection: { minHeight: 430, gap: spacing.md },
-  backButton: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start' },
-  backText: { color: colors.primaryText, fontWeight: '600' },
-  tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  tab: { flex: 1, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: colors.transparent },
-  tabActive: { borderBottomColor: colors.primary },
-  tabText: { color: colors.textMuted },
-  tabTextActive: { color: colors.primaryText, fontWeight: '700' },
-  picker: { height: 360 },
+  saveDetails: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm, marginTop: spacing.sm },
+  optionalLabel: { color: colors.textFaint, fontSize: 12 },
+  fieldGroup: { gap: spacing.sm },
+  fieldLabel: { color: colors.textMuted, fontSize: 12, fontWeight: '600' },
   error: { color: colors.dangerText },
-  actions: { flexDirection: 'row', gap: spacing.md },
-  clearButton: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md },
+  clearButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md },
   clearText: { color: colors.text },
-  saveButton: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.primary },
+  footer: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.surfaceAlt },
+  footerMain: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  footerStatus: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  footerSwatch: { width: 40, height: 40, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
+  footerStatusText: { flex: 1, minWidth: 0 },
+  footerHeadline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xs },
+  footerHex: { flexShrink: 1, color: colors.text, fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  footerTotal: { color: colors.success, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  footerHint: { color: colors.success, fontSize: 11, marginTop: 1 },
+  footerNeutral: { color: colors.textMuted },
+  footerInvalid: { color: colors.dangerText },
+  footerMixBar: { height: 12, flexDirection: 'row', overflow: 'hidden', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.chip },
+  saveButton: { minWidth: 104, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: radius.md, backgroundColor: colors.primary },
   saveText: { color: colors.onPrimary, fontWeight: '700' },
   disabled: { opacity: 0.4 },
 });

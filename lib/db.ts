@@ -19,7 +19,7 @@ export {
   setKitStatus, deleteKit,
 } from './db/kits';
 export { type KitPhoto, getKitPhotos, addKitPhoto, removeKitPhoto, reorderKitPhotos } from './db/kitPhotos';
-export { getMixRecipes, addMixRecipe, updateMixRecipe, removeMixRecipe } from './db/mixRecipes';
+export { getMixRecipes, addMixRecipe, updateMixRecipe, removeMixRecipe, reorderMixRecipes } from './db/mixRecipes';
 export {
   type KitColorPaint, type KitColorSummary, getKitColors, addKitColor,
   addKitColorFromSummary, updateKitColor, removeKitColor, reorderKitColors,
