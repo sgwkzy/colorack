@@ -13,11 +13,12 @@ interface Props {
   visible: boolean;
   title: string;
   initialDraft: MixDraft;
+  saveLabel?: string;
   onSave: (draft: MixDraft) => Promise<void>;
   onClose: () => void;
 }
 
-export default function ColorMixEditorModal({ visible, title, initialDraft, onSave, onClose }: Props) {
+export default function ColorMixEditorModal({ visible, title, initialDraft, saveLabel, onSave, onClose }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -50,7 +51,7 @@ export default function ColorMixEditorModal({ visible, title, initialDraft, onSa
               </TouchableOpacity>
             </View>
           </SwipeDownHeader>
-          {visible ? <ColorMixEditor initialDraft={initialDraft} onSave={save} onDirtyChange={setDirty} /> : null}
+          {visible ? <ColorMixEditor initialDraft={initialDraft} saveLabel={saveLabel} onSave={save} onDirtyChange={setDirty} /> : null}
         </SafeAreaView>
       </SafeAreaProvider>
     </Modal>
