@@ -1,11 +1,11 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconFlask, IconPalette, IconPlus, IconX } from '@tabler/icons-react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAndroidBack } from '../lib/androidBack';
 import { addKitColor, addKitColorFromSummary, getDB, getMixRecipes } from '../lib/db';
 import { ColorMixSummary, draftFromSummary, normalizeDraftPaints } from '../lib/colorMixDraft';
 import { t, useLocale } from '../lib/i18n';
-import { useModalLock } from '../lib/modalLock';
 import { paintName } from '../lib/paintLabel';
 import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
 import ColorMixCard from './ColorMixCard';
@@ -51,7 +51,6 @@ function SourceOption({ icon, title, help, onPress, styles, chevronColor }: Sour
 
 export default function KitColorComposerModal({ visible, kitId, onClose, onAdded }: Props) {
   useLocale();
-  useModalLock(visible);
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const initialDraft = useMemo(() => draftFromSummary(), [visible]);
@@ -90,6 +89,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
     if (route === 'source') onClose();
     else setRoute('source');
   };
+  useAndroidBack(visible && route !== 'paint' && route !== 'newMix', back);
 
   const finishAdd = () => {
     onClose();
@@ -136,10 +136,29 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
   const displayName = (recipe: ColorMixSummary) => recipe.name?.trim()
     || (recipe.paints[0] ? paintName(recipe.paints[0].name_ja, recipe.paints[0].name_en) : t('mixResult'));
 
+  if (!visible) return null;
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={back}>
-      <SafeAreaProvider>
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      {route === 'newMix' ? (
+        <ColorMixEditorModal
+          visible
+          embedded
+          title={t('createKitMix')}
+          saveLabel={t('saveToKit')}
+          initialDraft={initialDraft}
+          onSave={async (draft) => {
+            await addKitColor(
+              kitId,
+              draft.name.trim() || null,
+              draft.note.trim() || null,
+              normalizeDraftPaints(draft.paints),
+            );
+            finishAdd();
+          }}
+          onClose={() => setRoute('source')}
+        />
+      ) : (
+        <>
           <SwipeDownHeader onClose={back}>
             <View style={styles.header}>
               {route === 'saved' ? (
@@ -234,30 +253,14 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
             onSelect={addPaint}
             onClose={() => setRoute('source')}
           />
-          <ColorMixEditorModal
-            visible={visible && route === 'newMix'}
-            title={t('createKitMix')}
-            saveLabel={t('saveToKit')}
-            initialDraft={initialDraft}
-            onSave={async (draft) => {
-              await addKitColor(
-                kitId,
-                draft.name.trim() || null,
-                draft.note.trim() || null,
-                normalizeDraftPaints(draft.paints),
-              );
-              finishAdd();
-            }}
-            onClose={() => setRoute('source')}
-          />
-        </SafeAreaView>
-      </SafeAreaProvider>
-    </Modal>
+        </>
+      )}
+    </SafeAreaView>
   );
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface },
+  container: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100, backgroundColor: colors.surface },
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   headerButton: { width: touch.min, height: touch.min, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, color: colors.text, fontSize: 18, fontWeight: '700', textAlign: 'center' },

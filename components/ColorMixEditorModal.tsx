@@ -3,6 +3,7 @@ import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-na
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import type { MixDraft } from '../lib/colorMixDraft';
+import { useAndroidBack } from '../lib/androidBack';
 import { t } from '../lib/i18n';
 import { useModalLock } from '../lib/modalLock';
 import { lightColors, spacing, touch, useTheme } from '../lib/theme';
@@ -14,12 +15,12 @@ interface Props {
   title: string;
   initialDraft: MixDraft;
   saveLabel?: string;
+  embedded?: boolean;
   onSave: (draft: MixDraft) => Promise<void>;
   onClose: () => void;
 }
 
-export default function ColorMixEditorModal({ visible, title, initialDraft, saveLabel, onSave, onClose }: Props) {
-  useModalLock(visible);
+export default function ColorMixEditorModal({ visible, title, initialDraft, saveLabel, embedded = false, onSave, onClose }: Props) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
   const [dirty, setDirty] = useState(false);
@@ -32,6 +33,8 @@ export default function ColorMixEditorModal({ visible, title, initialDraft, save
       { text: t('discard'), style: 'destructive', onPress: onClose },
     ]);
   };
+  useModalLock(visible && !embedded);
+  useAndroidBack(visible && embedded, close);
 
   const save = async (draft: MixDraft) => {
     await onSave(draft);
@@ -39,23 +42,22 @@ export default function ColorMixEditorModal({ visible, title, initialDraft, save
     onClose();
   };
 
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={close}>
-      <SafeAreaProvider>
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={close}>
-            <View style={styles.header}>
-              <Text style={styles.title}>{title}</Text>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} onPress={close} style={styles.closeButton}>
-                <IconX color={colors.text} size={24} />
-              </TouchableOpacity>
-            </View>
-          </SwipeDownHeader>
-          {visible ? <ColorMixEditor initialDraft={initialDraft} saveLabel={saveLabel} onSave={save} onDirtyChange={setDirty} /> : null}
-        </SafeAreaView>
-      </SafeAreaProvider>
-    </Modal>
+  const screen = (
+    <SafeAreaView style={styles.container} edges={embedded ? [] : ['top', 'bottom']}>
+      <SwipeDownHeader onClose={close}>
+        <View style={styles.header}>
+          <Text style={styles.title}>{title}</Text>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} onPress={close} style={styles.closeButton}>
+            <IconX color={colors.text} size={24} />
+          </TouchableOpacity>
+        </View>
+      </SwipeDownHeader>
+      {visible ? <ColorMixEditor initialDraft={initialDraft} saveLabel={saveLabel} onSave={save} onDirtyChange={setDirty} /> : null}
+    </SafeAreaView>
   );
+
+  if (embedded) return visible ? screen : null;
+  return <Modal visible={visible} animationType="slide" onRequestClose={close}><SafeAreaProvider>{screen}</SafeAreaProvider></Modal>;
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({

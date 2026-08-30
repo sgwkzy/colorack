@@ -334,11 +334,11 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const boxName = boxes.find((b) => b.id === detail?.box_id)?.name ?? t('unassigned');
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={closeAfterSavingFields}>
+    <Modal visible={visible} animationType="slide" onRequestClose={pickerOpen ? () => {} : closeAfterSavingFields}>
       <SafeAreaProvider>
-        <SwipeBack enabled={visible && !viewerOpen} onBack={closeAfterSavingFields}>
+        <SwipeBack enabled={visible && !viewerOpen && !pickerOpen} onBack={closeAfterSavingFields}>
         <SafeAreaView style={styles.container} edges={['top']}>
-          <SwipeDownHeader onClose={closeAfterSavingFields} enabled={!viewerOpen}>
+          <SwipeDownHeader onClose={closeAfterSavingFields} enabled={!viewerOpen && !pickerOpen}>
             <View style={styles.header}>
               {editMode ? (
                 <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('editKitTitle')} onPress={exitEditMode} style={styles.backBtn}>
@@ -359,7 +359,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           {!detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
-            <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingFields} closeEnabled={!viewerOpen} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+            <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingFields} closeEnabled={!viewerOpen && !pickerOpen} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <View style={styles.titleBlock}>
                 {editMode ? (
                   <>
