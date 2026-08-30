@@ -1,7 +1,7 @@
 // components/KitDetailModal.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconChevronDown, IconChevronLeft, IconChevronUp, IconEdit, IconShoppingCartPlus, IconTrash, IconX } from '@tabler/icons-react-native';
+import { IconChevronDown, IconChevronLeft, IconChevronUp, IconEdit, IconPlus, IconShoppingCartPlus, IconTrash, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   addKitPhoto,
@@ -405,16 +405,22 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
 
               <View style={styles.tabBar}>
                 <TouchableOpacity
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: detailTab === 'details' }}
+                  accessibilityLabel={t('detailInfo')}
                   style={[styles.tabBtn, detailTab === 'details' && styles.tabBtnActive]}
                   onPress={() => setDetailTab('details')}
                 >
                   <Text style={[styles.tabText, detailTab === 'details' && styles.tabTextActive]}>{t('detailInfo')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: detailTab === 'colors' }}
+                  accessibilityLabel={t('usedColorsTab')}
                   style={[styles.tabBtn, detailTab === 'colors' && styles.tabBtnActive]}
                   onPress={() => setDetailTab('colors')}
                 >
-                  <Text style={[styles.tabText, detailTab === 'colors' && styles.tabTextActive]}>{t('colorInfo')}</Text>
+                  <Text style={[styles.tabText, detailTab === 'colors' && styles.tabTextActive]}>{t('usedColorsTab')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -496,11 +502,18 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
               ) : (
                 <View style={styles.paintsSection}>
                   <View style={styles.paintsHeader}>
-                    <Text style={styles.sectionTitle}>{t('usedPaints')}</Text>
-                    <TouchableOpacity onPress={() => setPickerOpen(true)}>
-                      <Text style={styles.addLink}>{t('addColor')}</Text>
+                    <Text style={styles.sectionTitle}>{t('kitUsedColors')}</Text>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={t('addUsedColor')}
+                      onPress={() => setPickerOpen(true)}
+                      style={styles.addColorButton}
+                    >
+                      <IconPlus color={colors.primary} size={18} />
+                      <Text style={styles.addLink}>{t('addUsedColor')}</Text>
                     </TouchableOpacity>
                   </View>
+                  {kitColors.length === 0 ? <Text style={styles.empty}>{t('emptyKitColors')}</Text> : null}
                   {kitColors.map((color, index) => (
                     <View key={color.id} style={styles.colorItem}>
                       <KitColorRow

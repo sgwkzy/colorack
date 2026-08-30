@@ -38,6 +38,7 @@ export const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   colorActions: { flexDirection: 'row', gap: spacing.sm },
   colorAction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm },
   colorDelete: { marginLeft: 'auto', borderColor: colors.danger },
+  addColorButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   addLink: { color: colors.primaryText, fontWeight: '700', fontSize: 14 },
   empty: { textAlign: 'center', marginTop: 40, color: colors.textPlaceholder },
   editBar: { flexDirection: 'row', gap: spacing.md, padding: spacing.xl, borderTopWidth: 1, borderTopColor: colors.borderLight },
