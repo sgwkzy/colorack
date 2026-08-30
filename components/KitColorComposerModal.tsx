@@ -91,6 +91,13 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
     else setRoute('source');
   };
 
+  const finishAdd = () => {
+    onClose();
+    void Promise.resolve().then(onAdded).catch((error) => {
+      console.error('KitColorComposerModal: failed to refresh kit colors', error);
+    });
+  };
+
   const addPaint = async ({ id }: { id: number }): Promise<boolean> => {
     if (savingId != null) return false;
     setSavingId(id);
@@ -101,8 +108,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
       );
       if (!paint) throw new Error('paint_not_found');
       await addKitColor(kitId, paintName(paint.name_ja, paint.name_en), null, [{ paintId: paint.id, ratio: 1 }]);
-      await onAdded();
-      onClose();
+      finishAdd();
       return true;
     } catch (error) {
       console.error('KitColorComposerModal: failed to add paint', error);
@@ -118,8 +124,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
     setSavingId(recipe.id);
     try {
       await addKitColorFromSummary(kitId, recipe);
-      await onAdded();
-      onClose();
+      finishAdd();
     } catch (error) {
       console.error('KitColorComposerModal: failed to copy saved mix', error);
       Alert.alert(t('error'), t('saveFailed'));
@@ -170,6 +175,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
                   <View style={savingId != null && styles.disabled}>
                     <ColorMixCard
                       color={item}
+                      disabled={savingId != null}
                       accessibilityLabel={`${displayName(item)}。${t('addMixToKit')}`}
                       onPress={() => addSavedMix(item)}
                       dragHandle={
@@ -231,8 +237,7 @@ export default function KitColorComposerModal({ visible, kitId, onClose, onAdded
                 draft.note.trim() || null,
                 normalizeDraftPaints(draft.paints),
               );
-              await onAdded();
-              onClose();
+              finishAdd();
             }}
             onClose={() => setRoute('source')}
           />

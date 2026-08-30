@@ -13,13 +13,14 @@ interface Props {
   ownedMap?: Map<number, number>;
   dragHandle?: ReactNode;
   accessibilityLabel?: string;
+  disabled?: boolean;
 }
 
 function paintHex(paint: ColorMixPaint, fallback: string): string {
   return paint.hex ?? fallback;
 }
 
-export default function ColorMixCard({ color, onPress, dragHandle, accessibilityLabel }: Props) {
+export default function ColorMixCard({ color, onPress, dragHandle, accessibilityLabel, disabled = false }: Props) {
   useLocale();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -38,8 +39,10 @@ export default function ColorMixCard({ color, onPress, dragHandle, accessibility
         <TouchableOpacity
           style={styles.pressable}
           onPress={onPress}
+          disabled={disabled}
           accessible
           accessibilityRole="button"
+          accessibilityState={{ disabled }}
           accessibilityLabel={accessibilityLabel ?? `${name}, ${color.paints.length} ${t('usedPaints')}, ${resultLabel}`}
         >
           <View style={[styles.resultSwatch, { backgroundColor: resultHex ?? colors.chip }]} />
