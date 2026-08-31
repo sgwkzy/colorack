@@ -24,3 +24,8 @@ export {
   type KitColorPaint, type KitColorSummary, getKitColors, addKitColor,
   addKitColorFromSummary, updateKitColor, removeKitColor, reorderKitColors,
 } from './db/kitColors';
+export {
+  type KitWishlistItem, type KitWishlistDraft, addKitWishlistItem,
+  removeKitWishlistItem, restoreKitWishlistItem,
+  moveKitWishlistItemToBox, undoKitWishlistMove,
+} from './db/kitWishlist';

@@ -49,9 +49,9 @@ export async function initDB(): Promise<void> {
     "  status TEXT NOT NULL DEFAULT 'not_started' CHECK(status IN ('not_started','building','completed'))," +
     "  added_at TEXT DEFAULT (datetime('now')), status_changed_at TEXT DEFAULT (datetime('now'))" +
     ');' +
-    'CREATE TABLE IF NOT EXISTS kit_lists (' +
+    'CREATE TABLE IF NOT EXISTS kit_wishlist (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  kit_id INTEGER NOT NULL,' +
+    '  name TEXT NOT NULL, maker TEXT NOT NULL, series TEXT, category TEXT, scale TEXT, note TEXT, price INTEGER,' +
     "  added_at TEXT DEFAULT (datetime('now'))" +
     ');' +
     'CREATE TABLE IF NOT EXISTS kit_colors (' +
@@ -84,11 +84,22 @@ export async function initDB(): Promise<void> {
     "  added_at TEXT DEFAULT (datetime('now'))" +
     ');'
   );
+  const hasLegacyKitLists = await db.getFirstAsync<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'kit_lists'"
+  );
+  if (hasLegacyKitLists) {
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        'INSERT INTO kit_wishlist (name, maker, series, category, scale, note, price, added_at)' +
+        ' SELECT k.name, k.maker, k.series, k.category, k.scale, k.note, k.price, l.added_at' +
+        ' FROM kit_lists l JOIN kits k ON k.id = l.kit_id'
+      );
+      await db.execAsync('DROP TABLE kit_lists');
+    });
+  }
   await db.execAsync(
     'DELETE FROM lists WHERE id NOT IN (SELECT MIN(id) FROM lists GROUP BY type, paint_id);' +
-    'CREATE UNIQUE INDEX IF NOT EXISTS idx_lists_type_paint ON lists(type, paint_id);' +
-    'DELETE FROM kit_lists WHERE id NOT IN (SELECT MIN(id) FROM kit_lists GROUP BY kit_id);' +
-    'CREATE UNIQUE INDEX IF NOT EXISTS idx_kit_lists_kit ON kit_lists(kit_id);'
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_lists_type_paint ON lists(type, paint_id);'
   );
 
   // 既存DBに gloss 列が無ければ追加(SQLiteは IF NOT EXISTS 非対応なので try/catch)
