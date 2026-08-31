@@ -12,6 +12,7 @@ export { getMasterCatalogPaint } from './db/seedCatalog';
 export {
   getOwnedCountMap, getListMembership, removeFromList, type InventoryDetail,
   getInventoryDetail, updateInventoryNote, updateInventoryBox, setInventoryStatus,
+  moveWishlistPaintToBox, undoWishlistPaintMove,
 } from './db/inventory';
 export {
   type KitDetail, getKitDetail, updateKitNote, updateKitName, updateKitMaker,
