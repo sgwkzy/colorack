@@ -84,19 +84,6 @@ export async function initDB(): Promise<void> {
     "  added_at TEXT DEFAULT (datetime('now'))" +
     ');'
   );
-  const hasLegacyKitLists = await db.getFirstAsync<{ name: string }>(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'kit_lists'"
-  );
-  if (hasLegacyKitLists) {
-    await db.withTransactionAsync(async () => {
-      await db.runAsync(
-        'INSERT INTO kit_wishlist (name, maker, series, category, scale, note, price, added_at)' +
-        ' SELECT k.name, k.maker, k.series, k.category, k.scale, k.note, k.price, l.added_at' +
-        ' FROM kit_lists l JOIN kits k ON k.id = l.kit_id'
-      );
-      await db.execAsync('DROP TABLE kit_lists');
-    });
-  }
   await db.execAsync(
     'DELETE FROM lists WHERE id NOT IN (SELECT MIN(id) FROM lists GROUP BY type, paint_id);' +
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_lists_type_paint ON lists(type, paint_id);'
@@ -112,6 +99,19 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN series TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN category TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN price INTEGER'); } catch { /* 既にある */ }
+  const hasLegacyKitLists = await db.getFirstAsync<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'kit_lists'"
+  );
+  if (hasLegacyKitLists) {
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        'INSERT INTO kit_wishlist (name, maker, series, category, scale, note, price, added_at)' +
+        ' SELECT k.name, k.maker, k.series, k.category, k.scale, k.note, k.price, l.added_at' +
+        ' FROM kit_lists l JOIN kits k ON k.id = l.kit_id'
+      );
+      await db.execAsync('DROP TABLE kit_lists');
+    });
+  }
   try { await db.execAsync('ALTER TABLE kit_colors ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kit_photos ADD COLUMN synced_at TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kit_photos ADD COLUMN storage_path TEXT'); } catch { /* 既にある */ }
