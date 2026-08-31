@@ -641,19 +641,23 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
   const kitIdByLocalRef = new Map<string, number>();
   const kitWishlistIdByLocalRef = new Map<string, number>();
   const mixRecipeIdByLocalRef = new Map<string, number>();
-  const kitPhotosToRestore = getEntitlements().hasPhotoBackup ? snapshot.kitPhotos ?? [] : [];
-  const kitWishlistPhotosToRestore = getEntitlements().hasPhotoBackup && snapshot.schemaVersion >= 6
+  const savedKitPhotos = getEntitlements().hasPhotoBackup ? snapshot.kitPhotos ?? [] : [];
+  const savedKitWishlistPhotos = getEntitlements().hasPhotoBackup && snapshot.schemaVersion >= 6
     ? snapshot.kitWishlistPhotos ?? []
     : [];
-  const photosToRestore = [...kitPhotosToRestore, ...kitWishlistPhotosToRestore];
   const kitRefs = new Set((snapshot.kits ?? []).map((kit) => kit.localRef));
-  const invalidPhoto = kitPhotosToRestore.find((photo) => !kitRefs.has(photo.kitLocalRef));
-  if (invalidPhoto) throw new Error(`Kit photo references missing kit: ${invalidPhoto.kitLocalRef}`);
   const kitWishlistRefs = new Set((snapshot.kitWishlist ?? []).map((item) => item.localRef));
-  const invalidKitWishlistPhoto = kitWishlistPhotosToRestore.find((photo) => !kitWishlistRefs.has(photo.wishlistLocalRef));
-  if (invalidKitWishlistPhoto) {
-    throw new Error(`Candidate photo references missing candidate: ${invalidKitWishlistPhoto.wishlistLocalRef}`);
-  }
+  const kitPhotosToRestore = savedKitPhotos.filter((photo) => {
+    const valid = kitRefs.has(photo.kitLocalRef);
+    if (!valid) console.warn('restoreFromSnapshot: skipping stale kit photo reference', photo.kitLocalRef);
+    return valid;
+  });
+  const kitWishlistPhotosToRestore = savedKitWishlistPhotos.filter((photo) => {
+    const valid = kitWishlistRefs.has(photo.wishlistLocalRef);
+    if (!valid) console.warn('restoreFromSnapshot: skipping stale candidate photo reference', photo.wishlistLocalRef);
+    return valid;
+  });
+  const photosToRestore = [...kitPhotosToRestore, ...kitWishlistPhotosToRestore];
 
   const localUriByStoragePath = photosToRestore.length > 0
     ? await downloadKitPhotosForRestore(photosToRestore)
