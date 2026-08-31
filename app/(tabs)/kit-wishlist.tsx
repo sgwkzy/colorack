@@ -47,6 +47,7 @@ export default function KitWishlistScreen() {
   const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastCleanupRef = useRef<(() => void | Promise<void>) | null>(null);
+  const toastGenerationRef = useRef(0);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const loadVersionRef = useRef(0);
   const busyIdRef = useRef<number | null>(null);
@@ -99,6 +100,7 @@ export default function KitWishlistScreen() {
   }, [filter, load, sort]));
 
   const clearToast = (runCleanup: boolean) => {
+    toastGenerationRef.current += 1;
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = null;
     const cleanup = toastCleanupRef.current;
@@ -119,8 +121,13 @@ export default function KitWishlistScreen() {
 
   const showToast = (message: string, actionLabel?: string, onAction?: () => void, onExpire?: () => void | Promise<void>) => {
     clearToast(true);
+    const generation = toastGenerationRef.current;
     setToast(message);
-    setToastAction(actionLabel && onAction ? { label: actionLabel, onPress: onAction } : null);
+    setToastAction(actionLabel && onAction ? { label: actionLabel, onPress: () => {
+      if (generation !== toastGenerationRef.current) return;
+      toastGenerationRef.current += 1;
+      onAction();
+    } } : null);
     toastCleanupRef.current = onExpire ?? null;
     toastTimer.current = setTimeout(() => clearToast(true), actionLabel ? 3000 : 1800);
   };
