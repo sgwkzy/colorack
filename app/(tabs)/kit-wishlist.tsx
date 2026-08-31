@@ -29,6 +29,10 @@ const SORT_SQL: Record<KitWishlistSort, string> = {
   maker: 'maker COLLATE NOCASE ASC, name COLLATE NOCASE ASC',
 };
 
+function kitWishlistActionForOpenedSide(direction: 'left' | 'right'): 'move' | 'delete' {
+  return direction === 'right' ? 'delete' : 'move';
+}
+
 export default function KitWishlistScreen() {
   const locale = useLocale();
   const navigation = useNavigation();
@@ -301,9 +305,9 @@ export default function KitWishlistScreen() {
           return (
             <Swipeable
               ref={(ref) => { if (ref) swipeRefs.current.set(item.id, ref); else swipeRefs.current.delete(item.id); }}
-              renderLeftActions={() => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>}
-              renderRightActions={() => <View style={styles.moveAction}><Text numberOfLines={1} style={styles.swipeActionText}>{t('moveToBox')}</Text></View>}
-              onSwipeableOpen={(direction) => { if (direction === 'right') void requestMove(item); if (direction === 'left') void deleteItem(item); }}
+              renderLeftActions={() => <View style={styles.moveAction}><Text numberOfLines={1} style={styles.swipeActionText}>{t('moveToBox')}</Text></View>}
+              renderRightActions={() => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>}
+              onSwipeableOpen={(direction) => { const action = kitWishlistActionForOpenedSide(direction); if (action === 'delete') void deleteItem(item); else void requestMove(item); }}
               onSwipeableWillOpen={() => swipeRefs.current.forEach((swipeable, id) => { if (id !== item.id) swipeable.close(); })}
               overshootRight={false}
               overshootLeft={false}
@@ -356,6 +360,12 @@ export default function KitWishlistScreen() {
         defaultBoxId={null}
         saveTarget="wishlist"
         editWishlistItem={editItem}
+        onEditAction={(action) => {
+          const item = editItem;
+          if (!item) return;
+          if (action === 'move') void requestMove(item);
+          else void deleteItem(item);
+        }}
         onClose={() => { setShowAdd(false); setEditItem(null); void reload(); }}
       />
       <ActionSheet

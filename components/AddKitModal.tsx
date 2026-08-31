@@ -1,7 +1,7 @@
 // components/AddKitModal.tsx
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconX } from '@tabler/icons-react-native';
+import { IconBox, IconTrash, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { addKitPhoto, getKitWishlistPhotos, getDB, saveKitWishlistItem, type KitWishlistItem } from '../lib/db';
 import { t } from '../lib/i18n';
@@ -18,6 +18,7 @@ interface Props {
   defaultBoxId: number | null;
   saveTarget?: 'owned' | 'wishlist';
   editWishlistItem?: KitWishlistItem | null;
+  onEditAction?: (action: 'move' | 'delete') => void;
   onClose: () => void;
 }
 
@@ -43,7 +44,7 @@ export function isKitFormDirty(form: KitFormValues, initial?: KitFormValues): bo
     || form.scale !== '' || form.price !== '' || form.note !== '' || form.photos.length > 0;
 }
 
-export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned', editWishlistItem, onClose }: Props) {
+export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned', editWishlistItem, onEditAction, onClose }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -63,6 +64,7 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
   const photoLoadVersionRef = useRef(0);
   const initialPhotoUrisRef = useRef(new Set<string>());
   const draftPhotoUrisRef = useRef(new Set<string>());
+  const pendingActionRef = useRef<(() => void) | null>(null);
   const editingWishlist = saveTarget === 'wishlist' && editWishlistItem != null;
   const currentForm = { name, maker, series, category, scale, price, note, photos };
   const initialEditForm = editingWishlist ? {
@@ -156,7 +158,7 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
     }
   };
 
-  const discard = useCallback(async () => {
+  const discard = useCallback(async (afterClose?: () => void) => {
     if (savingRef.current) return;
     const urisToDelete = saveTarget === 'wishlist'
       ? [...draftPhotoUrisRef.current].filter((uri) => !initialPhotoUrisRef.current.has(uri))
@@ -168,7 +170,9 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
       Alert.alert(t('error'), t('saveFailed'));
       return;
     }
+    if (Platform.OS === 'ios' && afterClose) pendingActionRef.current = afterClose;
     onClose();
+    if (Platform.OS !== 'ios') afterClose?.();
   }, [onClose, photos, saveTarget]);
 
   const requestClose = useCallback(() => {
@@ -180,8 +184,24 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
     ]);
   }, [discard, dirty, visible]);
 
+  const requestEditAction = useCallback((action: 'move' | 'delete') => {
+    if (!visible || savingRef.current || !editingWishlist || !onEditAction) return;
+    const proceed = () => { void discard(() => onEditAction(action)); };
+    if (!dirty) { proceed(); return; }
+    Alert.alert(t('discardChangesConfirm'), '', [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t(action === 'delete' ? 'delete' : 'moveToBox'), style: action === 'delete' ? 'destructive' : 'default', onPress: proceed },
+    ]);
+  }, [dirty, discard, editingWishlist, onEditAction, visible]);
+
+  const handleDismiss = () => {
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    action?.();
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={requestClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={requestClose} onDismiss={handleDismiss}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <SwipeDownHeader onClose={requestClose} enabled={!viewerOpen && !busy}>
@@ -262,6 +282,32 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
           </SwipeDownScrollView>
           {/* busy も無効表示に含める。保存中は閉じる操作も無視する(写真のコピー中に
               削除すると壊れたレコードが残るため)ので、見た目でも処理中だと分かるようにする。 */}
+          {editingWishlist && onEditAction ? (
+            <View style={styles.editActions}>
+              <TouchableOpacity
+                style={styles.editActionButton}
+                onPress={() => requestEditAction('move')}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel={t('moveToBox')}
+                accessibilityState={{ disabled: busy, busy }}
+              >
+                <IconBox color={colors.primaryText} size={20} />
+                <Text style={styles.editActionText}>{t('moveToBox')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editActionButton, styles.deleteActionButton]}
+                onPress={() => requestEditAction('delete')}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel={t('delete')}
+                accessibilityState={{ disabled: busy, busy }}
+              >
+                <IconTrash color={colors.dangerText} size={20} />
+                <Text style={[styles.editActionText, styles.deleteActionText]}>{t('delete')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           <TouchableOpacity
             style={[styles.saveBtn, (!canSave || busy) && styles.saveBtnDisabled]}
             onPress={save}
@@ -288,6 +334,11 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   label: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg, color: colors.text },
   noteInput: { minHeight: 72, alignItems: 'flex-start' },
+  editActions: { flexDirection: 'row', gap: spacing.md, marginHorizontal: spacing.xl, marginTop: spacing.lg },
+  editActionButton: { flex: 1, minHeight: touch.min, flexDirection: 'row', gap: spacing.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primary, borderRadius: radius.md },
+  editActionText: { color: colors.primaryText, fontWeight: '700' },
+  deleteActionButton: { borderColor: colors.danger },
+  deleteActionText: { color: colors.dangerText },
   saveBtn: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, margin: spacing.xl, borderRadius: radius.md },
   saveBtnDisabled: { backgroundColor: colors.primaryDisabled },
   saveBtnText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
