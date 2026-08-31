@@ -4,6 +4,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { IconShoppingCartPlus } from '@tabler/icons-react-native';
 import { useFocusEffect, useNavigation } from 'expo-router';
 import { getDB, moveKitWishlistItemToBox, type KitWishlistItem, removeKitWishlistItem, restoreKitWishlistItem, undoKitWishlistMove } from '../../lib/db';
+import { deleteKitPhoto } from '../../lib/kitPhoto';
 import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
 import { lightColors, spacing, touch, useTheme } from '../../lib/theme';
@@ -45,6 +46,7 @@ export default function KitWishlistScreen() {
   const [toast, setToast] = useState('');
   const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastCleanupRef = useRef<(() => void | Promise<void>) | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const loadVersionRef = useRef(0);
   const busyIdRef = useRef<number | null>(null);
@@ -96,8 +98,18 @@ export default function KitWishlistScreen() {
     void load(filter, sort);
   }, [filter, load, sort]));
 
-  useEffect(() => () => {
+  const clearToast = (runCleanup: boolean) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = null;
+    const cleanup = toastCleanupRef.current;
+    toastCleanupRef.current = null;
+    setToast('');
+    setToastAction(null);
+    if (runCleanup && cleanup) void cleanup();
+  };
+
+  useEffect(() => () => {
+    clearToast(true);
   }, []);
 
   const reload = () => load(filter, sort);
@@ -105,14 +117,12 @@ export default function KitWishlistScreen() {
   const trulyEmpty = !filterActive && totalCount === 0;
   const emptyMessage = trulyEmpty ? t('emptyKitWishlist') : t('noResults');
 
-  const showToast = (message: string, actionLabel?: string, onAction?: () => void) => {
+  const showToast = (message: string, actionLabel?: string, onAction?: () => void, onExpire?: () => void | Promise<void>) => {
+    clearToast(true);
     setToast(message);
     setToastAction(actionLabel && onAction ? { label: actionLabel, onPress: onAction } : null);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => {
-      setToast('');
-      setToastAction(null);
-    }, actionLabel ? 3000 : 1800);
+    toastCleanupRef.current = onExpire ?? null;
+    toastTimer.current = setTimeout(() => clearToast(true), actionLabel ? 3000 : 1800);
   };
 
   const clearBusy = (id: number) => {
@@ -126,7 +136,7 @@ export default function KitWishlistScreen() {
     busyIdRef.current = item.id;
     setBusyId(item.id);
     swipeRefs.current.get(item.id)?.close();
-    let moved: { kitId: number; item: KitWishlistItem };
+    let moved: Awaited<ReturnType<typeof moveKitWishlistItemToBox>>;
     try {
       moved = await moveKitWishlistItemToBox(item.id, boxId);
     } catch (error) {
@@ -137,7 +147,7 @@ export default function KitWishlistScreen() {
     }
     showToast(t('kitMovedToBoxToast'), t('undo'), async () => {
       try {
-        await undoKitWishlistMove(moved.kitId, moved.item);
+        await undoKitWishlistMove(moved.kitId, moved.snapshot);
       } catch (error) {
         console.error('KitWishlistScreen: failed to undo candidate move', error);
         Alert.alert(t('error'), t('saveFailed'));
@@ -198,7 +208,7 @@ export default function KitWishlistScreen() {
     try {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       swipeRefs.current.get(item.id)?.close();
-      let removed: KitWishlistItem | null;
+      let removed: Awaited<ReturnType<typeof removeKitWishlistItem>>;
       try {
         removed = await removeKitWishlistItem(item.id);
       } catch (error) {
@@ -207,9 +217,11 @@ export default function KitWishlistScreen() {
         return;
       }
       if (!removed) return;
+      const removedSnapshot = removed;
       showToast(item.name + t('removedToast'), t('undo'), async () => {
+        clearToast(false);
         try {
-          await restoreKitWishlistItem(removed);
+          await restoreKitWishlistItem(removedSnapshot);
         } catch (error) {
           console.error('KitWishlistScreen: failed to undo candidate deletion', error);
           Alert.alert(t('error'), t('saveFailed'));
@@ -220,6 +232,14 @@ export default function KitWishlistScreen() {
         } catch (error) {
           console.error('KitWishlistScreen: failed to reload after undo', error);
           Alert.alert(t('error'), t('loadFailed'));
+        }
+      }, async () => {
+        for (const photo of removedSnapshot.photos) {
+          try {
+            await deleteKitPhoto(photo.uri);
+          } catch (error) {
+            console.error('KitWishlistScreen: failed to clean up deleted candidate photo', photo.uri, error);
+          }
         }
       });
       try {

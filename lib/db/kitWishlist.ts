@@ -1,5 +1,4 @@
 import { getDB } from './connection';
-import { deleteKitPhoto } from '../kitPhoto';
 
 export interface KitWishlistItem {
   id: number;
@@ -19,6 +18,11 @@ export interface KitWishlistPhoto {
   sort_order: number;
   synced_at: string | null;
   storage_path: string | null;
+}
+
+export interface KitWishlistSnapshot {
+  item: KitWishlistItem;
+  photos: KitWishlistPhoto[];
 }
 
 export type KitWishlistDraft = Omit<KitWishlistItem, 'id' | 'added_at'>;
@@ -82,65 +86,88 @@ export async function addKitWishlistItem(item: KitWishlistDraft): Promise<number
   return (await saveKitWishlistItem(null, item, [])).id;
 }
 
-export async function moveKitWishlistItemToBox(id: number, boxId: number): Promise<{ kitId: number; item: KitWishlistItem }> {
+export async function moveKitWishlistItemToBox(
+  id: number,
+  boxId: number,
+): Promise<{ kitId: number; snapshot: KitWishlistSnapshot }> {
   const db = getDB();
-  let moved!: { kitId: number; item: KitWishlistItem };
+  let moved!: { kitId: number; snapshot: KitWishlistSnapshot };
   await db.withExclusiveTransactionAsync(async (tx) => {
     const box = await tx.getFirstAsync<{ id: number }>('SELECT id FROM kit_boxes WHERE id = ?', [boxId]);
     if (!box) throw new Error('Box not found');
     const item = await tx.getFirstAsync<KitWishlistItem>('SELECT * FROM kit_wishlist WHERE id = ?', [id]);
     if (!item) throw new Error('Wishlist item not found');
+    const photos = await tx.getAllAsync<KitWishlistPhoto>(
+      'SELECT id, uri, sort_order, synced_at, storage_path FROM kit_wishlist_photos WHERE wishlist_id = ? ORDER BY sort_order, id',
+      [id],
+    );
     const result = await tx.runAsync(
       'INSERT INTO kits (box_id, name, maker, series, category, scale, price, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [boxId, item.name, item.maker, item.series, item.category, item.scale, item.price, item.note, 'not_started']
     );
+    for (const photo of photos) {
+      await tx.runAsync(
+        'INSERT INTO kit_photos (kit_id, uri, sort_order, synced_at, storage_path) VALUES (?, ?, ?, ?, ?)',
+        [result.lastInsertRowId, photo.uri, photo.sort_order, photo.synced_at, photo.storage_path]
+      );
+    }
+    await tx.runAsync('DELETE FROM kit_wishlist_photos WHERE wishlist_id = ?', [id]);
     await tx.runAsync('DELETE FROM kit_wishlist WHERE id = ?', [id]);
-    moved = { kitId: result.lastInsertRowId, item };
+    moved = { kitId: result.lastInsertRowId, snapshot: { item, photos } };
   });
   return moved;
 }
 
-export async function removeKitWishlistItem(id: number): Promise<KitWishlistItem | null> {
+export async function removeKitWishlistItem(id: number): Promise<KitWishlistSnapshot | null> {
   const db = getDB();
-  let removed: KitWishlistItem | null = null;
+  let removed: KitWishlistSnapshot | null = null;
   await db.withExclusiveTransactionAsync(async (tx) => {
-    removed = await tx.getFirstAsync<KitWishlistItem>('SELECT * FROM kit_wishlist WHERE id = ?', [id]);
-    if (removed) await tx.runAsync('DELETE FROM kit_wishlist WHERE id = ?', [id]);
+    const item = await tx.getFirstAsync<KitWishlistItem>('SELECT * FROM kit_wishlist WHERE id = ?', [id]);
+    if (!item) return;
+    const photos = await tx.getAllAsync<KitWishlistPhoto>(
+      'SELECT id, uri, sort_order, synced_at, storage_path FROM kit_wishlist_photos WHERE wishlist_id = ? ORDER BY sort_order, id',
+      [id],
+    );
+    await tx.runAsync('DELETE FROM kit_wishlist_photos WHERE wishlist_id = ?', [id]);
+    await tx.runAsync('DELETE FROM kit_wishlist WHERE id = ?', [id]);
+    removed = { item, photos };
   });
   return removed;
 }
 
-export async function restoreKitWishlistItem(item: KitWishlistItem): Promise<number> {
+export async function restoreKitWishlistItem(snapshot: KitWishlistSnapshot): Promise<number> {
   let restoredId = 0;
   await getDB().withExclusiveTransactionAsync(async (tx) => {
     const result = await tx.runAsync(
       'INSERT INTO kit_wishlist (name, maker, series, category, scale, price, note, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [item.name, item.maker, item.series, item.category, item.scale, item.price, item.note, item.added_at]
+      [snapshot.item.name, snapshot.item.maker, snapshot.item.series, snapshot.item.category, snapshot.item.scale, snapshot.item.price, snapshot.item.note, snapshot.item.added_at]
     );
     restoredId = result.lastInsertRowId;
+    for (const photo of snapshot.photos) {
+      await tx.runAsync(
+        'INSERT INTO kit_wishlist_photos (wishlist_id, uri, sort_order, synced_at, storage_path) VALUES (?, ?, ?, ?, ?)',
+        [restoredId, photo.uri, photo.sort_order, photo.synced_at, photo.storage_path]
+      );
+    }
   });
   return restoredId;
 }
 
-export async function undoKitWishlistMove(kitId: number, item: KitWishlistItem): Promise<void> {
-  const db = getDB();
-  let photoUris: string[] = [];
-  await db.withExclusiveTransactionAsync(async (tx) => {
-    photoUris = (await tx.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos WHERE kit_id = ?', [kitId])).map((row) => row.uri);
+export async function undoKitWishlistMove(kitId: number, snapshot: KitWishlistSnapshot): Promise<void> {
+  await getDB().withExclusiveTransactionAsync(async (tx) => {
     await tx.runAsync('DELETE FROM kit_color_paints WHERE kit_color_id IN (SELECT id FROM kit_colors WHERE kit_id = ?)', [kitId]);
     await tx.runAsync('DELETE FROM kit_colors WHERE kit_id = ?', [kitId]);
     await tx.runAsync('DELETE FROM kit_photos WHERE kit_id = ?', [kitId]);
     await tx.runAsync('DELETE FROM kits WHERE id = ?', [kitId]);
-    await tx.runAsync(
+    const result = await tx.runAsync(
       'INSERT INTO kit_wishlist (name, maker, series, category, scale, price, note, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [item.name, item.maker, item.series, item.category, item.scale, item.price, item.note, item.added_at]
+      [snapshot.item.name, snapshot.item.maker, snapshot.item.series, snapshot.item.category, snapshot.item.scale, snapshot.item.price, snapshot.item.note, snapshot.item.added_at]
     );
-  });
-  for (const uri of photoUris) {
-    try {
-      await deleteKitPhoto(uri);
-    } catch (error) {
-      console.error('undoKitWishlistMove: failed to delete kit photo', uri, error);
+    for (const photo of snapshot.photos) {
+      await tx.runAsync(
+        'INSERT INTO kit_wishlist_photos (wishlist_id, uri, sort_order, synced_at, storage_path) VALUES (?, ?, ?, ?, ?)',
+        [result.lastInsertRowId, photo.uri, photo.sort_order, photo.synced_at, photo.storage_path]
+      );
     }
-  }
+  });
 }
