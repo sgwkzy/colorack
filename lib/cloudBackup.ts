@@ -22,9 +22,10 @@ const firestore: typeof import('@react-native-firebase/firestore').default | nul
 // v2: kit_boxes/kits/kit_colors/kit_color_paints(キット管理機能)を追加。
 // v3: kitPhotos(スタンダードプラン限定のキット写真)を追加。
 // v4: mix_recipes/mix_recipe_paints(保存した色レシピ)を追加。
+// v5: kit_wishlist(購入候補)を追加。
 // v1/v2スナップショットにはこれらのフィールドが無いため、復元側は `?? []` で
 // optional に扱い、無い部分が空のまま復元されても壊れないようにする。
-const BACKUP_SCHEMA_VERSION = 4;
+const BACKUP_SCHEMA_VERSION = 5;
 const LAST_BACKUP_AT_KEY = 'last_backup_at';
 const LAST_BACKUP_AT_UID_KEY = 'last_backup_at_uid';
 const BACKUP_READY_UID_KEY = 'cloud_backup_ready_uid';
@@ -113,6 +114,17 @@ interface KitRow {
   status: KitStatus;
   added_at: string | null;
   status_changed_at: string | null;
+}
+
+interface KitWishlistRow {
+  name: string;
+  maker: string;
+  series: string | null;
+  category: string | null;
+  scale: string | null;
+  note: string | null;
+  price: number | null;
+  added_at: string | null;
 }
 
 interface KitColorRow {
@@ -224,6 +236,8 @@ export interface BackupKit {
   status_changed_at: string | null;
 }
 
+export type BackupKitWishlistItem = KitWishlistRow;
+
 export interface BackupKitColor {
   localRef: string;
   kitLocalRef: string;
@@ -277,6 +291,8 @@ export interface BackupSnapshot {
   // v4で追加。旧スナップショットには存在しないため optional。
   mixRecipes?: BackupMixRecipe[];
   mixRecipePaints?: BackupMixRecipePaint[];
+  // v5で追加。旧スナップショットには存在しないため optional。
+  kitWishlist?: BackupKitWishlistItem[];
 }
 
 function paintCatalogCode(row: { catalog_code: string | null; brand: string; series: string; code: string }): string {
@@ -322,6 +338,7 @@ export async function isLocalDbEmpty(): Promise<boolean> {
     " + (SELECT COUNT(*) FROM catalog_paints WHERE source = 'manual')" +
     " + (SELECT COUNT(*) FROM catalog_paints WHERE source = 'catalog' AND notes IS NOT NULL AND notes <> '')" +
     " + (SELECT COUNT(*) FROM kits)" +
+    " + (SELECT COUNT(*) FROM kit_wishlist)" +
     " + (SELECT COUNT(*) FROM mix_recipes)" +
     " + (SELECT CASE WHEN (SELECT COUNT(*) FROM boxes) > 1 OR EXISTS (" +
     "SELECT 1 FROM boxes WHERE id = (SELECT CAST(value AS INTEGER) FROM app_settings WHERE key = 'default_box_id')" +
@@ -359,6 +376,9 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
   const kitBoxRows = await db.getAllAsync<KitBoxRow>('SELECT id, name, icon, icon_color, sort_order FROM kit_boxes ORDER BY sort_order, id');
   const kitRows = await db.getAllAsync<KitRow>(
     'SELECT id, box_id, name, maker, series, category, scale, note, price, status, added_at, status_changed_at FROM kits ORDER BY id'
+  );
+  const kitWishlistRows = await db.getAllAsync<KitWishlistRow>(
+    'SELECT name, maker, series, category, scale, note, price, added_at FROM kit_wishlist ORDER BY id'
   );
   const kitColorRows = await db.getAllAsync<KitColorRow>('SELECT id, kit_id, name, note, sort_order, added_at FROM kit_colors ORDER BY sort_order, id');
   const kitColorPaintRows = await db.getAllAsync<KitColorPaintRow>(
@@ -466,6 +486,16 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
       catalog_code: paintCatalogCode(cp),
       ratio: cp.ratio,
       sort_order: cp.sort_order,
+    })),
+    kitWishlist: kitWishlistRows.map((item) => ({
+      name: item.name,
+      maker: item.maker,
+      series: item.series,
+      category: item.category,
+      scale: item.scale,
+      note: item.note,
+      price: item.price,
+      added_at: item.added_at,
     })),
     defaultKitBoxLocalRef: defaultKitBoxExists && defaultKitBoxId ? kitBoxLocalRef(Number(defaultKitBoxId)) : null,
     // v3: hasPhotoBackup(スタンダードプラン)加入者のみ、アップロード済みの
@@ -691,6 +721,14 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
       await tx.runAsync(
         'INSERT INTO mix_recipe_paints (mix_recipe_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
         [mixRecipeId, paintId, cp.ratio, cp.sort_order]
+      );
+    }
+
+    await tx.runAsync('DELETE FROM kit_wishlist');
+    for (const item of snapshot.kitWishlist ?? []) {
+      await tx.runAsync(
+        'INSERT INTO kit_wishlist (name, maker, series, category, scale, note, price, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [item.name, item.maker, item.series, item.category, item.scale, item.note, item.price, item.added_at]
       );
     }
 
