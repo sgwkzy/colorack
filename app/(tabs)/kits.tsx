@@ -54,7 +54,7 @@ const KIT_SORT_ORDER: Record<KitSort, string> = {
   maker: 'maker ASC, name ASC',
 };
 
-export function KitsScreen({ completedScreen = false, wishlistScreen = false }: { completedScreen?: boolean; wishlistScreen?: boolean }) {
+export function KitsScreen({ completedScreen = false }: { completedScreen?: boolean }) {
   const locale = useLocale();
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -76,12 +76,12 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
   const loadVersionRef = useRef(0);
 
   useEffect(() => {
-    if (completedScreen || wishlistScreen) return;
+    if (completedScreen) return;
     const requested = boxId === 'all' ? 'all' : Number(boxId);
     if (requested === 'all' || (Number.isInteger(requested) && requested > 0)) setSelected(requested);
-  }, [boxId, completedScreen, wishlistScreen]);
+  }, [boxId, completedScreen]);
 
-  useEffect(() => { if (!completedScreen && !wishlistScreen) setActiveKitBox(selected); }, [completedScreen, wishlistScreen, selected]);
+  useEffect(() => { if (!completedScreen) setActiveKitBox(selected); }, [completedScreen, selected]);
 
   // 実際にこの画面が表示された時点で、起動時復元先とドロワーのモードを常に一致させる。
   useFocusEffect(useCallback(() => {
@@ -91,8 +91,8 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
 
   useEffect(() => {
     let cancelled = false;
-    if (completedScreen || wishlistScreen) {
-      navigation.setOptions({ title: t(completedScreen ? 'completedKits' : 'kitWishlist') });
+    if (completedScreen) {
+      navigation.setOptions({ title: t('completedKits') });
       return;
     }
     if (selected === 'all') {
@@ -105,28 +105,26 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
       if (!cancelled && box) { navigation.setOptions({ title: box.name }); router.setParams({ boxName: box.name }); }
     });
     return () => { cancelled = true; };
-  }, [completedScreen, wishlistScreen, locale, navigation, selected]);
+  }, [completedScreen, locale, navigation, selected]);
 
   useEffect(() => { getDefaultKitBoxId().then(setDefaultBoxId); }, []);
 
   const load = useCallback(async (sel: Selected, sf: KitStatus[], f: KitFilter, sortBy: KitSort) => {
     const loadVersion = ++loadVersionRef.current;
     const db = getDB();
-    const totalWhere = completedScreen || wishlistScreen || sel === 'all' ? '' : ' AND box_id = ?';
-    const totalArgs = completedScreen || wishlistScreen || sel === 'all' ? [] : [sel];
+    const totalWhere = completedScreen || sel === 'all' ? '' : ' AND box_id = ?';
+    const totalArgs = completedScreen || sel === 'all' ? [] : [sel];
     const where: string[] = [];
     const args: (string | number)[] = [];
 
-    if (wishlistScreen) {
-      where.push('id IN (SELECT kit_id FROM kit_lists)');
-    } else if (sf.length === 0) {
+    if (sf.length === 0) {
       where.push('1 = 0'); // 全OFFなら該当なし
     } else {
       where.push(`status IN (${sf.map(() => '?').join(',')})`);
       args.push(...sf);
     }
 
-    if (!completedScreen && !wishlistScreen && sel !== 'all') { where.push('box_id = ?'); args.push(sel); }
+    if (!completedScreen && sel !== 'all') { where.push('box_id = ?'); args.push(sel); }
 
     if (f.makers.length) { where.push(`maker IN (${f.makers.map(() => '?').join(',')})`); args.push(...f.makers); }
     if (f.series.length) { where.push(`series IN (${f.series.map(() => '?').join(',')})`); args.push(...f.series); }
@@ -134,9 +132,7 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
     if (f.scales.length) { where.push(`scale IN (${f.scales.map(() => '?').join(',')})`); args.push(...f.scales); }
     if (f.search.trim()) { where.push('name LIKE ?'); args.push(`%${f.search.trim()}%`); }
 
-    const orderBy = wishlistScreen && sortBy === 'added'
-      ? '(SELECT added_at FROM kit_lists WHERE kit_id = kits.id) DESC'
-      : KIT_SORT_ORDER[sortBy];
+    const orderBy = KIT_SORT_ORDER[sortBy];
     const sql =
       'SELECT id, name, maker, scale, status,'
       + ' (SELECT uri FROM kit_photos WHERE kit_id = kits.id ORDER BY sort_order, id LIMIT 1) AS thumb_uri'
@@ -144,9 +140,9 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
       + ' ORDER BY ' + orderBy;
 
     const [totalRow, nextFilterOptions, nextItems] = await Promise.all([
-      db.getFirstAsync<CountRow>(wishlistScreen ? 'SELECT COUNT(*) AS n FROM kit_lists' : "SELECT COUNT(*) AS n FROM kits WHERE status IN ('not_started','building')" + totalWhere, wishlistScreen ? [] : totalArgs),
+      db.getFirstAsync<CountRow>("SELECT COUNT(*) AS n FROM kits WHERE status IN ('not_started','building')" + totalWhere, totalArgs),
       db.getAllAsync<{ maker: string; series: string | null; category: string | null; scale: string | null }>(
-        wishlistScreen ? 'SELECT DISTINCT maker, series, category, scale FROM kits WHERE id IN (SELECT kit_id FROM kit_lists)' : 'SELECT DISTINCT maker, series, category, scale FROM kits'
+        'SELECT DISTINCT maker, series, category, scale FROM kits'
       ),
       db.getAllAsync<KitListItem>(sql, args),
     ]);
@@ -154,7 +150,7 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
     setKitTotal(totalRow?.n ?? 0);
     setFilterOptions(nextFilterOptions);
     setItems(nextItems);
-  }, [completedScreen, wishlistScreen]);
+  }, [completedScreen]);
 
   useFocusEffect(useCallback(() => { load(selected, statuses, filter, sort); }, [load, selected, statuses, filter, sort]));
 
@@ -192,21 +188,14 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
     ]);
   };
 
-  const removeWishlistItem = async (item: KitListItem) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    swipeRefs.current.get(item.id)?.close();
-    await getDB().runAsync('DELETE FROM kit_lists WHERE kit_id = ?', [item.id]);
-    reload();
-  };
-
   const renderDeleteAction = () => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>;
   const renderCompleteAction = () => <View style={styles.completeAction}><Text style={styles.swipeActionText}>{t('statusCompleted')}</Text></View>;
 
   const statusDefault = completedScreen
     ? statuses.length === 1 && statuses[0] === 'completed'
-    : wishlistScreen || (statuses.length === 2 && statuses.includes('not_started') && statuses.includes('building'));
+    : statuses.length === 2 && statuses.includes('not_started') && statuses.includes('building');
   const filterActive = !statusDefault || filter.makers.length > 0 || filter.series.length > 0 || filter.categories.length > 0 || filter.scales.length > 0 || filter.search.trim() !== '';
-  const trulyEmpty = completedScreen || wishlistScreen ? items.length === 0 : !filterActive && statusDefault && kitTotal === 0;
+  const trulyEmpty = completedScreen ? items.length === 0 : !filterActive && statusDefault && kitTotal === 0;
   const emptyMessage = trulyEmpty ? t('emptyKits') : t('noResults');
 
   const openSort = () => {
@@ -238,12 +227,13 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
           <Swipeable
             ref={(ref) => { if (ref) swipeRefs.current.set(item.id, ref); else swipeRefs.current.delete(item.id); }}
             renderRightActions={renderDeleteAction}
-            renderLeftActions={completedScreen || wishlistScreen ? undefined : renderCompleteAction}
+            renderLeftActions={completedScreen ? undefined : renderCompleteAction}
             onSwipeableOpen={(direction) => {
               if (direction === 'right') {
-                if (wishlistScreen) removeWishlistItem(item);
-                else deleteKitItem(item);
-              } else if (!wishlistScreen) completeKit(item);
+                deleteKitItem(item);
+              } else {
+                completeKit(item);
+              }
             }}
             onSwipeableWillOpen={() => swipeRefs.current.forEach((swipeable, id) => { if (id !== item.id) swipeable.close(); })}
             overshootRight={false}
@@ -294,16 +284,15 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
         options={filterOptions}
         initial={filter}
         onApply={(f) => { setFilter(f); setShowFilter(false); }}
-        statusOptions={completedScreen || wishlistScreen ? undefined : STATUS_TOGGLES.map((option) => ({ value: option.key, label: t(option.label) }))}
-        initialStatuses={completedScreen || wishlistScreen ? undefined : statuses}
-        onApplyStatuses={completedScreen || wishlistScreen ? undefined : setStatuses}
+        statusOptions={completedScreen ? undefined : STATUS_TOGGLES.map((option) => ({ value: option.key, label: t(option.label) }))}
+        initialStatuses={completedScreen ? undefined : statuses}
+        onApplyStatuses={completedScreen ? undefined : setStatuses}
         onClose={() => setShowFilter(false)}
       />
 
       <AddKitModal
         visible={showAdd}
-        defaultBoxId={completedScreen || wishlistScreen || selected === 'all' ? defaultBoxId : selected}
-        saveTarget={wishlistScreen ? 'wishlist' : 'owned'}
+        defaultBoxId={completedScreen || selected === 'all' ? defaultBoxId : selected}
         onClose={() => { setShowAdd(false); reload(); }}
       />
       <KitDetailModal

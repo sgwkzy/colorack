@@ -107,7 +107,6 @@ export async function deleteKit(kitId: number): Promise<void> {
     await db.runAsync('DELETE FROM kit_color_paints WHERE kit_color_id IN (SELECT id FROM kit_colors WHERE kit_id = ?)', [kitId]);
     await db.runAsync('DELETE FROM kit_colors WHERE kit_id = ?', [kitId]);
     await db.runAsync('DELETE FROM kit_photos WHERE kit_id = ?', [kitId]);
-    await db.runAsync('DELETE FROM kit_lists WHERE kit_id = ?', [kitId]);
     await db.runAsync('DELETE FROM kits WHERE id = ?', [kitId]);
   });
 }

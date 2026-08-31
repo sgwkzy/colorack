@@ -118,7 +118,6 @@ export default function SettingsScreen() {
       await db.runAsync('DELETE FROM kit_color_paints');
       await db.runAsync('DELETE FROM kit_colors');
       await db.runAsync('DELETE FROM kit_photos');
-      await db.runAsync('DELETE FROM kit_lists');
       await db.runAsync('DELETE FROM kits');
       await db.runAsync('DELETE FROM kit_boxes');
       const res = await db.runAsync('INSERT INTO kit_boxes (name) VALUES (?)', ['Box']);
@@ -160,7 +159,7 @@ export default function SettingsScreen() {
   });
 
   const resetKitWishlist = () => confirmReset(t('resetKitWishlist'), async () => {
-    await getDB().runAsync('DELETE FROM kit_lists');
+    await getDB().runAsync('DELETE FROM kit_wishlist');
     logEvent('reset_data', { target: 'kit_wishlist' });
   });
 

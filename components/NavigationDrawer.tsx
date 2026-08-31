@@ -53,7 +53,7 @@ export default function NavigationDrawer({ onClose, refreshToken = 0 }: Props) {
       db.getAllAsync<Box>('SELECT id, name, icon, icon_color FROM kit_boxes ORDER BY sort_order, id'),
       db.getAllAsync<CountRow>("SELECT box_id, COUNT(*) AS n FROM kits WHERE status != 'completed' GROUP BY box_id"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM kits WHERE status = 'completed'"),
-      db.getFirstAsync<TotalRow>('SELECT COUNT(*) AS n FROM kit_lists'),
+      db.getFirstAsync<TotalRow>('SELECT COUNT(*) AS n FROM kit_wishlist'),
     ]);
     setBoxes(boxRows);
     setBoxCounts(new Map(countRows.map((row) => [row.box_id, row.n])));

@@ -1,7 +1,7 @@
 // components/KitDetailModal.tsx
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconChevronDown, IconChevronLeft, IconChevronUp, IconEdit, IconPlus, IconShoppingCartPlus, IconTrash, IconX } from '@tabler/icons-react-native';
+import { IconChevronDown, IconChevronLeft, IconChevronUp, IconEdit, IconPlus, IconTrash, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   addKitPhoto,
@@ -97,7 +97,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [editingColor, setEditingColor] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [inWishlist, setInWishlist] = useState(false);
   const childRequestCloseRef = useRef<() => void>(() => {});
 
   const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
@@ -110,16 +109,14 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     const loadVersion = ++loadVersionRef.current;
     if (seedEditFields) setLoadState('loading');
     try {
-      const [row, colorRows, photoRows, owned, wishlistRow] = await Promise.all([
+      const [row, colorRows, photoRows, owned] = await Promise.all([
         getKitDetail(kitId), getKitColors(kitId), getKitPhotos(kitId), getOwnedCountMap(),
-        getDB().getFirstAsync<{ id: number }>('SELECT id FROM kit_lists WHERE kit_id = ?', [kitId]),
       ]);
       if (loadVersion !== loadVersionRef.current) return false;
       setDetail(row);
       setKitColors(colorRows);
       setPhotos(photoRows);
       setOwnedMap(owned);
-      setInWishlist(!!wishlistRow);
       if (seedEditFields) {
         setName(row?.name ?? '');
         setMaker(row?.maker ?? '');
@@ -164,7 +161,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setDetailTab('details');
       setEditMode(false);
       setViewerOpen(false);
-      setInWishlist(false);
       setSelectedColor(null);
       setColorDetailOpen(false);
       setEditingColor(false);
@@ -305,14 +301,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     setStatusPickerOpen(false);
     await setKitStatus(detail.id, status);
     await load();
-    onChanged?.();
-  };
-
-  const toggleWishlist = async () => {
-    if (!detail) return;
-    if (inWishlist) await getDB().runAsync('DELETE FROM kit_lists WHERE kit_id = ?', [detail.id]);
-    else await getDB().runAsync('INSERT OR IGNORE INTO kit_lists (kit_id) VALUES (?)', [detail.id]);
-    setInWishlist((current) => !current);
     onChanged?.();
   };
 
@@ -472,10 +460,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                     <View style={styles.nameRow}>
                       <Text style={styles.name}>{detail.name}</Text>
                       <View style={styles.nameActions}>
-                        <TouchableOpacity onPress={toggleWishlist} hitSlop={8} accessibilityRole="button" accessibilityLabel={t(inWishlist ? 'removeFromKitWishlist' : 'addToKitWishlist')}>
-                          <IconShoppingCartPlus color={inWishlist ? colors.primary : colors.textMuted} size={20} />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('enterEditMode')}>
+                            <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('enterEditMode')}>
                           <IconEdit color={colors.textMuted} size={20} />
                         </TouchableOpacity>
                       </View>
@@ -709,7 +694,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
             visible={editingColor}
             embedded
             requestCloseRef={childRequestCloseRef}
-            title={t('editMix')}
+            title={t('editColorInfo')}
             initialDraft={draftFromSummary(selectedColor)}
             onSave={saveColor}
             onClose={() => setEditingColor(false)}
