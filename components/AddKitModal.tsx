@@ -1,5 +1,5 @@
 // components/AddKitModal.tsx
-import { useEffect, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +20,22 @@ interface Props {
   onClose: () => void;
 }
 
+export interface KitFormValues {
+  name: string;
+  maker: string;
+  series: string;
+  category: string;
+  scale: string;
+  price: string;
+  note: string;
+  photos: readonly string[];
+}
+
+export function isKitFormDirty(form: KitFormValues): boolean {
+  return form.name !== '' || form.maker !== '' || form.series !== '' || form.category !== ''
+    || form.scale !== '' || form.price !== '' || form.note !== '' || form.photos.length > 0;
+}
+
 export default function AddKitModal({ visible, defaultBoxId, addToWishlist = false, onClose }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
@@ -35,59 +51,89 @@ export default function AddKitModal({ visible, defaultBoxId, addToWishlist = fal
   const [busy, setBusy] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const canSave = name.trim() !== '' && maker.trim() !== '';
+  const dirty = isKitFormDirty({ name, maker, series, category, scale, price, note, photos });
+  const savingRef = useRef(false);
 
-  useEffect(() => {
-    if (visible) { setName(''); setMaker(''); setSeries(''); setCategory(''); setScale(''); setPrice(''); setNote(''); setPhotos([]); setViewerOpen(false); }
+  useLayoutEffect(() => {
+    if (!visible) return;
+    setName(''); setMaker(''); setSeries(''); setCategory(''); setScale(''); setPrice(''); setNote(''); setPhotos([]); setViewerOpen(false);
   }, [visible]);
 
   const save = async () => {
-    if (!canSave || busy) return;
+    if (!canSave || savingRef.current) return;
+    savingRef.current = true;
     setBusy(true);
     try {
-    const trimmedPrice = price.trim();
-    const parsedPrice = trimmedPrice === '' ? null : Number(trimmedPrice);
-    if (parsedPrice !== null && (!Number.isInteger(parsedPrice) || parsedPrice < 0)) {
-      Alert.alert(t('price'), t('invalidPrice'));
+      const trimmedPrice = price.trim();
+      const parsedPrice = trimmedPrice === '' ? null : Number(trimmedPrice);
+      if (parsedPrice !== null && (!Number.isInteger(parsedPrice) || parsedPrice < 0)) {
+        Alert.alert(t('price'), t('invalidPrice'));
+        return;
+      }
+      const normalizedPrice = parsedPrice !== null && Number.isInteger(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
+      const result = await getDB().runAsync(
+        'INSERT INTO kits (box_id, name, maker, series, category, scale, price, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [defaultBoxId, name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, normalizedPrice, note.trim() || null, 'not_started']
+      );
+      const kitId = result.lastInsertRowId;
+      if (addToWishlist) await getDB().runAsync('INSERT INTO kit_lists (kit_id) VALUES (?)', [kitId]);
+      for (const uri of photos) await addKitPhoto(kitId, uri);
+      onClose();
+    } catch (error) {
+      console.error('AddKitModal: failed to save kit', error);
+      Alert.alert(t('error'), t('saveFailed'));
+    } finally {
+      savingRef.current = false;
+      setBusy(false);
+    }
+  };
+
+  const discard = useCallback(async () => {
+    if (savingRef.current) return;
+    try {
+      for (const uri of photos) await deleteKitPhoto(uri);
+    } catch (error) {
+      console.error('AddKitModal: failed to discard kit photos', error);
+      Alert.alert(t('error'), t('saveFailed'));
       return;
     }
-    const normalizedPrice = parsedPrice !== null && Number.isInteger(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
-    const result = await getDB().runAsync(
-      'INSERT INTO kits (box_id, name, maker, series, category, scale, price, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [defaultBoxId, name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, normalizedPrice, note.trim() || null, 'not_started']
-    );
-    const kitId = result.lastInsertRowId;
-    if (addToWishlist) await getDB().runAsync('INSERT INTO kit_lists (kit_id) VALUES (?)', [kitId]);
-    for (const uri of photos) await addKitPhoto(kitId, uri);
     onClose();
-    } finally { setBusy(false); }
-  };
+  }, [onClose, photos]);
 
-  const cancelAndClose = async () => {
-    // 保存中(busy)は閉じさせない。save() が addKitPhoto でコピー中の写真を
-    // ここで deleteKitPhoto すると、kits/kit_photos のレコードだけ残って
-    // 参照先ファイルが消えた壊れた状態になる。
-    if (busy) return;
-    for (const uri of photos) await deleteKitPhoto(uri);
-    onClose();
-  };
+  const requestClose = useCallback(() => {
+    if (!visible || savingRef.current) return;
+    if (!dirty) { void discard(); return; }
+    Alert.alert(t('discardChangesConfirm'), '', [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('discard'), style: 'destructive', onPress: () => { void discard(); } },
+    ]);
+  }, [discard, dirty, visible]);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={cancelAndClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={requestClose}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={cancelAndClose} enabled={!viewerOpen}>
+          <SwipeDownHeader onClose={requestClose} enabled={!viewerOpen && !busy}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('addKit')}</Text>
-              <TouchableOpacity onPress={cancelAndClose} hitSlop={8} accessibilityLabel={t('close')}>
+              <TouchableOpacity
+                onPress={requestClose}
+                disabled={busy}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={t('close')}
+                accessibilityState={{ disabled: busy, busy }}
+              >
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
           </SwipeDownHeader>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <SwipeDownScrollView onClose={cancelAndClose} closeEnabled={!viewerOpen} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+          <SwipeDownScrollView onClose={requestClose} closeEnabled={!viewerOpen && !busy} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
             <KitPhotoGrid
               photos={photos.map((uri) => ({ key: uri, uri }))}
               editable
+              disabled={busy}
               onViewerChange={setViewerOpen}
               onAdd={(uri) => setPhotos((current) => [...current, uri])}
               onRemove={(key) => {
@@ -136,7 +182,14 @@ export default function AddKitModal({ visible, defaultBoxId, addToWishlist = fal
           </SwipeDownScrollView>
           {/* busy も無効表示に含める。保存中は閉じる操作も無視する(写真のコピー中に
               削除すると壊れたレコードが残るため)ので、見た目でも処理中だと分かるようにする。 */}
-          <TouchableOpacity style={[styles.saveBtn, (!canSave || busy) && styles.saveBtnDisabled]} onPress={save} disabled={!canSave || busy}>
+          <TouchableOpacity
+            style={[styles.saveBtn, (!canSave || busy) && styles.saveBtnDisabled]}
+            onPress={save}
+            disabled={!canSave || busy}
+            accessibilityRole="button"
+            accessibilityLabel={t('save')}
+            accessibilityState={{ disabled: !canSave || busy, busy }}
+          >
             <Text style={styles.saveBtnText}>{t('save')}</Text>
           </TouchableOpacity>
           </KeyboardAvoidingView>

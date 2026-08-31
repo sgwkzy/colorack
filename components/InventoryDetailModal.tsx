@@ -3,7 +3,7 @@
 // 小さめの2列レイアウトに留め、この在庫固有の情報(ボックス・ステータス・追加日・
 // 最終更新日・メモ)を主役として大きく扱う。ボックス・ステータスはここで直接変更できる。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronDown, IconChevronRight, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -34,6 +34,7 @@ import Toast from './Toast';
 import { useModalLock } from '../lib/modalLock';
 
 interface Box { id: number; name: string; }
+type LoadState = 'loading' | 'ready' | 'error';
 
 const STATUS_OPTIONS: { value: PaintStatus; labelKey: string }[] = [
   { value: 'owned', labelKey: 'statusOwned' },
@@ -79,21 +80,49 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   const [showFullName, setShowFullName] = useState(false);
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>('loading');
+  const loadVersionRef = useRef(0);
+  const childRequestCloseRef = useRef<() => void>(() => setColorDetailVisible(false));
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (fullScreen = false) => {
     if (inventoryId == null) return;
-    const row = await getInventoryDetail(inventoryId);
-    setDetail(row);
-    setNote(row?.note ?? '');
+    const loadVersion = ++loadVersionRef.current;
+    if (fullScreen) {
+      setLoadState('loading');
+      setDetail(null);
+    }
+    try {
+      const [row, nextBoxes] = await Promise.all([
+        getInventoryDetail(inventoryId),
+        getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY sort_order, id'),
+      ]);
+      if (loadVersion !== loadVersionRef.current) return;
+      setDetail(row);
+      setNote(row?.note ?? '');
+      setBoxes(nextBoxes);
+      setLoadState('ready');
+    } catch (error) {
+      if (loadVersion !== loadVersionRef.current) return;
+      console.error('InventoryDetailModal: failed to load detail', error);
+      if (fullScreen) {
+        setDetail(null);
+        setNote('');
+        setLoadState('error');
+      } else {
+        Alert.alert(t('error'), t('loadFailed'));
+      }
+    }
   }, [inventoryId]);
 
   useEffect(() => {
-    if (visible) {
-      load();
-      getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY sort_order, id').then(setBoxes);
+    if (visible && inventoryId != null) {
+      load(true);
     } else {
+      loadVersionRef.current += 1;
       setDetail(null);
       setNote('');
+      setBoxes([]);
+      setLoadState('ready');
       setBoxPickerOpen(false);
       setStatusPickerOpen(false);
       setColorDetailVisible(false);
@@ -119,9 +148,15 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   };
 
   const closeAfterSavingNote = async () => {
-    if (detail && note !== (detail.note ?? '')) {
-      await updateInventoryNote(detail.id, note);
-      onChanged?.();
+    try {
+      if (detail && note !== (detail.note ?? '')) {
+        await updateInventoryNote(detail.id, note);
+        onChanged?.();
+      }
+    } catch (error) {
+      console.error('InventoryDetailModal: failed to save note before closing', error);
+      Alert.alert(t('error'), t('saveFailed'));
+      return;
     }
     onClose();
   };
@@ -178,12 +213,14 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
     ? (swatchTextColor === colors.onSwatchLight ? colors.swatchOverlayDark : colors.swatchOverlayLight)
     : colors.surface;
 
+  const childOverlayOpen = colorDetailVisible;
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={closeAfterSavingNote}>
+    <Modal visible={visible} animationType="slide" onRequestClose={childOverlayOpen ? () => childRequestCloseRef.current() : closeAfterSavingNote}>
       <SafeAreaProvider>
-        <SwipeBack enabled={visible && !colorDetailVisible} onBack={closeAfterSavingNote}>
+        <SwipeBack enabled={visible && !childOverlayOpen} onBack={closeAfterSavingNote}>
         <SafeAreaView style={styles.container} edges={['top']}>
-          <SwipeDownHeader onClose={colorDetailVisible ? () => {} : closeAfterSavingNote}>
+          <SwipeDownHeader onClose={closeAfterSavingNote} enabled={!childOverlayOpen}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('inventoryDetailTitle')}</Text>
               <TouchableOpacity onPress={closeAfterSavingNote} hitSlop={8} accessibilityLabel={t('close')}>
@@ -192,10 +229,21 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
             </View>
           </SwipeDownHeader>
 
-          {!detail ? (
+          {loadState === 'loading' ? (
+            <View style={styles.center}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : loadState === 'error' ? (
+            <View style={styles.center}>
+              <Text accessibilityRole="alert" style={styles.empty}>{t('loadFailed')}</Text>
+              <TouchableOpacity accessibilityRole="button" onPress={() => load(true)} style={styles.retryButton}>
+                <Text style={styles.retryText}>{t('retry')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : !detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
-            <SwipeDownScrollView style={styles.scroll} onClose={colorDetailVisible ? () => {} : closeAfterSavingNote} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.md }]} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+            <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingNote} closeEnabled={!childOverlayOpen} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.md }]} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <View style={styles.colorSpecimen}>
               <View style={[styles.swatch, { backgroundColor: swatchColor }]}>
                 {finish ? (
@@ -271,7 +319,7 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
               </View>
 
               <View style={styles.ledgerCard}>
-                <Text style={styles.sectionTitle}>在庫メモ</Text>
+                <Text style={styles.sectionTitle}>{t('note')}</Text>
                 <ClearableInput
                   style={[styles.input, styles.noteInput]}
                   value={note}
@@ -306,6 +354,8 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
           <PaintDetailModal
             visible={colorDetailVisible}
             paintId={detail?.paint_id ?? null}
+            embedded
+            requestCloseRef={childRequestCloseRef}
             onClose={() => setColorDetailVisible(false)}
             onChanged={load}
           />
@@ -330,6 +380,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   scroll: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.lg, padding: spacing.xl },
+  retryButton: { minWidth: 120, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primary, borderRadius: radius.md },
+  retryText: { color: colors.primaryText, fontWeight: '700' },
   content: { flexGrow: 1, padding: spacing.xl, paddingBottom: spacing.xl, gap: spacing.lg },
   colorSpecimen: { overflow: 'hidden', borderRadius: radius.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.borderLight },
   swatch: { height: 156, overflow: 'hidden', justifyContent: 'flex-end', paddingVertical: spacing.xxl, paddingHorizontal: spacing.xl },

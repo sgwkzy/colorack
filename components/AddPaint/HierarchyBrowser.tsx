@@ -1,5 +1,5 @@
 // components/AddPaint/HierarchyBrowser.tsx
-import { useEffect, useState, useMemo } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useState, useMemo } from 'react';
 import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
@@ -34,6 +34,7 @@ interface Props {
   selectionOnly?: boolean;
   // 一覧を最上部からさらに引っ張って離した時に親モーダルを閉じる
   onRequestClose?: () => void;
+  requestCloseRef?: MutableRefObject<() => void>;
   // paintType が指定された場合、ブランド/シリーズ/塗料の全階層をその種別のみに絞り込む
   paintType?: string;
 }
@@ -42,7 +43,7 @@ interface Props {
 const ALL = 'ALL';
 type Sort = 'name' | 'code';
 
-export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly = false, onRequestClose, paintType }: Props) {
+export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly = false, onRequestClose, requestCloseRef, paintType }: Props) {
   const { colors } = useTheme();
   const { listFontSize } = useUiPrefs();
   const styles = useMemo(() => makeStyles(colors, listFontSize), [colors, listFontSize]);
@@ -128,10 +129,15 @@ export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly
 
   // Androidの戻る: 階層を1つ戻す。最上位ではモーダル側の閉じる処理(onRequestClose)に
   // 委ねる。ここで消費しないと、階層の途中でもモーダルごと閉じてしまう。
-  useAndroidBack(selectedBrand != null, () => {
+  const back = useCallback(() => {
+    if (selectedBrand == null) { onRequestClose?.(); return; }
     if (selectedSeries != null) backFromPaints();
     else setSelectedBrand(null);
-  });
+  }, [onRequestClose, selectedBrand, selectedSeries]);
+  useAndroidBack(selectedBrand != null, back);
+  useEffect(() => {
+    if (requestCloseRef) requestCloseRef.current = back;
+  }, [back, requestCloseRef]);
 
   const q = nameFilter.trim().toLowerCase();
   const shownPaints = q
@@ -162,9 +168,9 @@ export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly
 
   if (!selectedSeries) {
     return (
-      <SwipeBack enabled onBack={() => setSelectedBrand(null)}>
+      <SwipeBack enabled onBack={back}>
       <View style={styles.container}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} style={styles.back} onPress={() => setSelectedBrand(null)}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} style={styles.back} onPress={back}>
           <IconChevronLeft color={colors.primary} size={18} />
           <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
         </TouchableOpacity>
@@ -186,10 +192,10 @@ export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly
   }
 
   return (
-    <SwipeBack enabled onBack={backFromPaints}>
+    <SwipeBack enabled onBack={back}>
     <View style={styles.container}>
       <View style={styles.listHeader}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} style={[styles.back, styles.listHeaderBack]} onPress={backFromPaints}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} style={[styles.back, styles.listHeaderBack]} onPress={back}>
           <IconChevronLeft color={colors.primary} size={18} />
           <Text style={styles.backText} numberOfLines={1}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries, paints.find((p) => p.series === selectedSeries)?.series_en)}</Text>
         </TouchableOpacity>

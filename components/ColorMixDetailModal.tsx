@@ -20,6 +20,7 @@ import SwipeDownScrollView from './SwipeDownScrollView';
 interface Props {
   visible: boolean;
   color: ColorMixSummary | null;
+  title?: string;
   editable: boolean;
   ownedMap?: Map<number, number>;
   onEdit: () => void;
@@ -27,18 +28,20 @@ interface Props {
   onClose: () => void;
 }
 
-export default function ColorMixDetailModal({ visible, color, editable, ownedMap, onEdit, onDelete, onClose }: Props) {
+export default function ColorMixDetailModal({ visible, color, title, editable, ownedMap, onEdit, onDelete, onClose }: Props) {
   useModalLock(visible);
   useLocale();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const headerTitle = title ?? t('mixResult');
   const resultHex = color && color.paints.length > 0 && color.paints.every((paint) => paint.hex && /^#?[0-9a-fA-F]{6}$/.test(paint.hex))
     ? mixHexColors(color.paints.map((paint) => ({ hex: paint.hex as string, ratio: paint.ratio })))
     : null;
   const name = color?.name?.trim() || (color?.paints[0] ? paintName(color.paints[0].name_ja, color.paints[0].name_en) : t('mixResult'));
   const resultTextColor = resultHex ? readableTextColor(resultHex) : colors.text;
   const percentages = wholePercentagesFromRatios(color?.paints.map((paint) => paint.ratio) ?? []);
+  const showMixBalance = (color?.paints.length ?? 0) > 1;
   const isEnglish = getLocale() === 'en';
   const balanceTitle = isEnglish ? 'Mix balance' : '配合バランス';
   const mixBalanceLabel = color
@@ -52,7 +55,7 @@ export default function ColorMixDetailModal({ visible, color, editable, ownedMap
           <SafeAreaView style={styles.container} edges={['top']}>
             <SwipeDownHeader onClose={onClose}>
               <View style={styles.header}>
-                <Text style={styles.title}>{t('mixResult')}</Text>
+                <Text style={styles.title}>{headerTitle}</Text>
                 <TouchableOpacity style={styles.headerAction} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('close')}>
                   <IconX color={colors.text} size={24} />
                 </TouchableOpacity>
@@ -78,29 +81,31 @@ export default function ColorMixDetailModal({ visible, color, editable, ownedMap
                       <Text selectable style={[styles.resultHex, { color: resultTextColor }]}>{resultHex?.toUpperCase() ?? t('cannotCalculateMix')}</Text>
                     </View>
                   </View>
-                  <View accessible accessibilityLabel={mixBalanceLabel} style={styles.mixBalance}>
-                    <View style={styles.mixBalanceHeader}>
-                      <Text style={styles.mixBalanceTitle}>{balanceTitle}</Text>
-                      <Text style={styles.mixBalanceValues}>{percentages.map((percentage) => `${percentage}%`).join(' · ')}</Text>
+                  {showMixBalance ? (
+                    <View accessible accessibilityLabel={mixBalanceLabel} style={styles.mixBalance}>
+                      <View style={styles.mixBalanceHeader}>
+                        <Text style={styles.mixBalanceTitle}>{balanceTitle}</Text>
+                        <Text style={styles.mixBalanceValues}>{percentages.map((percentage) => `${percentage}%`).join(' · ')}</Text>
+                      </View>
+                      <View
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                        pointerEvents="none"
+                        style={styles.mixBar}
+                      >
+                        {color.paints.map((paint, index) => (
+                          <View
+                            key={paint.paint_id}
+                            style={[
+                              styles.mixBarSegment,
+                              { backgroundColor: paint.hex ?? colors.chip, flex: Math.max(paint.ratio, 0.0001) },
+                              index < color.paints.length - 1 && styles.mixBarDivider,
+                            ]}
+                          />
+                        ))}
+                      </View>
                     </View>
-                    <View
-                      accessibilityElementsHidden
-                      importantForAccessibility="no-hide-descendants"
-                      pointerEvents="none"
-                      style={styles.mixBar}
-                    >
-                      {color.paints.map((paint, index) => (
-                        <View
-                          key={paint.paint_id}
-                          style={[
-                            styles.mixBarSegment,
-                            { backgroundColor: paint.hex ?? colors.chip, flex: Math.max(paint.ratio, 0.0001) },
-                            index < color.paints.length - 1 && styles.mixBarDivider,
-                          ]}
-                        />
-                      ))}
-                    </View>
-                  </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.card}>

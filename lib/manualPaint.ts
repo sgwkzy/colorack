@@ -11,6 +11,13 @@ export interface ManualPaintInput {
   paintType: string | null;
 }
 
+export function isDuplicateCatalogCodeError(error: unknown): boolean {
+  const data = error && typeof error === 'object' ? error as { code?: unknown; message?: unknown } : {};
+  const message = error instanceof Error ? error.message : typeof data.message === 'string' ? data.message : String(error);
+  const uniqueCode = data.code === 2067 || data.code === '2067' || data.code === 'SQLITE_CONSTRAINT_UNIQUE';
+  return /catalog_paints\.catalog_code/i.test(message) && (uniqueCode || /unique constraint/i.test(message));
+}
+
 export function validateManualPaint(input: ManualPaintInput) {
   if (!input.nameJa.trim() || !input.brand.trim() || !input.series.trim()) {
     Alert.alert('入力エラー', '名前・ブランド・シリーズは必須です');

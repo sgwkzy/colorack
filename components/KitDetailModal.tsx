@@ -1,6 +1,6 @@
 // components/KitDetailModal.tsx
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconChevronDown, IconChevronLeft, IconChevronUp, IconEdit, IconPlus, IconShoppingCartPlus, IconTrash, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -32,6 +32,7 @@ import {
 } from '../lib/db';
 import { deleteKitPhoto } from '../lib/kitPhoto';
 import { draftFromSummary, normalizeDraftPaints } from '../lib/colorMixDraft';
+import { useAndroidBack } from '../lib/androidBack';
 import { t } from '../lib/i18n';
 import { useModalLock } from '../lib/modalLock';
 import { lightColors, radius, spacing, useTheme } from '../lib/theme';
@@ -55,6 +56,13 @@ const STATUS_OPTIONS: { value: KitStatus; labelKey: string }[] = [
   { value: 'completed', labelKey: 'statusCompleted' },
 ];
 
+export function parseKitPrice(value: string): number | null | undefined {
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  const parsed = Number(trimmed);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
 interface Props {
   visible: boolean;
   kitId: number | null;
@@ -66,6 +74,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   useModalLock(visible);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const loadVersionRef = useRef(0);
   const [detail, setDetail] = useState<KitDetail | null>(null);
   const [kitColors, setKitColors] = useState<KitColorSummary[]>([]);
   const [ownedMap, setOwnedMap] = useState<Map<number, number>>(new Map());
@@ -92,36 +102,51 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
 
   const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
 
-  // seedEditFields はモーダルを開くときだけ true にする。1フィールドの onBlur 保存の
+  // seedEditFields は初回表示と明示的な再試行だけ true にする。1フィールドの onBlur 保存の
   // あとに全フィールドを DB 値で再設定すると、まだ保存されていない別フィールドの
   // 入力中テキストが警告なく消える(例: 名前を編集して即メーカー欄に入力した場合)。
-  const load = useCallback(async (seedEditFields = false) => {
-    if (kitId == null) return;
-    const [row, colorRows, photoRows, owned, wishlistRow] = await Promise.all([
-      getKitDetail(kitId), getKitColors(kitId), getKitPhotos(kitId), getOwnedCountMap(),
-      getDB().getFirstAsync<{ id: number }>('SELECT id FROM kit_lists WHERE kit_id = ?', [kitId]),
-    ]);
-    setDetail(row);
-    setKitColors(colorRows);
-    setPhotos(photoRows);
-    setOwnedMap(owned);
-    setInWishlist(!!wishlistRow);
-    if (seedEditFields) {
-      setName(row?.name ?? '');
-      setMaker(row?.maker ?? '');
-      setScale(row?.scale ?? '');
-      setPrice(row?.price != null ? String(row.price) : '');
-      setNote(row?.note ?? '');
-      setSeries(row?.series ?? '');
-      setCategory(row?.category ?? '');
+  const load = useCallback(async (seedEditFields = false): Promise<boolean> => {
+    if (kitId == null) return false;
+    const loadVersion = ++loadVersionRef.current;
+    if (seedEditFields) setLoadState('loading');
+    try {
+      const [row, colorRows, photoRows, owned, wishlistRow] = await Promise.all([
+        getKitDetail(kitId), getKitColors(kitId), getKitPhotos(kitId), getOwnedCountMap(),
+        getDB().getFirstAsync<{ id: number }>('SELECT id FROM kit_lists WHERE kit_id = ?', [kitId]),
+      ]);
+      if (loadVersion !== loadVersionRef.current) return false;
+      setDetail(row);
+      setKitColors(colorRows);
+      setPhotos(photoRows);
+      setOwnedMap(owned);
+      setInWishlist(!!wishlistRow);
+      if (seedEditFields) {
+        setName(row?.name ?? '');
+        setMaker(row?.maker ?? '');
+        setScale(row?.scale ?? '');
+        setPrice(row?.price != null ? String(row.price) : '');
+        setNote(row?.note ?? '');
+        setSeries(row?.series ?? '');
+        setCategory(row?.category ?? '');
+      }
+      setLoadState('ready');
+      return true;
+    } catch (error) {
+      if (loadVersion !== loadVersionRef.current) return false;
+      console.error('KitDetailModal: failed to load kit', error);
+      if (seedEditFields) setLoadState('error');
+      else Alert.alert(t('error'), t('loadFailed'));
+      return false;
     }
   }, [kitId]);
 
   useEffect(() => {
-    if (visible) {
-      load(true);
+    if (visible && kitId != null) {
+      void load(true);
       getDB().getAllAsync<Box>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id').then(setBoxes);
     } else {
+      loadVersionRef.current += 1;
+      setLoadState('loading');
       setDetail(null);
       setKitColors([]);
       setOwnedMap(new Map());
@@ -146,88 +171,125 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     }
   }, [visible, load]);
 
+  const reportSaveFailure = (error: unknown) => {
+    console.error('KitDetailModal: failed to save kit', error);
+    Alert.alert(t('error'), t('saveFailed'));
+  };
+
+  const showRequiredFieldError = (label: string) => {
+    Alert.alert(t('inputError'), label);
+  };
+
+  const validateFields = () => {
+    if (name.trim() === '') {
+      showRequiredFieldError(t('name'));
+      return false;
+    }
+    if (maker.trim() === '') {
+      showRequiredFieldError(t('maker'));
+      return false;
+    }
+    if (parseKitPrice(price) === undefined) {
+      Alert.alert(t('price'), t('invalidPrice'));
+      return false;
+    }
+    return true;
+  };
+
+  const persist = async (update: () => Promise<void>) => {
+    try {
+      await update();
+      await load();
+      onChanged?.();
+    } catch (error) {
+      reportSaveFailure(error);
+    }
+  };
+
   const saveName = async () => {
     if (!detail) return;
     const trimmed = name.trim();
-    if (trimmed === '' || trimmed === detail.name) return;
-    await updateKitName(detail.id, trimmed);
-    await load();
-    onChanged?.();
+    if (trimmed === '') { showRequiredFieldError(t('name')); return; }
+    if (trimmed === detail.name) return;
+    await persist(() => updateKitName(detail.id, trimmed));
   };
 
   const saveMaker = async () => {
     if (!detail) return;
     const trimmed = maker.trim();
-    if (trimmed === '' || trimmed === detail.maker) return;
-    await updateKitMaker(detail.id, trimmed);
-    await load();
-    onChanged?.();
+    if (trimmed === '') { showRequiredFieldError(t('maker')); return; }
+    if (trimmed === detail.maker) return;
+    await persist(() => updateKitMaker(detail.id, trimmed));
   };
 
   const saveScale = async () => {
     if (!detail) return;
     if (scale === (detail.scale ?? '')) return;
-    await updateKitScale(detail.id, scale);
-    await load();
-    onChanged?.();
+    await persist(() => updateKitScale(detail.id, scale));
   };
 
   const savePrice = async () => {
     if (!detail) return;
     const currentPrice = detail.price != null ? String(detail.price) : '';
+    if (parseKitPrice(price) === undefined) { Alert.alert(t('price'), t('invalidPrice')); return; }
     if (price === currentPrice) return;
-    await updateKitPrice(detail.id, price);
-    await load();
-    onChanged?.();
+    await persist(() => updateKitPrice(detail.id, price));
   };
 
   const saveNote = async () => {
     if (!detail) return;
     if (note === (detail.note ?? '')) return;
-    await updateKitNote(detail.id, note);
-    await load();
-    onChanged?.();
+    await persist(() => updateKitNote(detail.id, note));
   };
 
   const saveSeries = async () => {
     if (!detail) return;
     if (series === (detail.series ?? '')) return;
-    await updateKitSeries(detail.id, series);
-    await load();
-    onChanged?.();
+    await persist(() => updateKitSeries(detail.id, series));
   };
 
   const saveCategory = async () => {
     if (!detail) return;
     if (category === (detail.category ?? '')) return;
-    await updateKitCategory(detail.id, category);
-    await load();
-    onChanged?.();
+    await persist(() => updateKitCategory(detail.id, category));
   };
 
-  const flushPendingFields = async () => {
-    if (!detail) return;
-    const trimmedName = name.trim();
-    if (trimmedName !== '' && trimmedName !== detail.name) { await updateKitName(detail.id, trimmedName); onChanged?.(); }
-    const trimmedMaker = maker.trim();
-    if (trimmedMaker !== '' && trimmedMaker !== detail.maker) { await updateKitMaker(detail.id, trimmedMaker); onChanged?.(); }
-    if (scale !== (detail.scale ?? '')) { await updateKitScale(detail.id, scale); onChanged?.(); }
-    const currentPrice = detail.price != null ? String(detail.price) : '';
-    if (price !== currentPrice) { await updateKitPrice(detail.id, price); onChanged?.(); }
-    if (note !== (detail.note ?? '')) { await updateKitNote(detail.id, note); onChanged?.(); }
-    if (series !== (detail.series ?? '')) { await updateKitSeries(detail.id, series); onChanged?.(); }
-    if (category !== (detail.category ?? '')) { await updateKitCategory(detail.id, category); onChanged?.(); }
-  };
-
-  const closeAfterSavingFields = async () => {
-    await flushPendingFields();
-    onClose();
+  const flushPendingFields = async (): Promise<boolean> => {
+    if (!detail) return true;
+    if (!validateFields()) return false;
+    try {
+      const trimmedName = name.trim();
+      if (trimmedName !== detail.name) { await updateKitName(detail.id, trimmedName); onChanged?.(); }
+      const trimmedMaker = maker.trim();
+      if (trimmedMaker !== detail.maker) { await updateKitMaker(detail.id, trimmedMaker); onChanged?.(); }
+      if (scale !== (detail.scale ?? '')) { await updateKitScale(detail.id, scale); onChanged?.(); }
+      const currentPrice = detail.price != null ? String(detail.price) : '';
+      if (price !== currentPrice) { await updateKitPrice(detail.id, price); onChanged?.(); }
+      if (note !== (detail.note ?? '')) { await updateKitNote(detail.id, note); onChanged?.(); }
+      if (series !== (detail.series ?? '')) { await updateKitSeries(detail.id, series); onChanged?.(); }
+      if (category !== (detail.category ?? '')) { await updateKitCategory(detail.id, category); onChanged?.(); }
+      return true;
+    } catch (error) {
+      reportSaveFailure(error);
+      return false;
+    }
   };
 
   const exitEditMode = async () => {
-    await flushPendingFields();
-    await load();
+    if (!(await flushPendingFields())) return;
+    if (!(await load())) return;
     setEditMode(false);
+  };
+
+  const closeAfterSavingFields = async () => {
+    if (editMode) { await exitEditMode(); return; }
+    if (!(await flushPendingFields())) return;
+    onClose();
+  };
+
+  const closeModal = async () => {
+    if (!(await flushPendingFields())) return;
+    onClose();
   };
 
   const changeBox = async (boxId: number) => {
@@ -346,6 +408,10 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
 
   const boxName = boxes.find((b) => b.id === detail?.box_id)?.name ?? t('unassigned');
   const childOverlayOpen = pickerOpen || editingColor;
+  useAndroidBack(visible && !viewerOpen, () => {
+    if (childOverlayOpen) childRequestCloseRef.current();
+    else void closeAfterSavingFields();
+  });
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={childOverlayOpen ? () => childRequestCloseRef.current() : closeAfterSavingFields}>
@@ -362,15 +428,29 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
               ) : (
                 <Text style={styles.title}>{t('kitDetailTitle')}</Text>
               )}
-              {!editMode ? (
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} onPress={closeAfterSavingFields} style={styles.headerButton}>
-                  <IconX color={colors.text} size={24} />
-                </TouchableOpacity>
-              ) : null}
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} onPress={closeModal} style={styles.headerButton}>
+                <IconX color={colors.text} size={24} />
+              </TouchableOpacity>
             </View>
           </SwipeDownHeader>
 
-          {!detail ? (
+          {loadState === 'loading' ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : loadState === 'error' ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md }}>
+              <Text accessibilityRole="alert" style={styles.empty}>{t('loadFailed')}</Text>
+              <TouchableOpacity
+                onPress={() => { void load(true); }}
+                accessibilityRole="button"
+                accessibilityLabel={t('retry')}
+                style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.xl }}
+              >
+                <Text style={{ color: colors.primaryText, fontWeight: '700' }}>{t('retry')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : !detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
             <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingFields} closeEnabled={!viewerOpen && !childOverlayOpen} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
@@ -578,14 +658,14 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           )}
 
           {editMode ? (
-            <View style={styles.editBar}>
+            <SafeAreaView edges={['bottom']} style={styles.editBar}>
               <TouchableOpacity style={styles.deleteBtn} onPress={confirmDelete}>
                 <Text style={styles.deleteBtnText}>{t('delete')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveEditBtn} onPress={exitEditMode}>
                 <Text style={styles.saveEditBtnText}>{t('save')}</Text>
               </TouchableOpacity>
-            </View>
+            </SafeAreaView>
           ) : null}
 
           <ActionSheet
@@ -612,12 +692,13 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
               kitId={detail.id}
               requestCloseRef={childRequestCloseRef}
               onClose={() => setPickerOpen(false)}
-              onAdded={load}
+              onAdded={async () => { await load(); }}
             />
           ) : null}
           <ColorMixDetailModal
             visible={colorDetailOpen}
             color={selectedColor}
+            title={t('colorInfo')}
             editable
             ownedMap={ownedMap}
             onEdit={() => { setColorDetailOpen(false); setEditingColor(true); }}
