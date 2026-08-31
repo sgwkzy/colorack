@@ -3,7 +3,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { addKitPhoto, getDB } from '../lib/db';
+import { addKitPhoto, addKitWishlistItem, getDB } from '../lib/db';
 import { t } from '../lib/i18n';
 import { deleteKitPhoto } from '../lib/kitPhoto';
 import { useModalLock } from '../lib/modalLock';
@@ -16,7 +16,7 @@ import SwipeDownScrollView from './SwipeDownScrollView';
 interface Props {
   visible: boolean;
   defaultBoxId: number | null;
-  addToWishlist?: boolean;
+  saveTarget?: 'owned' | 'wishlist';
   onClose: () => void;
 }
 
@@ -36,7 +36,7 @@ export function isKitFormDirty(form: KitFormValues): boolean {
     || form.scale !== '' || form.price !== '' || form.note !== '' || form.photos.length > 0;
 }
 
-export default function AddKitModal({ visible, defaultBoxId, addToWishlist = false, onClose }: Props) {
+export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned', onClose }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -71,13 +71,19 @@ export default function AddKitModal({ visible, defaultBoxId, addToWishlist = fal
         return;
       }
       const normalizedPrice = parsedPrice !== null && Number.isInteger(parsedPrice) && parsedPrice >= 0 ? parsedPrice : null;
-      const result = await getDB().runAsync(
-        'INSERT INTO kits (box_id, name, maker, series, category, scale, price, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [defaultBoxId, name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, normalizedPrice, note.trim() || null, 'not_started']
-      );
-      const kitId = result.lastInsertRowId;
-      if (addToWishlist) await getDB().runAsync('INSERT INTO kit_lists (kit_id) VALUES (?)', [kitId]);
-      for (const uri of photos) await addKitPhoto(kitId, uri);
+      if (saveTarget === 'wishlist') {
+        await addKitWishlistItem({
+          name: name.trim(), maker: maker.trim(), series: series.trim() || null,
+          category: category.trim() || null, scale: scale.trim() || null,
+          price: normalizedPrice, note: note.trim() || null,
+        });
+      } else {
+        const result = await getDB().runAsync(
+          'INSERT INTO kits (box_id, name, maker, series, category, scale, price, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [defaultBoxId, name.trim(), maker.trim(), series.trim() || null, category.trim() || null, scale.trim() || null, normalizedPrice, note.trim() || null, 'not_started']
+        );
+        for (const uri of photos) await addKitPhoto(result.lastInsertRowId, uri);
+      }
       onClose();
     } catch (error) {
       console.error('AddKitModal: failed to save kit', error);
@@ -130,7 +136,7 @@ export default function AddKitModal({ visible, defaultBoxId, addToWishlist = fal
           </SwipeDownHeader>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <SwipeDownScrollView onClose={requestClose} closeEnabled={!viewerOpen && !busy} style={{ flex: 1 }} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
-            <KitPhotoGrid
+            {saveTarget === 'owned' ? <KitPhotoGrid
               photos={photos.map((uri) => ({ key: uri, uri }))}
               editable
               disabled={busy}
@@ -150,7 +156,7 @@ export default function AddKitModal({ visible, defaultBoxId, addToWishlist = fal
                   return next;
                 });
               }}
-            />
+            /> : null}
             <View style={styles.field}>
               <Text style={styles.label}>{t('name')}*</Text>
               <ClearableInput style={styles.input} value={name} onChangeText={setName} />

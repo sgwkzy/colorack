@@ -303,7 +303,7 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
       <AddKitModal
         visible={showAdd}
         defaultBoxId={completedScreen || wishlistScreen || selected === 'all' ? defaultBoxId : selected}
-        addToWishlist={wishlistScreen}
+        saveTarget={wishlistScreen ? 'wishlist' : 'owned'}
         onClose={() => { setShowAdd(false); reload(); }}
       />
       <KitDetailModal
