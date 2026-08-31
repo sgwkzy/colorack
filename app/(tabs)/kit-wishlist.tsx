@@ -249,33 +249,35 @@ export default function KitWishlistScreen() {
         data={items}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <Swipeable
-            ref={(ref) => { if (ref) swipeRefs.current.set(item.id, ref); else swipeRefs.current.delete(item.id); }}
-            renderLeftActions={() => <View style={styles.moveAction}><Text numberOfLines={1} style={styles.swipeActionText}>{t('moveToBox')}</Text></View>}
-            renderRightActions={() => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>}
-            onSwipeableOpen={(direction) => { if (direction === 'left') void requestMove(item); if (direction === 'right') void deleteItem(item); }}
-            onSwipeableWillOpen={() => swipeRefs.current.forEach((swipeable, id) => { if (id !== item.id) swipeable.close(); })}
-            overshootRight={false}
-            overshootLeft={false}
-          >
-            <View
-              style={styles.row}
-              accessible
-              accessibilityLabel={item.name}
-              accessibilityState={{ busy: busyId === item.id }}
-              accessibilityActions={[{ name: 'delete', label: t('delete') }, { name: 'move', label: t('moveToBox') }]}
-              onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'delete') void deleteItem(item); if (nativeEvent.actionName === 'move') void requestMove(item); }}
+        renderItem={({ item }) => {
+          const rowDetails = [item.maker, item.series, item.scale, item.price != null ? `${t('price')} ${item.price.toLocaleString()}` : null].filter(Boolean);
+          return (
+            <Swipeable
+              ref={(ref) => { if (ref) swipeRefs.current.set(item.id, ref); else swipeRefs.current.delete(item.id); }}
+              renderLeftActions={() => <View style={styles.moveAction}><Text numberOfLines={1} style={styles.swipeActionText}>{t('moveToBox')}</Text></View>}
+              renderRightActions={() => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>}
+              onSwipeableOpen={(direction) => { if (direction === 'left') void requestMove(item); if (direction === 'right') void deleteItem(item); }}
+              onSwipeableWillOpen={() => swipeRefs.current.forEach((swipeable, id) => { if (id !== item.id) swipeable.close(); })}
+              overshootRight={false}
+              overshootLeft={false}
             >
-              <View style={styles.rowInfo}>
-                <Text numberOfLines={1} style={styles.rowName}>{item.name}</Text>
-                <Text numberOfLines={1} style={styles.rowSub}>
-                  {[item.maker, item.series, item.scale].filter(Boolean).join(' · ')}
-                </Text>
+              <View
+                style={styles.row}
+                accessible
+                accessibilityLabel={[item.name, ...rowDetails].filter(Boolean).join(' · ')}
+                accessibilityHint={t('kitWishlistActionsHint')}
+                accessibilityState={{ busy: busyId === item.id }}
+                accessibilityActions={[{ name: 'delete', label: t('delete') }, { name: 'move', label: t('moveToBox') }]}
+                onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'delete') void deleteItem(item); if (nativeEvent.actionName === 'move') void requestMove(item); }}
+              >
+                <View style={styles.rowInfo}>
+                  <Text numberOfLines={1} style={styles.rowName}>{item.name}</Text>
+                  <Text numberOfLines={1} style={styles.rowSub}>{rowDetails.join(' · ')}</Text>
+                </View>
               </View>
-            </View>
-          </Swipeable>
-        )}
+            </Swipeable>
+          );
+        }}
         ListEmptyComponent={(
           <EmptyState
             icon={IconShoppingCartPlus}

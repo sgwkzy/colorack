@@ -37,7 +37,7 @@ export default function Toast({ message, actionLabel, onAction }: Props) {
     <Animated.View style={[styles.toast, { opacity }]} pointerEvents={onAction ? 'box-none' : 'none'}>
       <Text style={styles.toastText} numberOfLines={1} ellipsizeMode="tail">{message}</Text>
       {onAction && actionLabel ? (
-        <TouchableOpacity onPress={handleAction} hitSlop={8} style={styles.actionBtn}>
+        <TouchableOpacity onPress={handleAction} accessibilityRole="button" accessibilityLabel={actionLabel} hitSlop={8} style={styles.actionBtn}>
           <Text style={styles.actionText}>{actionLabel}</Text>
         </TouchableOpacity>
       ) : null}

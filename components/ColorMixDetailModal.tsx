@@ -21,6 +21,7 @@ interface Props {
   visible: boolean;
   color: ColorMixSummary | null;
   title?: string;
+  editLabel?: string;
   editable: boolean;
   ownedMap?: Map<number, number>;
   onEdit: () => void;
@@ -28,13 +29,14 @@ interface Props {
   onClose: () => void;
 }
 
-export default function ColorMixDetailModal({ visible, color, title, editable, ownedMap, onEdit, onDelete, onClose }: Props) {
+export default function ColorMixDetailModal({ visible, color, title, editLabel, editable, ownedMap, onEdit, onDelete, onClose }: Props) {
   useModalLock(visible);
   useLocale();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const headerTitle = title ?? t('mixResult');
+  const editButtonLabel = editLabel ?? t('editMix');
   const resultHex = color && color.paints.length > 0 && color.paints.every((paint) => paint.hex && /^#?[0-9a-fA-F]{6}$/.test(paint.hex))
     ? mixHexColors(color.paints.map((paint) => ({ hex: paint.hex as string, ratio: paint.ratio })))
     : null;
@@ -143,9 +145,9 @@ export default function ColorMixDetailModal({ visible, color, title, editable, o
 
                 {editable ? (
                   <View style={styles.actions}>
-                    <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={onEdit} accessibilityRole="button" accessibilityLabel={t('editMix')}>
+                    <TouchableOpacity style={[styles.actionButton, styles.editButton]} onPress={onEdit} accessibilityRole="button" accessibilityLabel={editButtonLabel}>
                       <IconPencil color={colors.primaryText} size={20} />
-                      <Text style={[styles.actionText, styles.editText]}>{t('editMix')}</Text>
+                      <Text style={[styles.actionText, styles.editText]}>{editButtonLabel}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.actionButton, styles.deleteButton]} onPress={onDelete} accessibilityRole="button" accessibilityLabel={t('delete')}>
                       <IconTrash color={colors.danger} size={20} />

@@ -684,6 +684,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
             visible={colorDetailOpen}
             color={selectedColor}
             title={t('colorInfo')}
+            editLabel={t('editColorInfo')}
             editable
             ownedMap={ownedMap}
             onEdit={() => { setColorDetailOpen(false); setEditingColor(true); }}
