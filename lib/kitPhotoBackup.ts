@@ -61,7 +61,9 @@ export async function uploadPendingKitPhotos(expectedUid: string): Promise<void>
 
   const db = getDB();
   const kitPhotos = await db.getAllAsync<{ id: number; uri: string }>('SELECT id, uri FROM kit_photos WHERE synced_at IS NULL');
-  const kitWishlistPhotos = await db.getAllAsync<{ id: number; uri: string }>('SELECT id, uri FROM kit_wishlist_photos WHERE synced_at IS NULL');
+  const kitWishlistPhotos = await db.getAllAsync<{ id: number; uri: string }>(
+    'SELECT p.id, p.uri FROM kit_wishlist_photos p JOIN kit_wishlist w ON w.id = p.wishlist_id WHERE p.synced_at IS NULL'
+  );
   const pending: PendingPhotoRow[] = [
     ...kitPhotos.map((photo): PendingPhotoRow => ({ target: 'kit_photos', ...photo })),
     ...kitWishlistPhotos.map((photo): PendingPhotoRow => ({ target: 'kit_wishlist_photos', ...photo })),

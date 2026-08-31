@@ -439,7 +439,9 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
         'SELECT kit_id, storage_path, sort_order FROM kit_photos WHERE synced_at IS NOT NULL AND storage_path IS NOT NULL ORDER BY sort_order, id'
       );
       kitWishlistPhotoRows = await tx.getAllAsync<{ wishlist_id: number; storage_path: string; sort_order: number }>(
-        'SELECT wishlist_id, storage_path, sort_order FROM kit_wishlist_photos WHERE synced_at IS NOT NULL AND storage_path IS NOT NULL ORDER BY sort_order, id'
+        'SELECT p.wishlist_id, p.storage_path, p.sort_order FROM kit_wishlist_photos p' +
+        ' JOIN kit_wishlist w ON w.id = p.wishlist_id' +
+        ' WHERE p.synced_at IS NOT NULL AND p.storage_path IS NOT NULL ORDER BY p.sort_order, p.id'
       );
     }
   });
