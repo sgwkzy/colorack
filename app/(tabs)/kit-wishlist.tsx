@@ -184,37 +184,44 @@ export default function KitWishlistScreen() {
   };
 
   const deleteItem = async (item: KitWishlistItem) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    swipeRefs.current.get(item.id)?.close();
-    let removed: KitWishlistItem | null;
+    if (busyIdRef.current != null) return;
+    busyIdRef.current = item.id;
+    setBusyId(item.id);
     try {
-      removed = await removeKitWishlistItem(item.id);
-    } catch (error) {
-      console.error('KitWishlistScreen: failed to delete candidate', error);
-      Alert.alert(t('error'), t('saveFailed'));
-      return;
-    }
-    if (!removed) return;
-    showToast(item.name + t('removedToast'), t('undo'), async () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      swipeRefs.current.get(item.id)?.close();
+      let removed: KitWishlistItem | null;
       try {
-        await restoreKitWishlistItem(removed);
+        removed = await removeKitWishlistItem(item.id);
       } catch (error) {
-        console.error('KitWishlistScreen: failed to undo candidate deletion', error);
+        console.error('KitWishlistScreen: failed to delete candidate', error);
         Alert.alert(t('error'), t('saveFailed'));
         return;
       }
+      if (!removed) return;
+      showToast(item.name + t('removedToast'), t('undo'), async () => {
+        try {
+          await restoreKitWishlistItem(removed);
+        } catch (error) {
+          console.error('KitWishlistScreen: failed to undo candidate deletion', error);
+          Alert.alert(t('error'), t('saveFailed'));
+          return;
+        }
+        try {
+          await reload();
+        } catch (error) {
+          console.error('KitWishlistScreen: failed to reload after undo', error);
+          Alert.alert(t('error'), t('loadFailed'));
+        }
+      });
       try {
         await reload();
       } catch (error) {
-        console.error('KitWishlistScreen: failed to reload after undo', error);
+        console.error('KitWishlistScreen: failed to reload after deletion', error);
         Alert.alert(t('error'), t('loadFailed'));
       }
-    });
-    try {
-      await reload();
-    } catch (error) {
-      console.error('KitWishlistScreen: failed to reload after deletion', error);
-      Alert.alert(t('error'), t('loadFailed'));
+    } finally {
+      clearBusy(item.id);
     }
   };
 
