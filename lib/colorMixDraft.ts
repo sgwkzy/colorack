@@ -42,6 +42,13 @@ export function moveMixRecipe(
   return next;
 }
 
+export function sameColorOrder(
+  current: { id: number }[],
+  next: { id: number }[],
+): boolean {
+  return current.length === next.length && current.every((item, index) => item.id === next[index].id);
+}
+
 export type MixDraftError = 'empty' | 'duplicate' | 'max_paints' | 'paint_type_mismatch' | 'invalid_hex' | 'invalid_percentage' | 'invalid_percentage_total';
 
 const MAX_PAINTS = 5;

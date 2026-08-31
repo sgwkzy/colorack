@@ -1,7 +1,9 @@
 // components/KitDetailModal.tsx
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconChevronDown, IconChevronLeft, IconChevronUp, IconEdit, IconPlus, IconTrash, IconX } from '@tabler/icons-react-native';
+import { ActivityIndicator, Alert, Modal, type ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { IconChevronDown, IconChevronLeft, IconEdit, IconGripVertical, IconPlus, IconTrash, IconX } from '@tabler/icons-react-native';
+import { useAnimatedRef } from 'react-native-reanimated';
+import Sortable, { type SortableGridRenderItem } from 'react-native-sortables';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   addKitPhoto,
@@ -31,7 +33,7 @@ import {
   updateKitSeries,
 } from '../lib/db';
 import { deleteKitPhoto } from '../lib/kitPhoto';
-import { draftFromSummary, normalizeDraftPaints } from '../lib/colorMixDraft';
+import { draftFromSummary, moveMixRecipe, normalizeDraftPaints, sameColorOrder } from '../lib/colorMixDraft';
 import { useAndroidBack } from '../lib/androidBack';
 import { t } from '../lib/i18n';
 import { useModalLock } from '../lib/modalLock';
@@ -96,7 +98,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [colorDetailOpen, setColorDetailOpen] = useState(false);
   const [editingColor, setEditingColor] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [orderSaving, setOrderSaving] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const scrollRef = useAnimatedRef<ScrollView>();
   const childRequestCloseRef = useRef<() => void>(() => {});
 
   const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
@@ -362,21 +366,62 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     setEditingColor(false);
   };
 
-  const moveColor = async (kitColorId: number, direction: -1 | 1) => {
-    const index = kitColors.findIndex((c) => c.id === kitColorId);
-    const targetIndex = index + direction;
-    if (index < 0 || targetIndex < 0 || targetIndex >= kitColors.length) return;
-    const next = [...kitColors];
-    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+  const saveColorOrder = useCallback(async (next: KitColorSummary[]) => {
+    const previous = kitColors;
+    if (orderSaving || sameColorOrder(previous, next)) return;
+    setKitColors(next);
+    setOrderSaving(true);
     try {
       await reorderKitColors(next.map((c) => c.id));
-      setKitColors(next);
-      await load();
     } catch (error) {
       console.error('KitDetailModal: failed to reorder kit colors', error);
+      setKitColors(previous);
       Alert.alert(t('error'), t('saveFailed'));
+    } finally {
+      setOrderSaving(false);
     }
-  };
+  }, [kitColors, orderSaving]);
+
+  const moveColor = useCallback((kitColorId: number, direction: -1 | 1) => {
+    const next = moveMixRecipe(kitColors, kitColorId, direction);
+    if (next !== kitColors) void saveColorOrder(next);
+  }, [kitColors, saveColorOrder]);
+
+  const renderKitColor = useCallback<SortableGridRenderItem<KitColorSummary>>(({ item, index }) => {
+    const colorLabel = item.name?.trim() || item.paints[0]?.code || t('mixResult');
+    return (
+      <KitColorRow
+        color={item}
+        ownedMap={ownedMap}
+        disabled={orderSaving}
+        onPress={() => { setSelectedColor(item); setColorDetailOpen(true); }}
+        dragHandle={(
+          <Sortable.Handle style={styles.dragHandle}>
+            <View
+              pointerEvents="none"
+              accessible
+              accessibilityRole="adjustable"
+              accessibilityLabel={`${colorLabel} ${t('sort')}`}
+              accessibilityState={{ disabled: orderSaving }}
+              accessibilityValue={{ min: 1, max: kitColors.length, now: index + 1, text: `${index + 1}/${kitColors.length}` }}
+              accessibilityActions={[
+                { name: 'decrement', label: t('moveUp') },
+                { name: 'increment', label: t('moveDown') },
+              ]}
+              onAccessibilityAction={({ nativeEvent }) => {
+                if (orderSaving) return;
+                if (nativeEvent.actionName === 'decrement') moveColor(item.id, -1);
+                if (nativeEvent.actionName === 'increment') moveColor(item.id, 1);
+              }}
+              style={[styles.dragHandleContent, orderSaving && styles.dragHandleDisabled]}
+            >
+              <IconGripVertical color={colors.textMuted} size={22} />
+            </View>
+          </Sortable.Handle>
+        )}
+      />
+    );
+  }, [colors.textMuted, kitColors.length, moveColor, orderSaving, ownedMap, styles]);
 
   const confirmDelete = () => {
     if (!detail) return;
@@ -441,7 +486,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           ) : !detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : (
-            <SwipeDownScrollView style={styles.scroll} onClose={closeAfterSavingFields} closeEnabled={!viewerOpen && !childOverlayOpen} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+            <SwipeDownScrollView ref={scrollRef} style={styles.scroll} onClose={closeAfterSavingFields} closeEnabled={!viewerOpen && !childOverlayOpen} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <View style={styles.titleBlock}>
                 {editMode ? (
                   <>
@@ -460,7 +505,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                     <View style={styles.nameRow}>
                       <Text style={styles.name}>{detail.name}</Text>
                       <View style={styles.nameActions}>
-                            <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('enterEditMode')}>
+                            <TouchableOpacity onPress={() => { setDetailTab('details'); setEditMode(true); }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('enterEditMode')}>
                           <IconEdit color={colors.textMuted} size={20} />
                         </TouchableOpacity>
                       </View>
@@ -482,7 +527,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 onMove={(key, direction) => movePhoto(key as number, direction)}
               />
 
-              <View style={styles.tabBar}>
+              {!editMode ? <View style={styles.tabBar}>
                 <TouchableOpacity
                   accessibilityRole="tab"
                   accessibilityState={{ selected: detailTab === 'details' }}
@@ -501,7 +546,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 >
                   <Text style={[styles.tabText, detailTab === 'colors' && styles.tabTextActive]}>{t('usedColorsTab')}</Text>
                 </TouchableOpacity>
-              </View>
+              </View> : null}
 
               {detailTab === 'details' ? (
                 <>
@@ -593,50 +638,27 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                     </TouchableOpacity>
                   </View>
                   {kitColors.length === 0 ? <Text style={styles.empty}>{t('emptyKitColors')}</Text> : null}
-                  {kitColors.map((color, index) => {
-                    const colorLabel = color.name?.trim() || color.paints[0]?.code || t('mixResult');
-                    return (
-                    <View key={color.id} style={styles.colorItem}>
-                      <KitColorRow
-                        color={color}
-                        ownedMap={ownedMap}
-                        onPress={() => { setSelectedColor(color); setColorDetailOpen(true); }}
-                      />
-                      {editMode ? (
-                        <View style={styles.colorActions}>
-                          <TouchableOpacity
-                            style={styles.colorAction}
-                            onPress={() => moveColor(color.id, -1)}
-                            disabled={index === 0}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${colorLabel} ${t('moveUp')}`}
-                            accessibilityState={{ disabled: index === 0 }}
-                          >
-                            <IconChevronUp color={colors.text} size={20} opacity={index === 0 ? 0.35 : 1} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.colorAction}
-                            onPress={() => moveColor(color.id, 1)}
-                            disabled={index === kitColors.length - 1}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${colorLabel} ${t('moveDown')}`}
-                            accessibilityState={{ disabled: index === kitColors.length - 1 }}
-                          >
-                            <IconChevronDown color={colors.text} size={20} opacity={index === kitColors.length - 1 ? 0.35 : 1} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={[styles.colorAction, styles.colorDelete]}
-                            onPress={() => confirmRemoveColor(color)}
-                            accessibilityRole="button"
-                            accessibilityLabel={`${colorLabel} ${t('delete')}`}
-                          >
-                            <IconTrash color={colors.danger} size={20} />
-                          </TouchableOpacity>
-                        </View>
-                      ) : null}
-                    </View>
-                    );
-                  })}
+                  {kitColors.length > 0 ? (
+                    <Sortable.Grid
+                      columns={1}
+                      customHandle
+                      data={kitColors}
+                      keyExtractor={(color) => String(color.id)}
+                      renderItem={renderKitColor}
+                      onDragEnd={({ data }) => { void saveColorOrder(data); }}
+                      rowGap={spacing.md}
+                      scrollableRef={scrollRef}
+                      sortEnabled={!orderSaving}
+                      dragActivationDelay={180}
+                      dragActivationFailOffset={8}
+                      reorderTriggerOrigin="touch"
+                      overDrag="vertical"
+                      activeItemScale={1.015}
+                      inactiveItemOpacity={0.92}
+                      autoScrollActivationOffset={80}
+                      autoScrollMaxVelocity={500}
+                    />
+                  ) : null}
                 </View>
               )}
             </SwipeDownScrollView>
