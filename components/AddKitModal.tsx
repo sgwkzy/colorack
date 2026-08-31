@@ -32,7 +32,13 @@ export interface KitFormValues {
   photos: readonly string[];
 }
 
-export function isKitFormDirty(form: KitFormValues): boolean {
+export function isKitFormDirty(form: KitFormValues, initial?: KitFormValues): boolean {
+  if (initial) {
+    return form.name !== initial.name || form.maker !== initial.maker || form.series !== initial.series
+      || form.category !== initial.category || form.scale !== initial.scale || form.price !== initial.price
+      || form.note !== initial.note || form.photos.length !== initial.photos.length
+      || form.photos.some((uri, index) => uri !== initial.photos[index]);
+  }
   return form.name !== '' || form.maker !== '' || form.series !== '' || form.category !== ''
     || form.scale !== '' || form.price !== '' || form.note !== '' || form.photos.length > 0;
 }
@@ -53,12 +59,23 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
   const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const canSave = name.trim() !== '' && maker.trim() !== '' && !photoLoadFailed;
-  const dirty = isKitFormDirty({ name, maker, series, category, scale, price, note, photos });
   const savingRef = useRef(false);
   const photoLoadVersionRef = useRef(0);
   const initialPhotoUrisRef = useRef(new Set<string>());
   const draftPhotoUrisRef = useRef(new Set<string>());
   const editingWishlist = saveTarget === 'wishlist' && editWishlistItem != null;
+  const currentForm = { name, maker, series, category, scale, price, note, photos };
+  const initialEditForm = editingWishlist ? {
+    name: editWishlistItem.name,
+    maker: editWishlistItem.maker,
+    series: editWishlistItem.series ?? '',
+    category: editWishlistItem.category ?? '',
+    scale: editWishlistItem.scale ?? '',
+    price: editWishlistItem.price?.toString() ?? '',
+    note: editWishlistItem.note ?? '',
+    photos: [...initialPhotoUrisRef.current],
+  } : undefined;
+  const dirty = isKitFormDirty(currentForm, initialEditForm);
 
   useLayoutEffect(() => {
     const loadVersion = ++photoLoadVersionRef.current;

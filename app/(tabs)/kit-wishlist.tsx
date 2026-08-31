@@ -311,12 +311,12 @@ export default function KitWishlistScreen() {
               <TouchableOpacity
                 style={styles.row}
                 accessible
-                onPress={() => setEditItem(item)}
-                disabled={busyId === item.id}
+                onPress={() => { if (busyIdRef.current == null) setEditItem(item); }}
+                disabled={busyId != null}
                 accessibilityRole="button"
                 accessibilityLabel={[item.name, ...rowDetails].filter(Boolean).join(' · ')}
                 accessibilityHint={t('kitWishlistActionsHint')}
-                accessibilityState={{ busy: busyId === item.id, disabled: busyId === item.id }}
+                accessibilityState={{ busy: busyId === item.id, disabled: busyId != null }}
                 accessibilityActions={[{ name: 'delete', label: t('delete') }, { name: 'move', label: t('moveToBox') }]}
                 onAccessibilityAction={({ nativeEvent }) => { if (busyIdRef.current != null) return; if (nativeEvent.actionName === 'delete') void deleteItem(item); if (nativeEvent.actionName === 'move') void requestMove(item); }}
               >
