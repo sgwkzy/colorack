@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, LayoutAnimation, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, LayoutAnimation, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconShoppingCartPlus } from '@tabler/icons-react-native';
 import { useFocusEffect, useNavigation } from 'expo-router';
@@ -41,6 +41,7 @@ export default function KitWishlistScreen() {
   const [showFilter, setShowFilter] = useState(false);
   const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [loadState, setLoadState] = useState<'ready' | 'error'>('ready');
   const [toast, setToast] = useState('');
   const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -55,32 +56,39 @@ export default function KitWishlistScreen() {
 
   const load = useCallback(async (f: KitFilter, sortBy: KitWishlistSort) => {
     const loadVersion = ++loadVersionRef.current;
-    const db = getDB();
-    const where: string[] = [];
-    const args: string[] = [];
+    try {
+      const db = getDB();
+      const where: string[] = [];
+      const args: string[] = [];
 
-    if (f.makers.length) { where.push(`maker IN (${f.makers.map(() => '?').join(',')})`); args.push(...f.makers); }
-    if (f.series.length) { where.push(`series IN (${f.series.map(() => '?').join(',')})`); args.push(...f.series); }
-    if (f.categories.length) { where.push(`category IN (${f.categories.map(() => '?').join(',')})`); args.push(...f.categories); }
-    if (f.scales.length) { where.push(`scale IN (${f.scales.map(() => '?').join(',')})`); args.push(...f.scales); }
-    if (f.search.trim()) { where.push('name LIKE ?'); args.push(`%${f.search.trim()}%`); }
+      if (f.makers.length) { where.push(`maker IN (${f.makers.map(() => '?').join(',')})`); args.push(...f.makers); }
+      if (f.series.length) { where.push(`series IN (${f.series.map(() => '?').join(',')})`); args.push(...f.series); }
+      if (f.categories.length) { where.push(`category IN (${f.categories.map(() => '?').join(',')})`); args.push(...f.categories); }
+      if (f.scales.length) { where.push(`scale IN (${f.scales.map(() => '?').join(',')})`); args.push(...f.scales); }
+      if (f.search.trim()) { where.push('name LIKE ?'); args.push(`%${f.search.trim()}%`); }
 
-    const sql =
-      'SELECT id, name, maker, series, category, scale, price, note, added_at FROM kit_wishlist' +
-      (where.length ? ' WHERE ' + where.join(' AND ') : '') +
-      ' ORDER BY ' + SORT_SQL[sortBy];
+      const sql =
+        'SELECT id, name, maker, series, category, scale, price, note, added_at FROM kit_wishlist' +
+        (where.length ? ' WHERE ' + where.join(' AND ') : '') +
+        ' ORDER BY ' + SORT_SQL[sortBy];
 
-    const [totalRow, nextFilterOptions, nextItems] = await Promise.all([
-      db.getFirstAsync<CountRow>('SELECT COUNT(*) AS n FROM kit_wishlist'),
-      db.getAllAsync<{ maker: string; series: string | null; category: string | null; scale: string | null }>(
-        'SELECT DISTINCT maker, series, category, scale FROM kit_wishlist'
-      ),
-      db.getAllAsync<KitWishlistItem>(sql, args),
-    ]);
-    if (loadVersion !== loadVersionRef.current) return;
-    setTotalCount(totalRow?.n ?? 0);
-    setFilterOptions(nextFilterOptions);
-    setItems(nextItems);
+      const [totalRow, nextFilterOptions, nextItems] = await Promise.all([
+        db.getFirstAsync<CountRow>('SELECT COUNT(*) AS n FROM kit_wishlist'),
+        db.getAllAsync<{ maker: string; series: string | null; category: string | null; scale: string | null }>(
+          'SELECT DISTINCT maker, series, category, scale FROM kit_wishlist'
+        ),
+        db.getAllAsync<KitWishlistItem>(sql, args),
+      ]);
+      if (loadVersion !== loadVersionRef.current) return;
+      setTotalCount(totalRow?.n ?? 0);
+      setFilterOptions(nextFilterOptions);
+      setItems(nextItems);
+      setLoadState('ready');
+    } catch (error) {
+      if (loadVersion !== loadVersionRef.current) return;
+      console.error('KitWishlistScreen: failed to load candidates', error);
+      setLoadState('error');
+    }
   }, []);
 
   useFocusEffect(useCallback(() => {
@@ -244,6 +252,14 @@ export default function KitWishlistScreen() {
         <ListToolbar onFilter={() => setShowFilter(true)} onSort={openSort} filterActive={filterActive} />
       </View>
       <View style={styles.adBar}><AdBanner /></View>
+      {loadState === 'error' ? (
+        <View style={styles.loadError}>
+          <Text accessibilityRole="alert" style={styles.loadErrorText}>{t('loadFailed')}</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={() => void reload()} style={styles.retryButton}>
+            <Text style={styles.retryText}>{t('retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <FlatList
         data={items}
@@ -254,9 +270,9 @@ export default function KitWishlistScreen() {
           return (
             <Swipeable
               ref={(ref) => { if (ref) swipeRefs.current.set(item.id, ref); else swipeRefs.current.delete(item.id); }}
-              renderLeftActions={() => <View style={styles.moveAction}><Text numberOfLines={1} style={styles.swipeActionText}>{t('moveToBox')}</Text></View>}
-              renderRightActions={() => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>}
-              onSwipeableOpen={(direction) => { if (direction === 'left') void requestMove(item); if (direction === 'right') void deleteItem(item); }}
+              renderLeftActions={() => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>}
+              renderRightActions={() => <View style={styles.moveAction}><Text numberOfLines={1} style={styles.swipeActionText}>{t('moveToBox')}</Text></View>}
+              onSwipeableOpen={(direction) => { if (direction === 'right') void requestMove(item); if (direction === 'left') void deleteItem(item); }}
               onSwipeableWillOpen={() => swipeRefs.current.forEach((swipeable, id) => { if (id !== item.id) swipeable.close(); })}
               overshootRight={false}
               overshootLeft={false}
@@ -266,9 +282,9 @@ export default function KitWishlistScreen() {
                 accessible
                 accessibilityLabel={[item.name, ...rowDetails].filter(Boolean).join(' · ')}
                 accessibilityHint={t('kitWishlistActionsHint')}
-                accessibilityState={{ busy: busyId === item.id }}
+                accessibilityState={{ busy: busyId === item.id, disabled: busyId === item.id }}
                 accessibilityActions={[{ name: 'delete', label: t('delete') }, { name: 'move', label: t('moveToBox') }]}
-                onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'delete') void deleteItem(item); if (nativeEvent.actionName === 'move') void requestMove(item); }}
+                onAccessibilityAction={({ nativeEvent }) => { if (busyIdRef.current != null) return; if (nativeEvent.actionName === 'delete') void deleteItem(item); if (nativeEvent.actionName === 'move') void requestMove(item); }}
               >
                 <View style={styles.rowInfo}>
                   <Text numberOfLines={1} style={styles.rowName}>{item.name}</Text>
@@ -278,7 +294,7 @@ export default function KitWishlistScreen() {
             </Swipeable>
           );
         }}
-        ListEmptyComponent={(
+        ListEmptyComponent={loadState === 'error' ? null : (
           <EmptyState
             icon={IconShoppingCartPlus}
             title={emptyMessage}
@@ -286,7 +302,7 @@ export default function KitWishlistScreen() {
             onAction={trulyEmpty ? () => setShowAdd(true) : undefined}
           />
         )}
-      />
+        />
 
       <ListActionBar onAdd={() => setShowAdd(true)} />
       <KitFilterModal
@@ -327,6 +343,10 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   statusBarWrap: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
   statusCount: { color: colors.text, fontSize: 15, fontVariant: ['tabular-nums'] },
   list: { paddingBottom: 104 },
+  loadError: { alignItems: 'center', gap: spacing.md, padding: spacing.lg },
+  loadErrorText: { color: colors.textMuted },
+  retryButton: { minHeight: touch.min, paddingHorizontal: spacing.xl, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.primary },
+  retryText: { color: colors.onPrimary, fontWeight: '700' },
   row: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   rowInfo: { flex: 1 },
   rowName: { fontSize: 15, fontWeight: '600', color: colors.text },
