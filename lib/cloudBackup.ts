@@ -23,9 +23,10 @@ const firestore: typeof import('@react-native-firebase/firestore').default | nul
 // v3: kitPhotos(スタンダードプラン限定のキット写真)を追加。
 // v4: mix_recipes/mix_recipe_paints(保存した色レシピ)を追加。
 // v5: kit_wishlist(購入候補)を追加。
+// v6: kit_wishlist_photos(購入候補の写真)を追加。
 // v1/v2スナップショットにはこれらのフィールドが無いため、復元側は `?? []` で
 // optional に扱い、無い部分が空のまま復元されても壊れないようにする。
-const BACKUP_SCHEMA_VERSION = 5;
+const BACKUP_SCHEMA_VERSION = 6;
 const LAST_BACKUP_AT_KEY = 'last_backup_at';
 const LAST_BACKUP_AT_UID_KEY = 'last_backup_at_uid';
 const BACKUP_READY_UID_KEY = 'cloud_backup_ready_uid';
@@ -117,6 +118,7 @@ interface KitRow {
 }
 
 interface KitWishlistRow {
+  id: number;
   name: string;
   maker: string;
   series: string | null;
@@ -236,7 +238,13 @@ export interface BackupKit {
   status_changed_at: string | null;
 }
 
-export type BackupKitWishlistItem = KitWishlistRow;
+export type BackupKitWishlistItem = Omit<KitWishlistRow, 'id'> & { localRef: string };
+
+export interface BackupKitWishlistPhoto {
+  wishlistLocalRef: string;
+  storagePath: string;
+  sort_order: number;
+}
 
 export interface BackupKitColor {
   localRef: string;
@@ -293,6 +301,8 @@ export interface BackupSnapshot {
   mixRecipePaints?: BackupMixRecipePaint[];
   // v5で追加。旧スナップショットには存在しないため optional。
   kitWishlist?: BackupKitWishlistItem[];
+  // v6で追加。旧スナップショットには存在しないため optional。
+  kitWishlistPhotos?: BackupKitWishlistPhoto[];
 }
 
 function paintCatalogCode(row: { catalog_code: string | null; brand: string; series: string; code: string }): string {
@@ -310,6 +320,10 @@ function kitBoxLocalRef(id: number): string {
 
 function kitLocalRef(id: number): string {
   return `kit_${id}`;
+}
+
+function kitWishlistLocalRef(id: number): string {
+  return `kit_wishlist_${id}`;
 }
 
 function kitColorLocalRef(id: number): string {
@@ -372,6 +386,7 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
   let mixRecipePaintRows!: MixRecipePaintRow[];
   let defaultKitBoxId: string | null = null;
   let kitPhotoRows: { kit_id: number; storage_path: string; sort_order: number }[] = [];
+  let kitWishlistPhotoRows: { wishlist_id: number; storage_path: string; sort_order: number }[] = [];
 
   await db.withExclusiveTransactionAsync(async (tx) => {
     boxes = await tx.getAllAsync<BoxRow>('SELECT id, name, location, note FROM boxes ORDER BY id');
@@ -398,7 +413,7 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
       'SELECT id, box_id, name, maker, series, category, scale, note, price, status, added_at, status_changed_at FROM kits ORDER BY id'
     );
     kitWishlistRows = await tx.getAllAsync<KitWishlistRow>(
-      'SELECT name, maker, series, category, scale, note, price, added_at FROM kit_wishlist ORDER BY id'
+      'SELECT id, name, maker, series, category, scale, note, price, added_at FROM kit_wishlist ORDER BY id'
     );
     kitColorRows = await tx.getAllAsync<KitColorRow>('SELECT id, kit_id, name, note, sort_order, added_at FROM kit_colors ORDER BY sort_order, id');
     kitColorPaintRows = await tx.getAllAsync<KitColorPaintRow>(
@@ -422,6 +437,9 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
     if (hasPhotoBackup) {
       kitPhotoRows = await tx.getAllAsync<{ kit_id: number; storage_path: string; sort_order: number }>(
         'SELECT kit_id, storage_path, sort_order FROM kit_photos WHERE synced_at IS NOT NULL AND storage_path IS NOT NULL ORDER BY sort_order, id'
+      );
+      kitWishlistPhotoRows = await tx.getAllAsync<{ wishlist_id: number; storage_path: string; sort_order: number }>(
+        'SELECT wishlist_id, storage_path, sort_order FROM kit_wishlist_photos WHERE synced_at IS NOT NULL AND storage_path IS NOT NULL ORDER BY sort_order, id'
       );
     }
   });
@@ -512,6 +530,7 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
       sort_order: cp.sort_order,
     })),
     kitWishlist: kitWishlistRows.map((item) => ({
+      localRef: kitWishlistLocalRef(item.id),
       name: item.name,
       maker: item.maker,
       series: item.series,
@@ -529,6 +548,11 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
       ? {
           kitPhotos: kitPhotoRows.map((p) => ({
             kitLocalRef: kitLocalRef(p.kit_id),
+            storagePath: p.storage_path,
+            sort_order: p.sort_order,
+          })),
+          kitWishlistPhotos: kitWishlistPhotoRows.map((p) => ({
+            wishlistLocalRef: kitWishlistLocalRef(p.wishlist_id),
             storagePath: p.storage_path,
             sort_order: p.sort_order,
           })),
@@ -613,11 +637,21 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
   const db = getDB();
   let orphanedKitPhotoUris: string[] = [];
   const kitIdByLocalRef = new Map<string, number>();
+  const kitWishlistIdByLocalRef = new Map<string, number>();
   const mixRecipeIdByLocalRef = new Map<string, number>();
-  const photosToRestore = getEntitlements().hasPhotoBackup ? snapshot.kitPhotos ?? [] : [];
+  const kitPhotosToRestore = getEntitlements().hasPhotoBackup ? snapshot.kitPhotos ?? [] : [];
+  const kitWishlistPhotosToRestore = getEntitlements().hasPhotoBackup && snapshot.schemaVersion >= 6
+    ? snapshot.kitWishlistPhotos ?? []
+    : [];
+  const photosToRestore = [...kitPhotosToRestore, ...kitWishlistPhotosToRestore];
   const kitRefs = new Set((snapshot.kits ?? []).map((kit) => kit.localRef));
-  const invalidPhoto = photosToRestore.find((photo) => !kitRefs.has(photo.kitLocalRef));
+  const invalidPhoto = kitPhotosToRestore.find((photo) => !kitRefs.has(photo.kitLocalRef));
   if (invalidPhoto) throw new Error(`Kit photo references missing kit: ${invalidPhoto.kitLocalRef}`);
+  const kitWishlistRefs = new Set((snapshot.kitWishlist ?? []).map((item) => item.localRef));
+  const invalidKitWishlistPhoto = kitWishlistPhotosToRestore.find((photo) => !kitWishlistRefs.has(photo.wishlistLocalRef));
+  if (invalidKitWishlistPhoto) {
+    throw new Error(`Candidate photo references missing candidate: ${invalidKitWishlistPhoto.wishlistLocalRef}`);
+  }
 
   const localUriByStoragePath = photosToRestore.length > 0
     ? await downloadKitPhotosForRestore(photosToRestore)
@@ -748,18 +782,28 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
       );
     }
 
+    orphanedKitPhotoUris.push(...(await tx.getAllAsync<{ uri: string }>('SELECT uri FROM kit_wishlist_photos')).map((r) => r.uri));
+    await tx.runAsync('DELETE FROM kit_wishlist_photos');
     await tx.runAsync('DELETE FROM kit_wishlist');
     for (const item of snapshot.kitWishlist ?? []) {
-      await tx.runAsync(
+      const result = await tx.runAsync(
         'INSERT INTO kit_wishlist (name, maker, series, category, scale, note, price, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [item.name, item.maker, item.series, item.category, item.scale, item.note, item.price, item.added_at]
+      );
+      kitWishlistIdByLocalRef.set(item.localRef, result.lastInsertRowId);
+    }
+
+    for (const photo of kitWishlistPhotosToRestore) {
+      await tx.runAsync(
+        "INSERT INTO kit_wishlist_photos (wishlist_id, uri, sort_order, synced_at, storage_path) VALUES (?, ?, ?, datetime('now'), ?)",
+        [kitWishlistIdByLocalRef.get(photo.wishlistLocalRef)!, localUriByStoragePath.get(photo.storagePath)!, photo.sort_order, photo.storagePath]
       );
     }
 
     // キット関連は塗料ボックスと独立した体系のため、常に全消去して再構築する。
     // 写真は事前ダウンロードが全件成功した場合だけDB行を入れ替え、
     // 古い実ファイルはトランザクション成功後に削除する。
-    orphanedKitPhotoUris = (await tx.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos')).map((r) => r.uri);
+    orphanedKitPhotoUris.push(...(await tx.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos')).map((r) => r.uri));
     await tx.runAsync('DELETE FROM kit_photos');
     await tx.runAsync('DELETE FROM kits');
     await tx.runAsync('DELETE FROM kit_boxes');
@@ -809,7 +853,7 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
       );
     }
 
-      for (const photo of photosToRestore) {
+      for (const photo of kitPhotosToRestore) {
         await tx.runAsync(
           "INSERT INTO kit_photos (kit_id, uri, sort_order, synced_at, storage_path) VALUES (?, ?, ?, datetime('now'), ?)",
           [kitIdByLocalRef.get(photo.kitLocalRef)!, localUriByStoragePath.get(photo.storagePath)!, photo.sort_order, photo.storagePath]

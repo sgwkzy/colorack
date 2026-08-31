@@ -159,7 +159,19 @@ export default function SettingsScreen() {
   });
 
   const resetKitWishlist = () => confirmReset(t('resetKitWishlist'), async () => {
-    await getDB().runAsync('DELETE FROM kit_wishlist');
+    const db = getDB();
+    const photos = await db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_wishlist_photos');
+    await db.withTransactionAsync(async () => {
+      await db.runAsync('DELETE FROM kit_wishlist_photos');
+      await db.runAsync('DELETE FROM kit_wishlist');
+    });
+    for (const { uri } of photos) {
+      try {
+        await deleteKitPhoto(uri);
+      } catch (error) {
+        console.error('SettingsScreen: failed to delete purchase candidate photo', uri, error);
+      }
+    }
     logEvent('reset_data', { target: 'kit_wishlist' });
   });
 
