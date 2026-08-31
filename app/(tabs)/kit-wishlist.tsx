@@ -387,7 +387,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   loadErrorText: { color: colors.textMuted },
   retryButton: { minHeight: touch.min, paddingHorizontal: spacing.xl, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.primary },
   retryText: { color: colors.onPrimary, fontWeight: '700' },
-  row: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  row: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surface },
   thumb: { width: 48, height: 48, borderRadius: radius.sm },
   thumbPlaceholder: { width: 48, height: 48, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   rowInfo: { flex: 1 },

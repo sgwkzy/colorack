@@ -240,7 +240,20 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
             overshootLeft={false}
           >
           <View style={styles.row}>
-            <TouchableOpacity style={styles.rowPress} onPress={() => setDetailKitId(item.id)} accessibilityRole="button">
+            <TouchableOpacity
+              style={styles.rowPress}
+              onPress={() => setDetailKitId(item.id)}
+              accessibilityRole="button"
+              accessibilityLabel={item.name}
+              accessibilityActions={[
+                { name: 'delete', label: t('delete') },
+                ...(!completedScreen ? [{ name: 'complete', label: t('statusCompleted') }] : []),
+              ]}
+              onAccessibilityAction={({ nativeEvent }) => {
+                if (nativeEvent.actionName === 'delete') deleteKitItem(item);
+                if (nativeEvent.actionName === 'complete' && !completedScreen) void completeKit(item);
+              }}
+            >
               {item.thumb_uri ? (
                 <Image source={{ uri: item.thumb_uri }} style={styles.thumb} resizeMode="cover" />
               ) : (
@@ -322,7 +335,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   statusBarWrap: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
   statusCount: { color: colors.text, fontSize: 15, fontVariant: ['tabular-nums'] },
   list: { paddingBottom: 104 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surface },
   rowPress: { flex: 1, minHeight: touch.min, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   thumb: { width: 48, height: 48, borderRadius: radius.sm },
   thumbPlaceholder: { width: 48, height: 48, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
