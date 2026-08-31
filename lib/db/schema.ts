@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { _setDB } from './connection';
 import { SEED_VERSION } from './types';
 import { upsertCatalogFromSeed } from './seedCatalog';
-import { migrateKitPhotoUris } from '../kitPhoto';
+import { cleanupOrphanedKitPhotos, migrateKitPhotoUris } from '../kitPhoto';
 
 export async function initDB(): Promise<void> {
   const db = await SQLite.openDatabaseAsync('colorack.db');
@@ -82,6 +82,11 @@ export async function initDB(): Promise<void> {
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     '  kit_id INTEGER NOT NULL, uri TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0,' +
     "  added_at TEXT DEFAULT (datetime('now'))" +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_wishlist_photos (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  wishlist_id INTEGER NOT NULL, uri TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0,' +
+    "  added_at TEXT DEFAULT (datetime('now')), synced_at TEXT, storage_path TEXT" +
     ');'
   );
   await db.execAsync(
@@ -116,6 +121,7 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE kit_photos ADD COLUMN synced_at TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kit_photos ADD COLUMN storage_path TEXT'); } catch { /* 既にある */ }
   await migrateKitPhotoUris(db);
+  await cleanupOrphanedKitPhotos(db);
   await db.runAsync(
     'UPDATE inventory SET status_changed_at = added_at WHERE status_changed_at IS NULL OR status_changed_at < added_at'
   );
