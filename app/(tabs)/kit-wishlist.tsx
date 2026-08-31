@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, FlatList, LayoutAnimation, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Image, LayoutAnimation, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-import { IconShoppingCartPlus } from '@tabler/icons-react-native';
+import { IconBox, IconShoppingCartPlus } from '@tabler/icons-react-native';
 import { useFocusEffect, useNavigation } from 'expo-router';
 import { getDB, moveKitWishlistItemToBox, type KitWishlistItem, removeKitWishlistItem, restoreKitWishlistItem, undoKitWishlistMove } from '../../lib/db';
 import { deleteKitPhoto } from '../../lib/kitPhoto';
 import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
-import { lightColors, spacing, touch, useTheme } from '../../lib/theme';
+import { lightColors, radius, spacing, touch, useTheme } from '../../lib/theme';
 import ActionSheet, { ActionSheetButton } from '../../components/ActionSheet';
 import AddKitModal from '../../components/AddKitModal';
 import AdBanner from '../../components/AdBanner';
@@ -18,6 +18,7 @@ import Toast from '../../components/Toast';
 
 interface CountRow { n: number; }
 interface KitBoxChoice { id: number; name: string; }
+interface KitWishlistListItem extends KitWishlistItem { thumb_uri: string | null; }
 
 const EMPTY_FILTER: KitFilter = { makers: [], series: [], categories: [], scales: [], search: '' };
 
@@ -33,12 +34,13 @@ export default function KitWishlistScreen() {
   const navigation = useNavigation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [items, setItems] = useState<KitWishlistItem[]>([]);
+  const [items, setItems] = useState<KitWishlistListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [filter, setFilter] = useState<KitFilter>(EMPTY_FILTER);
   const [sort, setSort] = useState<KitWishlistSort>('added');
   const [filterOptions, setFilterOptions] = useState<{ maker: string; series: string | null; category: string | null; scale: string | null }[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [editItem, setEditItem] = useState<KitWishlistItem | null>(null);
   const [showFilter, setShowFilter] = useState(false);
   const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -71,7 +73,9 @@ export default function KitWishlistScreen() {
       if (f.search.trim()) { where.push('name LIKE ?'); args.push(`%${f.search.trim()}%`); }
 
       const sql =
-        'SELECT id, name, maker, series, category, scale, price, note, added_at FROM kit_wishlist' +
+        'SELECT id, name, maker, series, category, scale, price, note, added_at,'
+        + ' (SELECT uri FROM kit_wishlist_photos WHERE wishlist_id = kit_wishlist.id ORDER BY sort_order, id LIMIT 1) AS thumb_uri'
+        + ' FROM kit_wishlist' +
         (where.length ? ' WHERE ' + where.join(' AND ') : '') +
         ' ORDER BY ' + SORT_SQL[sortBy];
 
@@ -80,7 +84,7 @@ export default function KitWishlistScreen() {
         db.getAllAsync<{ maker: string; series: string | null; category: string | null; scale: string | null }>(
           'SELECT DISTINCT maker, series, category, scale FROM kit_wishlist'
         ),
-        db.getAllAsync<KitWishlistItem>(sql, args),
+        db.getAllAsync<KitWishlistListItem>(sql, args),
       ]);
       if (loadVersion !== loadVersionRef.current) return;
       setTotalCount(totalRow?.n ?? 0);
@@ -304,20 +308,28 @@ export default function KitWishlistScreen() {
               overshootRight={false}
               overshootLeft={false}
             >
-              <View
+              <TouchableOpacity
                 style={styles.row}
                 accessible
+                onPress={() => setEditItem(item)}
+                disabled={busyId === item.id}
+                accessibilityRole="button"
                 accessibilityLabel={[item.name, ...rowDetails].filter(Boolean).join(' · ')}
                 accessibilityHint={t('kitWishlistActionsHint')}
                 accessibilityState={{ busy: busyId === item.id, disabled: busyId === item.id }}
                 accessibilityActions={[{ name: 'delete', label: t('delete') }, { name: 'move', label: t('moveToBox') }]}
                 onAccessibilityAction={({ nativeEvent }) => { if (busyIdRef.current != null) return; if (nativeEvent.actionName === 'delete') void deleteItem(item); if (nativeEvent.actionName === 'move') void requestMove(item); }}
               >
+                {item.thumb_uri ? (
+                  <Image source={{ uri: item.thumb_uri }} style={styles.thumb} resizeMode="cover" />
+                ) : (
+                  <View style={styles.thumbPlaceholder}><IconBox color={colors.textFaint} size={22} /></View>
+                )}
                 <View style={styles.rowInfo}>
                   <Text numberOfLines={1} style={styles.rowName}>{item.name}</Text>
                   <Text numberOfLines={1} style={styles.rowSub}>{rowDetails.join(' · ')}</Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             </Swipeable>
           );
         }}
@@ -340,10 +352,11 @@ export default function KitWishlistScreen() {
         onClose={() => setShowFilter(false)}
       />
       <AddKitModal
-        visible={showAdd}
+        visible={showAdd || editItem != null}
         defaultBoxId={null}
         saveTarget="wishlist"
-        onClose={() => { setShowAdd(false); void reload(); }}
+        editWishlistItem={editItem}
+        onClose={() => { setShowAdd(false); setEditItem(null); void reload(); }}
       />
       <ActionSheet
         visible={!!actionSheet}
@@ -374,7 +387,9 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   loadErrorText: { color: colors.textMuted },
   retryButton: { minHeight: touch.min, paddingHorizontal: spacing.xl, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.primary },
   retryText: { color: colors.onPrimary, fontWeight: '700' },
-  row: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  row: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  thumb: { width: 48, height: 48, borderRadius: radius.sm },
+  thumbPlaceholder: { width: 48, height: 48, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   rowInfo: { flex: 1 },
   rowName: { fontSize: 15, fontWeight: '600', color: colors.text },
   rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
