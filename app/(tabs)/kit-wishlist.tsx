@@ -3,7 +3,7 @@ import { Alert, FlatList, LayoutAnimation, StyleSheet, Text, View } from 'react-
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconShoppingCartPlus } from '@tabler/icons-react-native';
 import { useFocusEffect, useNavigation } from 'expo-router';
-import { getDB, type KitWishlistItem, removeKitWishlistItem, restoreKitWishlistItem } from '../../lib/db';
+import { getDB, moveKitWishlistItemToBox, type KitWishlistItem, removeKitWishlistItem, restoreKitWishlistItem, undoKitWishlistMove } from '../../lib/db';
 import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
 import { lightColors, spacing, touch, useTheme } from '../../lib/theme';
@@ -16,6 +16,7 @@ import ListActionBar, { ListToolbar } from '../../components/ListActionBar';
 import Toast from '../../components/Toast';
 
 interface CountRow { n: number; }
+interface KitBoxChoice { id: number; name: string; }
 
 const EMPTY_FILTER: KitFilter = { makers: [], series: [], categories: [], scales: [], search: '' };
 
@@ -39,11 +40,14 @@ export default function KitWishlistScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
   const [toast, setToast] = useState('');
   const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const loadVersionRef = useRef(0);
+  const busyIdRef = useRef<number | null>(null);
+  const pendingMoveRef = useRef<number | null>(null);
 
   useEffect(() => {
     navigation.setOptions({ title: t('kitWishlist') });
@@ -91,7 +95,7 @@ export default function KitWishlistScreen() {
   const reload = () => load(filter, sort);
   const filterActive = filter.makers.length > 0 || filter.series.length > 0 || filter.categories.length > 0 || filter.scales.length > 0 || filter.search.trim() !== '';
   const trulyEmpty = !filterActive && totalCount === 0;
-  const emptyMessage = trulyEmpty ? t('emptyKits') : t('noResults');
+  const emptyMessage = trulyEmpty ? t('emptyKitWishlist') : t('noResults');
 
   const showToast = (message: string, actionLabel?: string, onAction?: () => void) => {
     setToast(message);
@@ -101,6 +105,82 @@ export default function KitWishlistScreen() {
       setToast('');
       setToastAction(null);
     }, actionLabel ? 3000 : 1800);
+  };
+
+  const clearBusy = (id: number) => {
+    if (busyIdRef.current !== id) return;
+    busyIdRef.current = null;
+    setBusyId(null);
+  };
+
+  const moveToBox = async (item: KitWishlistItem, boxId: number) => {
+    if (busyIdRef.current != null) return;
+    busyIdRef.current = item.id;
+    setBusyId(item.id);
+    swipeRefs.current.get(item.id)?.close();
+    let moved: { kitId: number; item: KitWishlistItem };
+    try {
+      moved = await moveKitWishlistItemToBox(item.id, boxId);
+    } catch (error) {
+      console.error('KitWishlistScreen: failed to move candidate', error);
+      Alert.alert(t('error'), t('saveFailed'));
+      clearBusy(item.id);
+      return;
+    }
+    showToast(t('kitMovedToBoxToast'), t('undo'), async () => {
+      try {
+        await undoKitWishlistMove(moved.kitId, moved.item);
+      } catch (error) {
+        console.error('KitWishlistScreen: failed to undo candidate move', error);
+        Alert.alert(t('error'), t('saveFailed'));
+        return;
+      }
+      try {
+        await reload();
+      } catch (error) {
+        console.error('KitWishlistScreen: failed to reload after undoing candidate move', error);
+        Alert.alert(t('error'), t('loadFailed'));
+      }
+    });
+    try {
+      await reload();
+    } catch (error) {
+      console.error('KitWishlistScreen: failed to reload after moving candidate', error);
+      Alert.alert(t('error'), t('loadFailed'));
+    } finally {
+      clearBusy(item.id);
+    }
+  };
+
+  const requestMove = async (item: KitWishlistItem) => {
+    if (busyIdRef.current != null) return;
+    busyIdRef.current = item.id;
+    setBusyId(item.id);
+    swipeRefs.current.get(item.id)?.close();
+    let boxes: KitBoxChoice[];
+    try {
+      boxes = await getDB().getAllAsync<KitBoxChoice>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id');
+    } catch (error) {
+      console.error('KitWishlistScreen: failed to load kit Boxes', error);
+      Alert.alert(t('error'), t('loadFailed'));
+      clearBusy(item.id);
+      return;
+    }
+    if (boxes.length === 0) {
+      clearBusy(item.id);
+      Alert.alert(t('error'), t('noKitBoxAvailable'));
+      return;
+    }
+    if (boxes.length === 1) {
+      clearBusy(item.id);
+      await moveToBox(item, boxes[0].id);
+      return;
+    }
+    pendingMoveRef.current = item.id;
+    setActionSheet({ title: t('targetBox'), buttons: [
+      ...boxes.map((box) => ({ text: box.name, onPress: () => void moveToBox(item, box.id) })),
+      { text: t('cancel'), style: 'cancel' as const },
+    ] });
   };
 
   const deleteItem = async (item: KitWishlistItem) => {
@@ -165,8 +245,9 @@ export default function KitWishlistScreen() {
         renderItem={({ item }) => (
           <Swipeable
             ref={(ref) => { if (ref) swipeRefs.current.set(item.id, ref); else swipeRefs.current.delete(item.id); }}
+            renderLeftActions={() => <View style={styles.moveAction}><Text numberOfLines={1} style={styles.swipeActionText}>{t('moveToBox')}</Text></View>}
             renderRightActions={() => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>}
-            onSwipeableOpen={(direction) => { if (direction === 'right') void deleteItem(item); }}
+            onSwipeableOpen={(direction) => { if (direction === 'left') void requestMove(item); if (direction === 'right') void deleteItem(item); }}
             onSwipeableWillOpen={() => swipeRefs.current.forEach((swipeable, id) => { if (id !== item.id) swipeable.close(); })}
             overshootRight={false}
             overshootLeft={false}
@@ -175,8 +256,9 @@ export default function KitWishlistScreen() {
               style={styles.row}
               accessible
               accessibilityLabel={item.name}
-              accessibilityActions={[{ name: 'delete', label: t('delete') }]}
-              onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'delete') void deleteItem(item); }}
+              accessibilityState={{ busy: busyId === item.id }}
+              accessibilityActions={[{ name: 'delete', label: t('delete') }, { name: 'move', label: t('moveToBox') }]}
+              onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'delete') void deleteItem(item); if (nativeEvent.actionName === 'move') void requestMove(item); }}
             >
               <View style={styles.rowInfo}>
                 <Text numberOfLines={1} style={styles.rowName}>{item.name}</Text>
@@ -216,7 +298,14 @@ export default function KitWishlistScreen() {
         title={actionSheet?.title}
         message={actionSheet?.message}
         buttons={actionSheet?.buttons ?? []}
-        onClose={() => setActionSheet(null)}
+        onClose={() => {
+          setActionSheet(null);
+          if (pendingMoveRef.current != null) {
+            const pendingId = pendingMoveRef.current;
+            pendingMoveRef.current = null;
+            clearBusy(pendingId);
+          }
+        }}
       />
       <Toast message={toast} actionLabel={toastAction?.label} onAction={toastAction?.onPress} />
     </View>
@@ -233,6 +322,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   rowInfo: { flex: 1 },
   rowName: { fontSize: 15, fontWeight: '600', color: colors.text },
   rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  moveAction: { width: 128, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   deleteAction: { width: 88, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
   swipeActionText: { color: colors.onPrimary, fontWeight: 'bold' },
 });
