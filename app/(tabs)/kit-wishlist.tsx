@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, LayoutAnimation, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, LayoutAnimation, StyleSheet, Text, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconShoppingCartPlus } from '@tabler/icons-react-native';
 import { useFocusEffect, useNavigation } from 'expo-router';
@@ -106,13 +106,36 @@ export default function KitWishlistScreen() {
   const deleteItem = async (item: KitWishlistItem) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     swipeRefs.current.get(item.id)?.close();
-    const removed = await removeKitWishlistItem(item.id);
+    let removed: KitWishlistItem | null;
+    try {
+      removed = await removeKitWishlistItem(item.id);
+    } catch (error) {
+      console.error('KitWishlistScreen: failed to delete candidate', error);
+      Alert.alert(t('error'), t('saveFailed'));
+      return;
+    }
     if (!removed) return;
-    await reload();
     showToast(item.name + t('removedToast'), t('undo'), async () => {
-      await restoreKitWishlistItem(removed);
-      await reload();
+      try {
+        await restoreKitWishlistItem(removed);
+      } catch (error) {
+        console.error('KitWishlistScreen: failed to undo candidate deletion', error);
+        Alert.alert(t('error'), t('saveFailed'));
+        return;
+      }
+      try {
+        await reload();
+      } catch (error) {
+        console.error('KitWishlistScreen: failed to reload after undo', error);
+        Alert.alert(t('error'), t('loadFailed'));
+      }
     });
+    try {
+      await reload();
+    } catch (error) {
+      console.error('KitWishlistScreen: failed to reload after deletion', error);
+      Alert.alert(t('error'), t('loadFailed'));
+    }
   };
 
   const openSort = () => {
@@ -148,7 +171,13 @@ export default function KitWishlistScreen() {
             overshootRight={false}
             overshootLeft={false}
           >
-            <View style={styles.row}>
+            <View
+              style={styles.row}
+              accessible
+              accessibilityLabel={item.name}
+              accessibilityActions={[{ name: 'delete', label: t('delete') }]}
+              onAccessibilityAction={({ nativeEvent }) => { if (nativeEvent.actionName === 'delete') void deleteItem(item); }}
+            >
               <View style={styles.rowInfo}>
                 <Text numberOfLines={1} style={styles.rowName}>{item.name}</Text>
                 <Text numberOfLines={1} style={styles.rowSub}>
