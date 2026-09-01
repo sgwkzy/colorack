@@ -30,18 +30,23 @@ export async function addKitColor(
   paints: { paintId: number; ratio: number }[]
 ): Promise<void> {
   const db = getDB();
-  await db.withTransactionAsync(async () => {
-    const row = await db.getFirstAsync<{ n: number }>(
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    const kit = await tx.getFirstAsync<{ id: number }>(
+      'SELECT id FROM kits WHERE id = ?',
+      [kitId]
+    );
+    if (!kit) throw new Error('Kit not found');
+    const row = await tx.getFirstAsync<{ n: number }>(
       'SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM kit_colors WHERE kit_id = ?',
       [kitId]
     );
-    const result = await db.runAsync(
+    const result = await tx.runAsync(
       'INSERT INTO kit_colors (kit_id, name, note, sort_order) VALUES (?, ?, ?, ?)',
       [kitId, name?.trim() === '' ? null : name, note?.trim() === '' ? null : note, row?.n ?? 0]
     );
     const kitColorId = result.lastInsertRowId;
     for (const [index, p] of paints.entries()) {
-      await db.runAsync(
+      await tx.runAsync(
         'INSERT INTO kit_color_paints (kit_color_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
         [kitColorId, p.paintId, p.ratio, index]
       );
