@@ -6,7 +6,7 @@ import { validateManualPaint } from '../manualPaint';
 
 export class PaintReferencedByColorError extends Error {
   constructor() {
-    super('Paint is referenced by a kit color or mix recipe');
+    super('Paint is referenced by a kit color, purchase candidate color, or mix recipe');
     this.name = 'PaintReferencedByColorError';
   }
 }
