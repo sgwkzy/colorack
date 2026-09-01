@@ -19,6 +19,7 @@
     "expo-splash-screen": "~31.0.13",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
+    "expo-store-review": "~9.0.9",
     "expo-tracking-transparency": "~6.0.8",
     "i18n-js": "^4.5.3",
     "pako": "^2.1.0",
