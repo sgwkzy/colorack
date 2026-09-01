@@ -21,6 +21,14 @@ Colorack の GitHub `main` にある承認済みコミットから、iOS / Andro
 
 秘密鍵や Firebase 設定ファイルを Git、Issue、チャットへ貼り付けない。JSON キーを一時的にダウンロードした場合は、EAS への登録確認後に安全な保管場所へ移動するか削除する。
 
+Android Service Credentials が未登録の場合だけ、明示的な認証情報変更の承認を得て次を実行する。
+
+```powershell
+npx eas-cli@latest credentials --platform android
+```
+
+`production` → `Google Service Account` → `Upload a Google Service Account Key` を選び、リポジトリ外に置いた `colorack-eas-submit` の JSON キーを指定する。登録後は EAS Dashboard の Android Service Credentials で対象メールアドレスを確認する。
+
 ## 1. リリース元を確定する
 
 OPS ワークスペース `F:\ai_works\products\colorack\ops` で、次を確認する。
