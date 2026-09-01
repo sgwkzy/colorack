@@ -32,6 +32,7 @@ const LAST_BACKUP_AT_KEY = 'last_backup_at';
 const LAST_BACKUP_AT_UID_KEY = 'last_backup_at_uid';
 const BACKUP_READY_UID_KEY = 'cloud_backup_ready_uid';
 const LOCAL_DATA_OWNER_UID_KEY = 'cloud_backup_data_owner_uid';
+const PHOTO_METADATA_AUTHORITY_UID_KEY = 'cloud_backup_photo_metadata_authority_uid';
 
 function assertCurrentUser(expectedUid: string): void {
   if (auth?.().currentUser?.uid !== expectedUid) {
@@ -410,10 +411,13 @@ export async function isLocalDbEmpty(): Promise<boolean> {
   return (row?.n ?? 0) === 0;
 }
 
-export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
+export async function buildBackupSnapshot(
+  photoBackupEntitled = getEntitlements().hasPhotoBackup
+): Promise<BackupSnapshot> {
   const db = getDB();
   const uid = auth?.().currentUser?.uid ?? null;
-  const hasPhotoBackup = !!uid && getEntitlements().hasPhotoBackup;
+  const photoMetadataAuthorityUid = uid ? await getSetting(PHOTO_METADATA_AUTHORITY_UID_KEY) : null;
+  const includePhotoMetadata = !!uid && (photoBackupEntitled || photoMetadataAuthorityUid === uid);
   let boxes!: BoxRow[];
   let manualPaintRows!: PaintRow[];
   let officialPaintNoteRows!: { catalog_code: string | null; brand: string; series: string; code: string; notes: string }[];
@@ -486,7 +490,7 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
     // アップロード済み(synced_at確定済み・storage_path確定済み)の写真だけを
     // スナップショットに含める。アップロード前の行を含めるとStorage側に実体が
     // 無いパスを参照してしまい、復元時のダウンロードが失敗する。
-    if (hasPhotoBackup) {
+    if (includePhotoMetadata) {
       kitPhotoRows = await tx.getAllAsync<{ kit_id: number; storage_path: string; sort_order: number }>(
         'SELECT kit_id, storage_path, sort_order FROM kit_photos WHERE synced_at IS NOT NULL AND storage_path IS NOT NULL ORDER BY sort_order, id'
       );
@@ -609,10 +613,10 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
       sort_order: paint.sort_order,
     })),
     defaultKitBoxLocalRef: defaultKitBoxExists && defaultKitBoxId ? kitBoxLocalRef(Number(defaultKitBoxId)) : null,
-    // v3: hasPhotoBackup(スタンダードプラン)加入者のみ、アップロード済みの
-    // キット写真をStorageパス参照として含める。ライトプラン/未加入時は含めない。
-    // (Firestore側の既存kitPhotosを保護するため、merge: trueと併用)
-    ...(hasPhotoBackup
+    // v3: 写真メタデータの正本端末、またはhasPhotoBackup(スタンダードプラン)
+    // 加入者だけが、アップロード済み写真のStorageパス参照を含める。
+    // (正本ではないライト端末の既存参照を保護するため、merge: trueと併用)
+    ...(includePhotoMetadata
       ? {
           kitPhotos: kitPhotoRows.map((p) => ({
             kitLocalRef: kitLocalRef(p.kit_id),
@@ -650,15 +654,16 @@ export async function pushBackupToFirestore(): Promise<void> {
 
   pushInFlight = runAccountOperation(async () => {
     assertCurrentUser(user.uid);
-    if (getEntitlements().hasPhotoBackup) {
+    const hasPhotoBackup = getEntitlements().hasPhotoBackup;
+    if (hasPhotoBackup) {
       await uploadPendingKitPhotos(user.uid);
       assertCurrentUser(user.uid);
     }
-    const snapshot = await buildBackupSnapshot();
+    const snapshot = await buildBackupSnapshot(hasPhotoBackup);
     const now = new Date().toISOString();
-    // merge: true を指定して、既存フィールド(特にプラン降格時の kitPhotos 参照)を保護する。
-    // buildBackupSnapshot() が hasPhotoBackup=false 時に kitPhotos を含めないため、
-    // set({...snapshot}, {merge: true}) により、Firestore上の既存 kitPhotos は上書きされない。
+    // merge: true を指定して、正本ではないライト端末の既存写真参照を保護する。
+    // buildBackupSnapshot() が正本ではないライト端末で写真フィールドを含めないため、
+    // set({...snapshot}, {merge: true}) により、Firestore上の既存参照は上書きされない。
     await withFreshFirebaseTokenRetry(() =>
       firestore!().collection('backups').doc(user.uid).set({
         ...snapshot,
@@ -666,6 +671,9 @@ export async function pushBackupToFirestore(): Promise<void> {
       }, { merge: true })
     );
     assertCurrentUser(user.uid);
+    if (hasPhotoBackup) {
+      await setSetting(PHOTO_METADATA_AUTHORITY_UID_KEY, user.uid);
+    }
     await setSetting(LAST_BACKUP_AT_KEY, now);
     await setSetting(LAST_BACKUP_AT_UID_KEY, user.uid);
   });
@@ -696,7 +704,9 @@ export async function restoreFromSnapshot(snapshot: BackupSnapshot, expectedUid:
 
 async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid: string): Promise<void> {
   assertCurrentUser(expectedUid);
-  if (!getEntitlements().hasBackup) return;
+  const entitlements = getEntitlements();
+  if (!entitlements.hasBackup) return;
+  const hasPhotoBackup = entitlements.hasPhotoBackup;
   if (!Number.isInteger(snapshot.schemaVersion)
     || snapshot.schemaVersion < 1
     || snapshot.schemaVersion > BACKUP_SCHEMA_VERSION) {
@@ -708,8 +718,8 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
   const kitWishlistIdByLocalRef = new Map<string, number>();
   const kitWishlistColorIdByLocalRef = new Map<string, number>();
   const mixRecipeIdByLocalRef = new Map<string, number>();
-  const savedKitPhotos = getEntitlements().hasPhotoBackup ? snapshot.kitPhotos ?? [] : [];
-  const savedKitWishlistPhotos = getEntitlements().hasPhotoBackup && snapshot.schemaVersion >= 6
+  const savedKitPhotos = hasPhotoBackup ? snapshot.kitPhotos ?? [] : [];
+  const savedKitWishlistPhotos = hasPhotoBackup && snapshot.schemaVersion >= 6
     ? snapshot.kitWishlistPhotos ?? []
     : [];
   const kitRefs = new Set((snapshot.kits ?? []).map((kit) => kit.localRef));
@@ -991,6 +1001,9 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
       console.error('restoreFromSnapshot: failed to delete orphaned kit photo', uri, e);
     }
   }
+
+  assertCurrentUser(expectedUid);
+  await setSetting(PHOTO_METADATA_AUTHORITY_UID_KEY, hasPhotoBackup ? expectedUid : '');
 
 }
 
