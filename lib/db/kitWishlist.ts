@@ -115,6 +115,14 @@ export async function getKitWishlistPhotos(wishlistId: number): Promise<KitWishl
   );
 }
 
+export async function getKitWishlistItem(id: number): Promise<KitWishlistItem | null> {
+  const row = await getDB().getFirstAsync<KitWishlistItem>(
+    'SELECT id, name, maker, series, category, scale, price, note, added_at FROM kit_wishlist WHERE id = ?',
+    [id],
+  );
+  return row ?? null;
+}
+
 export async function saveKitWishlistItem(
   id: number | null,
   item: KitWishlistDraft,

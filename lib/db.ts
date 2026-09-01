@@ -30,7 +30,7 @@ export {
   addKitWishlistColor, updateKitWishlistColor, removeKitWishlistColor, reorderKitWishlistColors,
 } from './db/kitWishlistColors';
 export {
-  type KitWishlistItem, type KitWishlistPhoto, type KitWishlistSnapshot, type KitWishlistDraft, getKitWishlistPhotos,
+  type KitWishlistItem, type KitWishlistPhoto, type KitWishlistSnapshot, type KitWishlistDraft, getKitWishlistItem, getKitWishlistPhotos,
   saveKitWishlistItem, addKitWishlistItem,
   removeKitWishlistItem, restoreKitWishlistItem,
   moveKitWishlistItemToBox, undoKitWishlistMove,

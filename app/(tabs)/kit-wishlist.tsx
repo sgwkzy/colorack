@@ -13,6 +13,7 @@ import AddKitModal from '../../components/AddKitModal';
 import AdBanner from '../../components/AdBanner';
 import EmptyState from '../../components/EmptyState';
 import KitFilterModal, { KitFilter } from '../../components/KitFilterModal';
+import KitWishlistDetailModal from '../../components/KitWishlistDetailModal';
 import ListActionBar, { ListToolbar } from '../../components/ListActionBar';
 import Toast from '../../components/Toast';
 
@@ -44,7 +45,7 @@ export default function KitWishlistScreen() {
   const [sort, setSort] = useState<KitWishlistSort>('added');
   const [filterOptions, setFilterOptions] = useState<{ maker: string; series: string | null; category: string | null; scale: string | null }[]>([]);
   const [showAdd, setShowAdd] = useState(false);
-  const [editItem, setEditItem] = useState<KitWishlistItem | null>(null);
+  const [detailId, setDetailId] = useState<number | null>(null);
   const [showFilter, setShowFilter] = useState(false);
   const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -315,7 +316,7 @@ export default function KitWishlistScreen() {
               <TouchableOpacity
                 style={styles.row}
                 accessible
-                onPress={() => { if (busyIdRef.current == null) setEditItem(item); }}
+                onPress={() => { if (busyIdRef.current == null) setDetailId(item.id); }}
                 disabled={busyId != null}
                 accessibilityRole="button"
                 accessibilityLabel={[item.name, ...rowDetails].filter(Boolean).join(' · ')}
@@ -356,17 +357,18 @@ export default function KitWishlistScreen() {
         onClose={() => setShowFilter(false)}
       />
       <AddKitModal
-        visible={showAdd || editItem != null}
+        visible={showAdd}
         defaultBoxId={null}
         saveTarget="wishlist"
-        editWishlistItem={editItem}
-        onEditAction={(action) => {
-          const item = editItem;
-          if (!item) return;
-          if (action === 'move') void requestMove(item);
-          else void deleteItem(item);
-        }}
-        onClose={() => { setShowAdd(false); setEditItem(null); void reload(); }}
+        onClose={() => { setShowAdd(false); void reload(); }}
+      />
+      <KitWishlistDetailModal
+        visible={detailId != null}
+        wishlistId={detailId}
+        onClose={() => setDetailId(null)}
+        onChanged={reload}
+        onMove={(item) => { setDetailId(null); void requestMove(item); }}
+        onDelete={(item) => { setDetailId(null); void deleteItem(item); }}
       />
       <ActionSheet
         visible={!!actionSheet}

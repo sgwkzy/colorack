@@ -1,9 +1,9 @@
 // components/AddKitModal.tsx
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconBox, IconTrash, IconX } from '@tabler/icons-react-native';
+import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { addKitPhoto, getKitWishlistPhotos, getDB, saveKitWishlistItem, type KitWishlistItem } from '../lib/db';
+import { addKitPhoto, getDB, saveKitWishlistItem } from '../lib/db';
 import { t } from '../lib/i18n';
 import { deleteKitPhoto } from '../lib/kitPhoto';
 import { useModalLock } from '../lib/modalLock';
@@ -17,8 +17,6 @@ interface Props {
   visible: boolean;
   defaultBoxId: number | null;
   saveTarget?: 'owned' | 'wishlist';
-  editWishlistItem?: KitWishlistItem | null;
-  onEditAction?: (action: 'move' | 'delete') => void;
   onClose: () => void;
 }
 
@@ -44,7 +42,7 @@ export function isKitFormDirty(form: KitFormValues, initial?: KitFormValues): bo
     || form.scale !== '' || form.price !== '' || form.note !== '' || form.photos.length > 0;
 }
 
-export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned', editWishlistItem, onEditAction, onClose }: Props) {
+export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned', onClose }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -61,56 +59,18 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
   const [viewerOpen, setViewerOpen] = useState(false);
   const canSave = name.trim() !== '' && maker.trim() !== '' && !photoLoadFailed;
   const savingRef = useRef(false);
-  const photoLoadVersionRef = useRef(0);
-  const initialPhotoUrisRef = useRef(new Set<string>());
   const draftPhotoUrisRef = useRef(new Set<string>());
-  const pendingActionRef = useRef<(() => void) | null>(null);
-  const editingWishlist = saveTarget === 'wishlist' && editWishlistItem != null;
   const currentForm = { name, maker, series, category, scale, price, note, photos };
-  const initialEditForm = editingWishlist ? {
-    name: editWishlistItem.name,
-    maker: editWishlistItem.maker,
-    series: editWishlistItem.series ?? '',
-    category: editWishlistItem.category ?? '',
-    scale: editWishlistItem.scale ?? '',
-    price: editWishlistItem.price?.toString() ?? '',
-    note: editWishlistItem.note ?? '',
-    photos: [...initialPhotoUrisRef.current],
-  } : undefined;
-  const dirty = isKitFormDirty(currentForm, initialEditForm);
+  const dirty = isKitFormDirty(currentForm);
 
   useLayoutEffect(() => {
-    const loadVersion = ++photoLoadVersionRef.current;
-    initialPhotoUrisRef.current = new Set();
     draftPhotoUrisRef.current = new Set();
     setViewerOpen(false);
     setPhotoLoadFailed(false);
     if (!visible) { setBusy(false); return; }
-    if (saveTarget === 'wishlist' && editWishlistItem) {
-      setName(editWishlistItem.name); setMaker(editWishlistItem.maker); setSeries(editWishlistItem.series ?? ''); setCategory(editWishlistItem.category ?? '');
-      setScale(editWishlistItem.scale ?? ''); setPrice(editWishlistItem.price?.toString() ?? ''); setNote(editWishlistItem.note ?? ''); setPhotos([]);
-      setBusy(true);
-      void (async () => {
-        try {
-          const nextPhotos = await getKitWishlistPhotos(editWishlistItem.id);
-          if (loadVersion !== photoLoadVersionRef.current) return;
-          const uris = nextPhotos.map((photo) => photo.uri);
-          initialPhotoUrisRef.current = new Set(uris);
-          setPhotos(uris);
-        } catch (error) {
-          if (loadVersion !== photoLoadVersionRef.current) return;
-          console.error('AddKitModal: failed to load candidate photos', error);
-          setPhotoLoadFailed(true);
-          Alert.alert(t('error'), t('loadFailed'));
-        } finally {
-          if (loadVersion === photoLoadVersionRef.current) setBusy(false);
-        }
-      })();
-      return;
-    }
     setName(''); setMaker(''); setSeries(''); setCategory(''); setScale(''); setPrice(''); setNote(''); setPhotos([]); setViewerOpen(false);
     setBusy(false);
-  }, [editWishlistItem, saveTarget, visible]);
+  }, [saveTarget, visible]);
 
   const removeDetachedCandidatePhotos = async (uris: readonly string[]) => {
     for (const uri of uris) {
@@ -138,7 +98,7 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
           category: category.trim() || null, scale: scale.trim() || null,
           price: normalizedPrice, note: note.trim() || null,
         };
-        const result = await saveKitWishlistItem(editWishlistItem?.id ?? null, draft, photos);
+        const result = await saveKitWishlistItem(null, draft, photos);
         draftPhotoUrisRef.current.clear();
         await removeDetachedCandidatePhotos(result.removedPhotoUris);
       } else {
@@ -158,11 +118,9 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
     }
   };
 
-  const discard = useCallback(async (afterClose?: () => void) => {
+  const discard = useCallback(async () => {
     if (savingRef.current) return;
-    const urisToDelete = saveTarget === 'wishlist'
-      ? [...draftPhotoUrisRef.current].filter((uri) => !initialPhotoUrisRef.current.has(uri))
-      : photos;
+    const urisToDelete = [...draftPhotoUrisRef.current];
     try {
       for (const uri of urisToDelete) await deleteKitPhoto(uri);
     } catch (error) {
@@ -170,10 +128,8 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
       Alert.alert(t('error'), t('saveFailed'));
       return;
     }
-    if (Platform.OS === 'ios' && afterClose) pendingActionRef.current = afterClose;
     onClose();
-    if (Platform.OS !== 'ios') afterClose?.();
-  }, [onClose, photos, saveTarget]);
+  }, [onClose]);
 
   const requestClose = useCallback(() => {
     if (!visible || savingRef.current) return;
@@ -184,29 +140,13 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
     ]);
   }, [discard, dirty, visible]);
 
-  const requestEditAction = useCallback((action: 'move' | 'delete') => {
-    if (!visible || savingRef.current || !editingWishlist || !onEditAction) return;
-    const proceed = () => { void discard(() => onEditAction(action)); };
-    if (!dirty) { proceed(); return; }
-    Alert.alert(t('discardChangesConfirm'), '', [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t(action === 'delete' ? 'delete' : 'moveToBox'), style: action === 'delete' ? 'destructive' : 'default', onPress: proceed },
-    ]);
-  }, [dirty, discard, editingWishlist, onEditAction, visible]);
-
-  const handleDismiss = () => {
-    const action = pendingActionRef.current;
-    pendingActionRef.current = null;
-    action?.();
-  };
-
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={requestClose} onDismiss={handleDismiss}>
+    <Modal visible={visible} animationType="slide" onRequestClose={requestClose}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <SwipeDownHeader onClose={requestClose} enabled={!viewerOpen && !busy}>
             <View style={styles.header}>
-              <Text style={styles.title}>{editingWishlist ? t('editKitWishlistItem') : t('addKit')}</Text>
+              <Text style={styles.title}>{t('addKit')}</Text>
               <TouchableOpacity
                 onPress={requestClose}
                 disabled={busy}
@@ -232,12 +172,8 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
               }}
               onRemove={(key) => {
                 const uri = key as string;
-                if (saveTarget === 'owned') {
-                  deleteKitPhoto(uri);
-                } else if (!initialPhotoUrisRef.current.has(uri)) {
-                  draftPhotoUrisRef.current.delete(uri);
-                  void deleteKitPhoto(uri).catch((error) => console.error('AddKitModal: failed to remove unsaved candidate photo', uri, error));
-                }
+                draftPhotoUrisRef.current.delete(uri);
+                void deleteKitPhoto(uri).catch((error) => console.error('AddKitModal: failed to remove unsaved photo', uri, error));
                 setPhotos((current) => current.filter((currentUri) => currentUri !== uri));
               }}
               onMove={(key, direction) => {
@@ -280,34 +216,6 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
               <ClearableInput style={[styles.input, styles.noteInput]} value={note} onChangeText={setNote} multiline textAlignVertical="top" />
             </View>
           </SwipeDownScrollView>
-          {/* busy も無効表示に含める。保存中は閉じる操作も無視する(写真のコピー中に
-              削除すると壊れたレコードが残るため)ので、見た目でも処理中だと分かるようにする。 */}
-          {editingWishlist && onEditAction ? (
-            <View style={styles.editActions}>
-              <TouchableOpacity
-                style={styles.editActionButton}
-                onPress={() => requestEditAction('move')}
-                disabled={busy}
-                accessibilityRole="button"
-                accessibilityLabel={t('moveToBox')}
-                accessibilityState={{ disabled: busy, busy }}
-              >
-                <IconBox color={colors.primaryText} size={20} />
-                <Text style={styles.editActionText}>{t('moveToBox')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.editActionButton, styles.deleteActionButton]}
-                onPress={() => requestEditAction('delete')}
-                disabled={busy}
-                accessibilityRole="button"
-                accessibilityLabel={t('delete')}
-                accessibilityState={{ disabled: busy, busy }}
-              >
-                <IconTrash color={colors.dangerText} size={20} />
-                <Text style={[styles.editActionText, styles.deleteActionText]}>{t('delete')}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
           <TouchableOpacity
             style={[styles.saveBtn, (!canSave || busy) && styles.saveBtnDisabled]}
             onPress={save}
@@ -334,11 +242,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   label: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg, color: colors.text },
   noteInput: { minHeight: 72, alignItems: 'flex-start' },
-  editActions: { flexDirection: 'row', gap: spacing.md, marginHorizontal: spacing.xl, marginTop: spacing.lg },
-  editActionButton: { flex: 1, minHeight: touch.min, flexDirection: 'row', gap: spacing.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primary, borderRadius: radius.md },
-  editActionText: { color: colors.primaryText, fontWeight: '700' },
-  deleteActionButton: { borderColor: colors.danger },
-  deleteActionText: { color: colors.dangerText },
   saveBtn: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, margin: spacing.xl, borderRadius: radius.md },
   saveBtnDisabled: { backgroundColor: colors.primaryDisabled },
   saveBtnText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
