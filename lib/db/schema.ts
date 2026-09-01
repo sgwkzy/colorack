@@ -54,6 +54,15 @@ export async function initDB(): Promise<void> {
     '  name TEXT NOT NULL, maker TEXT NOT NULL, series TEXT, category TEXT, scale TEXT, note TEXT, price INTEGER,' +
     "  added_at TEXT DEFAULT (datetime('now'))" +
     ');' +
+    'CREATE TABLE IF NOT EXISTS kit_wishlist_colors (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  wishlist_id INTEGER NOT NULL, name TEXT, note TEXT, sort_order INTEGER NOT NULL DEFAULT 0,' +
+    "  added_at TEXT DEFAULT (datetime('now'))" +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_wishlist_color_paints (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  wishlist_color_id INTEGER NOT NULL, paint_id INTEGER NOT NULL, ratio REAL NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0' +
+    ');' +
     'CREATE TABLE IF NOT EXISTS kit_colors (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     '  kit_id INTEGER NOT NULL, name TEXT, note TEXT, sort_order INTEGER NOT NULL DEFAULT 0,' +
