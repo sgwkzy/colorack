@@ -56,4 +56,4 @@ The snapshot reader receives the transaction handle, so the snapshot and every s
 
 ## Commit
 
-Commit SHA: pending after commit.
+Commit SHA: 7329064c (implementation commit).
