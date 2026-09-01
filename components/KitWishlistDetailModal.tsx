@@ -25,7 +25,7 @@ import type { ScrollView } from 'react-native';
 import { isKitFormDirty, type KitFormValues } from './AddKitModal';
 import ClearableInput from './ClearableInput';
 import KitPhotoGrid from './KitPhotoGrid';
-import KitUsedColorsPanel, { type UsedColorRepository } from './KitUsedColorsPanel';
+import KitUsedColorsPanel, { KitUsedColorsOverlays, useKitUsedColorsController, type UsedColorRepository } from './KitUsedColorsPanel';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
@@ -135,6 +135,12 @@ export default function KitWishlistDetailModal({
       reorder: (colorIds) => reorderKitWishlistColors(candidateId, colorIds),
     };
   }, [item?.id]);
+  const usedColorsActive = Boolean(item) && detailTab === 'colors' && !editMode;
+  const usedColorController = useKitUsedColorsController({
+    active: usedColorsActive,
+    repository: usedColorRepository,
+    onOverlayChange: setChildOverlayOpen,
+  });
 
   const seedFields = (nextItem: KitWishlistItem, nextPhotos: KitWishlistPhoto[]) => {
     setName(nextItem.name);
@@ -488,15 +494,21 @@ export default function KitWishlistDetailModal({
                   </>
                 ) : null}
                 <KitUsedColorsPanel
-                  active={detailTab === 'colors' && !editMode}
-                  repository={usedColorRepository}
+                  active={usedColorsActive}
+                  controller={usedColorController}
                   ownedMap={ownedMap}
                   scrollableRef={scrollRef}
-                  requestCloseRef={childRequestCloseRef}
-                  onOverlayChange={setChildOverlayOpen}
                 />
               </SwipeDownScrollView>
             )}
+
+            {usedColorsActive ? (
+              <KitUsedColorsOverlays
+                controller={usedColorController}
+                ownedMap={ownedMap}
+                requestCloseRef={childRequestCloseRef}
+              />
+            ) : null}
 
             {item && editMode ? (
               <SafeAreaView edges={['bottom']} style={styles.editBar}>

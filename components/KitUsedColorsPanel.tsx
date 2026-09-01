@@ -23,26 +23,40 @@ import ColorMixEditorModal from './ColorMixEditorModal';
 
 export type { UsedColorRepository } from '../lib/usedColorOperations';
 
-interface KitUsedColorsPanelProps {
+export interface KitUsedColorsController {
+  kitColors: KitColorSummary[];
+  loadState: 'loading' | 'ready' | 'error';
+  orderSaving: boolean;
+  selectedColor: KitColorSummary | null;
+  pickerOpen: boolean;
+  colorDetailOpen: boolean;
+  editingColor: boolean;
+  load(showLoading?: boolean): Promise<boolean>;
+  selectColor(color: KitColorSummary): void;
+  openPicker(): void;
+  closePicker(): void;
+  closeColorDetail(): void;
+  openEditor(): void;
+  closeEditor(): void;
+  saveNewColor(name: string | null, note: string | null, paints: { paintId: number; ratio: number }[]): Promise<void>;
+  saveColor(draft: ReturnType<typeof draftFromSummary>): Promise<void>;
+  confirmRemoveColor(color: KitColorSummary): void;
+  saveColorOrder(next: KitColorSummary[]): Promise<void>;
+  moveColor(kitColorId: number, direction: -1 | 1): void;
+}
+
+interface UseKitUsedColorsControllerProps {
   active: boolean;
   repository: UsedColorRepository;
-  ownedMap: Map<number, number>;
-  scrollableRef: AnimatedRef<ScrollView>;
-  requestCloseRef: MutableRefObject<() => void>;
   onOverlayChange(open: boolean): void;
 }
 
-export default function KitUsedColorsPanel({
+export function useKitUsedColorsController({
   active,
   repository,
-  ownedMap,
-  scrollableRef,
-  requestCloseRef,
   onOverlayChange,
-}: KitUsedColorsPanelProps) {
+}: UseKitUsedColorsControllerProps): KitUsedColorsController {
   useLocale();
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const loadVersionRef = useRef(0);
   const [kitColors, setKitColors] = useState<KitColorSummary[]>([]);
@@ -103,7 +117,7 @@ export default function KitUsedColorsPanel({
     await runAndApply(() => addUsedColor(repository, name, note, paints));
   }, [repository, runAndApply]);
 
-  const removeColor = async (kitColorId: number) => {
+  const removeColor = useCallback(async (kitColorId: number) => {
     try {
       await runAndApply(() => removeUsedColor(repository, kitColorId, () => {
         setKitColors((current) => current.filter((color) => color.id !== kitColorId));
@@ -114,16 +128,16 @@ export default function KitUsedColorsPanel({
       console.error('KitUsedColorsPanel: failed to remove used color', error);
       Alert.alert(t('error'), t('saveFailed'));
     }
-  };
+  }, [repository, runAndApply]);
 
-  const confirmRemoveColor = (color: KitColorSummary) => {
+  const confirmRemoveColor = useCallback((color: KitColorSummary) => {
     Alert.alert(color.name || t('mixResult'), t('deleteMixConfirm'), [
       { text: t('cancel'), style: 'cancel' },
-      { text: t('delete'), style: 'destructive', onPress: () => removeColor(color.id) },
+      { text: t('delete'), style: 'destructive', onPress: () => { void removeColor(color.id); } },
     ]);
-  };
+  }, [removeColor]);
 
-  const saveColor = async (draft: ReturnType<typeof draftFromSummary>) => {
+  const saveColor = useCallback(async (draft: ReturnType<typeof draftFromSummary>) => {
     if (!selectedColor) return;
     await runAndApply(() => updateUsedColor(
       repository,
@@ -133,7 +147,7 @@ export default function KitUsedColorsPanel({
       normalizeDraftPaints(draft.paints),
     ));
     setEditingColor(false);
-  };
+  }, [repository, runAndApply, selectedColor]);
 
   const saveColorOrder = useCallback(async (next: KitColorSummary[]) => {
     const previous = kitColors;
@@ -157,14 +171,105 @@ export default function KitUsedColorsPanel({
     if (next !== kitColors) void saveColorOrder(next);
   }, [kitColors, saveColorOrder]);
 
-  const renderKitColor = useCallback<SortableGridRenderItem<KitColorSummary>>(({ item, index }) => {
+  const selectColor = useCallback((color: KitColorSummary) => {
+    setSelectedColor(color);
+    setColorDetailOpen(true);
+  }, []);
+  const openPicker = useCallback(() => setPickerOpen(true), []);
+  const closePicker = useCallback(() => setPickerOpen(false), []);
+  const closeColorDetail = useCallback(() => setColorDetailOpen(false), []);
+  const openEditor = useCallback(() => {
+    setColorDetailOpen(false);
+    setEditingColor(true);
+  }, []);
+  const closeEditor = useCallback(() => setEditingColor(false), []);
+
+  return {
+    kitColors,
+    loadState,
+    orderSaving,
+    selectedColor,
+    pickerOpen,
+    colorDetailOpen,
+    editingColor,
+    load,
+    selectColor,
+    openPicker,
+    closePicker,
+    closeColorDetail,
+    openEditor,
+    closeEditor,
+    saveNewColor,
+    saveColor,
+    confirmRemoveColor,
+    saveColorOrder,
+    moveColor,
+  };
+}
+
+interface KitUsedColorsPanelProps {
+  active: boolean;
+  controller: KitUsedColorsController;
+  ownedMap: Map<number, number>;
+  scrollableRef: AnimatedRef<ScrollView>;
+}
+
+interface KitUsedColorsOverlaysProps {
+  controller: KitUsedColorsController;
+  ownedMap: Map<number, number>;
+  requestCloseRef: MutableRefObject<() => void>;
+}
+
+export function KitUsedColorsOverlays({ controller, ownedMap, requestCloseRef }: KitUsedColorsOverlaysProps) {
+  return (
+    <>
+      <KitColorComposerModal
+        visible={controller.pickerOpen}
+        requestCloseRef={requestCloseRef}
+        onClose={controller.closePicker}
+        onSaveColor={controller.saveNewColor}
+      />
+      <ColorMixDetailModal
+        visible={controller.colorDetailOpen}
+        color={controller.selectedColor}
+        title={t('colorInfo')}
+        editLabel={t('editColorInfo')}
+        editable
+        ownedMap={ownedMap}
+        onEdit={controller.openEditor}
+        onDelete={() => controller.selectedColor && controller.confirmRemoveColor(controller.selectedColor)}
+        onClose={controller.closeColorDetail}
+      />
+      <ColorMixEditorModal
+        visible={controller.editingColor}
+        embedded
+        requestCloseRef={requestCloseRef}
+        title={t('editColorInfo')}
+        initialDraft={draftFromSummary(controller.selectedColor)}
+        onSave={controller.saveColor}
+        onClose={controller.closeEditor}
+      />
+    </>
+  );
+}
+
+export default function KitUsedColorsPanel({
+  active,
+  controller,
+  ownedMap,
+  scrollableRef,
+}: KitUsedColorsPanelProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { kitColors, loadState, orderSaving } = controller;
+  const renderItem = useCallback<SortableGridRenderItem<KitColorSummary>>(({ item, index }) => {
     const colorLabel = item.name?.trim() || item.paints[0]?.code || t('mixResult');
     return (
       <KitColorRow
         color={item}
         ownedMap={ownedMap}
         disabled={orderSaving}
-        onPress={() => { setSelectedColor(item); setColorDetailOpen(true); }}
+        onPress={() => controller.selectColor(item)}
         dragHandle={(
           <Sortable.Handle style={styles.dragHandle}>
             <View
@@ -180,8 +285,8 @@ export default function KitUsedColorsPanel({
               ]}
               onAccessibilityAction={({ nativeEvent }) => {
                 if (orderSaving) return;
-                if (nativeEvent.actionName === 'decrement') moveColor(item.id, -1);
-                if (nativeEvent.actionName === 'increment') moveColor(item.id, 1);
+                if (nativeEvent.actionName === 'decrement') controller.moveColor(item.id, -1);
+                if (nativeEvent.actionName === 'increment') controller.moveColor(item.id, 1);
               }}
               style={[styles.dragHandleContent, orderSaving && styles.dragHandleDisabled]}
             >
@@ -191,85 +296,56 @@ export default function KitUsedColorsPanel({
         )}
       />
     );
-  }, [colors.textMuted, kitColors.length, moveColor, orderSaving, ownedMap, styles]);
+  }, [colors.textMuted, controller, kitColors.length, orderSaving, ownedMap, styles]);
 
   if (!active) return null;
   return (
-    <>
-      <View style={styles.paintsSection}>
-        <View style={styles.paintsHeader}>
-          <Text style={styles.sectionTitle}>{t('kitUsedColors')}</Text>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={t('addUsedColor')}
-            onPress={() => setPickerOpen(true)}
-            style={styles.addColorButton}
-          >
-            <IconPlus color={colors.primary} size={18} />
-            <Text style={styles.addLink}>{t('addUsedColor')}</Text>
+    <View style={styles.paintsSection}>
+      <View style={styles.paintsHeader}>
+        <Text style={styles.sectionTitle}>{t('kitUsedColors')}</Text>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t('addUsedColor')}
+          onPress={controller.openPicker}
+          style={styles.addColorButton}
+        >
+          <IconPlus color={colors.primary} size={18} />
+          <Text style={styles.addLink}>{t('addUsedColor')}</Text>
+        </TouchableOpacity>
+      </View>
+      {loadState === 'loading' ? (
+        <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
+      ) : loadState === 'error' ? (
+        <View style={styles.center}>
+          <Text accessibilityRole="alert" style={styles.empty}>{t('loadFailed')}</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={() => { void controller.load(true); }} style={styles.retryButton}>
+            <Text style={styles.retryText}>{t('retry')}</Text>
           </TouchableOpacity>
         </View>
-        {loadState === 'loading' ? (
-          <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
-        ) : loadState === 'error' ? (
-          <View style={styles.center}>
-            <Text accessibilityRole="alert" style={styles.empty}>{t('loadFailed')}</Text>
-            <TouchableOpacity accessibilityRole="button" onPress={() => { void load(true); }} style={styles.retryButton}>
-              <Text style={styles.retryText}>{t('retry')}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : kitColors.length === 0 ? (
-          <Text style={styles.empty}>{t('emptyKitColors')}</Text>
-        ) : (
-          <Sortable.Grid
-            columns={1}
-            customHandle
-            data={kitColors}
-            keyExtractor={(color) => String(color.id)}
-            renderItem={renderKitColor}
-            onDragEnd={({ data }) => { void saveColorOrder(data); }}
-            rowGap={spacing.md}
-            scrollableRef={scrollableRef}
-            sortEnabled={!orderSaving}
-            dragActivationDelay={180}
-            dragActivationFailOffset={8}
-            reorderTriggerOrigin="touch"
-            overDrag="vertical"
-            activeItemScale={1.015}
-            inactiveItemOpacity={0.92}
-            autoScrollActivationOffset={80}
-            autoScrollMaxVelocity={500}
-          />
-        )}
-      </View>
-
-      <KitColorComposerModal
-        visible={pickerOpen}
-        requestCloseRef={requestCloseRef}
-        onClose={() => setPickerOpen(false)}
-        onSaveColor={saveNewColor}
-      />
-      <ColorMixDetailModal
-        visible={colorDetailOpen}
-        color={selectedColor}
-        title={t('colorInfo')}
-        editLabel={t('editColorInfo')}
-        editable
-        ownedMap={ownedMap}
-        onEdit={() => { setColorDetailOpen(false); setEditingColor(true); }}
-        onDelete={() => selectedColor && confirmRemoveColor(selectedColor)}
-        onClose={() => setColorDetailOpen(false)}
-      />
-      <ColorMixEditorModal
-        visible={editingColor}
-        embedded
-        requestCloseRef={requestCloseRef}
-        title={t('editColorInfo')}
-        initialDraft={draftFromSummary(selectedColor)}
-        onSave={saveColor}
-        onClose={() => setEditingColor(false)}
-      />
-    </>
+      ) : kitColors.length === 0 ? (
+        <Text style={styles.empty}>{t('emptyKitColors')}</Text>
+      ) : (
+        <Sortable.Grid
+          columns={1}
+          customHandle
+          data={kitColors}
+          keyExtractor={(color) => String(color.id)}
+          renderItem={renderItem}
+          onDragEnd={({ data }) => { void controller.saveColorOrder(data); }}
+          rowGap={spacing.md}
+          scrollableRef={scrollableRef}
+          sortEnabled={!orderSaving}
+          dragActivationDelay={180}
+          dragActivationFailOffset={8}
+          reorderTriggerOrigin="touch"
+          overDrag="vertical"
+          activeItemScale={1.015}
+          inactiveItemOpacity={0.92}
+          autoScrollActivationOffset={80}
+          autoScrollMaxVelocity={500}
+        />
+      )}
+    </View>
   );
 }
 

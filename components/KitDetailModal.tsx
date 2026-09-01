@@ -39,7 +39,7 @@ import { spacing, useTheme } from '../lib/theme';
 import { makeStyles } from './KitDetail/styles';
 import ActionSheet from './ActionSheet';
 import ClearableInput from './ClearableInput';
-import KitUsedColorsPanel, { type UsedColorRepository } from './KitUsedColorsPanel';
+import KitUsedColorsPanel, { KitUsedColorsOverlays, useKitUsedColorsController, type UsedColorRepository } from './KitUsedColorsPanel';
 import KitPhotoGrid from './KitPhotoGrid';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
@@ -102,6 +102,12 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       reorder: reorderKitColors,
     };
   }, [detail?.id]);
+  const usedColorsActive = Boolean(detail) && detailTab === 'colors' && !editMode;
+  const usedColorController = useKitUsedColorsController({
+    active: usedColorsActive,
+    repository: usedColorRepository,
+    onOverlayChange: setChildOverlayOpen,
+  });
 
   const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
 
@@ -530,15 +536,21 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                 </>
               ) : null}
               <KitUsedColorsPanel
-                active={detailTab === 'colors'}
-                repository={usedColorRepository}
+                active={usedColorsActive}
+                controller={usedColorController}
                 ownedMap={ownedMap}
                 scrollableRef={scrollRef}
-                requestCloseRef={childRequestCloseRef}
-                onOverlayChange={setChildOverlayOpen}
               />
             </SwipeDownScrollView>
           )}
+
+          {usedColorsActive ? (
+            <KitUsedColorsOverlays
+              controller={usedColorController}
+              ownedMap={ownedMap}
+              requestCloseRef={childRequestCloseRef}
+            />
+          ) : null}
 
           {editMode ? (
             <SafeAreaView edges={['bottom']} style={styles.editBar}>

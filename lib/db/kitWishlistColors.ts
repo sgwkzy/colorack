@@ -99,6 +99,11 @@ export async function removeKitWishlistColor(wishlistId: number, colorId: number
 export async function reorderKitWishlistColors(wishlistId: number, colorIds: number[]): Promise<void> {
   const db = getDB();
   await db.withExclusiveTransactionAsync(async (tx) => {
+    const candidate = await tx.getFirstAsync<{ id: number }>(
+      'SELECT id FROM kit_wishlist WHERE id = ?',
+      [wishlistId]
+    );
+    if (!candidate) throw new Error('Wishlist item not found');
     const rows = await tx.getAllAsync<{ id: number }>(
       'SELECT id FROM kit_wishlist_colors WHERE wishlist_id = ?',
       [wishlistId]
