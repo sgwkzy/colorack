@@ -1,4 +1,5 @@
 import { getDB } from './connection';
+import type { SQLiteDatabase } from 'expo-sqlite';
 
 export interface KitWishlistItem {
   id: number;
@@ -20,9 +21,25 @@ export interface KitWishlistPhoto {
   storage_path: string | null;
 }
 
+export interface KitWishlistColorPaintSnapshot {
+  paint_id: number;
+  ratio: number;
+  sort_order: number;
+}
+
+export interface KitWishlistColorSnapshot {
+  id: number;
+  name: string | null;
+  note: string | null;
+  sort_order: number;
+  added_at: string | null;
+  paints: KitWishlistColorPaintSnapshot[];
+}
+
 export interface KitWishlistSnapshot {
   item: KitWishlistItem;
   photos: KitWishlistPhoto[];
+  colors: KitWishlistColorSnapshot[];
 }
 
 export type KitWishlistDraft = Omit<KitWishlistItem, 'id' | 'added_at'>;
@@ -32,6 +49,64 @@ const values = (item: KitWishlistDraft) => [
   item.category?.trim() || null, item.scale?.trim() || null,
   item.price, item.note?.trim() || null,
 ];
+
+async function getWishlistColorSnapshots(
+  tx: SQLiteDatabase,
+  wishlistId: number,
+): Promise<KitWishlistColorSnapshot[]> {
+  const colorRows = await tx.getAllAsync<Omit<KitWishlistColorSnapshot, 'paints'>>(
+    'SELECT id, name, note, sort_order, added_at FROM kit_wishlist_colors WHERE wishlist_id = ? ORDER BY sort_order, id',
+    [wishlistId],
+  );
+  const paintRows = await tx.getAllAsync<KitWishlistColorPaintSnapshot & { wishlist_color_id: number }>(
+    'SELECT wishlist_color_id, paint_id, ratio, sort_order FROM kit_wishlist_color_paints WHERE wishlist_color_id IN (SELECT id FROM kit_wishlist_colors WHERE wishlist_id = ?) ORDER BY sort_order, id',
+    [wishlistId],
+  );
+  return colorRows.map((color) => ({
+    ...color,
+    paints: paintRows
+      .filter((paint) => paint.wishlist_color_id === color.id)
+      .map(({ wishlist_color_id: _wishlistColorId, ...paint }) => paint),
+  }));
+}
+
+async function insertWishlistColors(
+  tx: SQLiteDatabase,
+  wishlistId: number,
+  colors: KitWishlistColorSnapshot[],
+): Promise<void> {
+  for (const color of colors) {
+    const result = await tx.runAsync(
+      'INSERT INTO kit_wishlist_colors (wishlist_id, name, note, sort_order, added_at) VALUES (?, ?, ?, ?, ?)',
+      [wishlistId, color.name, color.note, color.sort_order, color.added_at],
+    );
+    for (const paint of color.paints) {
+      await tx.runAsync(
+        'INSERT INTO kit_wishlist_color_paints (wishlist_color_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
+        [result.lastInsertRowId, paint.paint_id, paint.ratio, paint.sort_order],
+      );
+    }
+  }
+}
+
+async function insertKitColors(
+  tx: SQLiteDatabase,
+  kitId: number,
+  colors: KitWishlistColorSnapshot[],
+): Promise<void> {
+  for (const color of colors) {
+    const result = await tx.runAsync(
+      'INSERT INTO kit_colors (kit_id, name, note, sort_order, added_at) VALUES (?, ?, ?, ?, ?)',
+      [kitId, color.name, color.note, color.sort_order, color.added_at],
+    );
+    for (const paint of color.paints) {
+      await tx.runAsync(
+        'INSERT INTO kit_color_paints (kit_color_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
+        [result.lastInsertRowId, paint.paint_id, paint.ratio, paint.sort_order],
+      );
+    }
+  }
+}
 
 export async function getKitWishlistPhotos(wishlistId: number): Promise<KitWishlistPhoto[]> {
   return getDB().getAllAsync<KitWishlistPhoto>(
@@ -101,6 +176,7 @@ export async function moveKitWishlistItemToBox(
       'SELECT id, uri, sort_order, synced_at, storage_path FROM kit_wishlist_photos WHERE wishlist_id = ? ORDER BY sort_order, id',
       [id],
     );
+    const colors = await getWishlistColorSnapshots(tx, id);
     const result = await tx.runAsync(
       'INSERT INTO kits (box_id, name, maker, series, category, scale, price, note, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [boxId, item.name, item.maker, item.series, item.category, item.scale, item.price, item.note, 'not_started']
@@ -111,9 +187,12 @@ export async function moveKitWishlistItemToBox(
         [result.lastInsertRowId, photo.uri, photo.sort_order, photo.synced_at, photo.storage_path]
       );
     }
+    await insertKitColors(tx, result.lastInsertRowId, colors);
+    await tx.runAsync('DELETE FROM kit_wishlist_color_paints WHERE wishlist_color_id IN (SELECT id FROM kit_wishlist_colors WHERE wishlist_id = ?)', [id]);
+    await tx.runAsync('DELETE FROM kit_wishlist_colors WHERE wishlist_id = ?', [id]);
     await tx.runAsync('DELETE FROM kit_wishlist_photos WHERE wishlist_id = ?', [id]);
     await tx.runAsync('DELETE FROM kit_wishlist WHERE id = ?', [id]);
-    moved = { kitId: result.lastInsertRowId, snapshot: { item, photos } };
+    moved = { kitId: result.lastInsertRowId, snapshot: { item, photos, colors } };
   });
   return moved;
 }
@@ -128,9 +207,12 @@ export async function removeKitWishlistItem(id: number): Promise<KitWishlistSnap
       'SELECT id, uri, sort_order, synced_at, storage_path FROM kit_wishlist_photos WHERE wishlist_id = ? ORDER BY sort_order, id',
       [id],
     );
+    const colors = await getWishlistColorSnapshots(tx, id);
+    await tx.runAsync('DELETE FROM kit_wishlist_color_paints WHERE wishlist_color_id IN (SELECT id FROM kit_wishlist_colors WHERE wishlist_id = ?)', [id]);
+    await tx.runAsync('DELETE FROM kit_wishlist_colors WHERE wishlist_id = ?', [id]);
     await tx.runAsync('DELETE FROM kit_wishlist_photos WHERE wishlist_id = ?', [id]);
     await tx.runAsync('DELETE FROM kit_wishlist WHERE id = ?', [id]);
-    removed = { item, photos };
+    removed = { item, photos, colors };
   });
   return removed;
 }
@@ -149,6 +231,7 @@ export async function restoreKitWishlistItem(snapshot: KitWishlistSnapshot): Pro
         [restoredId, photo.uri, photo.sort_order, photo.synced_at, photo.storage_path]
       );
     }
+    await insertWishlistColors(tx, restoredId, snapshot.colors);
   });
   return restoredId;
 }
@@ -169,5 +252,6 @@ export async function undoKitWishlistMove(kitId: number, snapshot: KitWishlistSn
         [result.lastInsertRowId, photo.uri, photo.sort_order, photo.synced_at, photo.storage_path]
       );
     }
+    await insertWishlistColors(tx, result.lastInsertRowId, snapshot.colors);
   });
 }
