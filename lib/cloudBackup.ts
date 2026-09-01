@@ -24,9 +24,10 @@ const firestore: typeof import('@react-native-firebase/firestore').default | nul
 // v4: mix_recipes/mix_recipe_paints(保存した色レシピ)を追加。
 // v5: kit_wishlist(購入候補)を追加。
 // v6: kit_wishlist_photos(購入候補の写真)を追加。
-// v1/v2スナップショットにはこれらのフィールドが無いため、復元側は `?? []` で
+// v7: kit_wishlist_colors/kit_wishlist_color_paints(購入候補の使用色)を追加。
+// v1-v6スナップショットには後続のフィールドが無いため、復元側は `?? []` で
 // optional に扱い、無い部分が空のまま復元されても壊れないようにする。
-const BACKUP_SCHEMA_VERSION = 6;
+const BACKUP_SCHEMA_VERSION = 7;
 const LAST_BACKUP_AT_KEY = 'last_backup_at';
 const LAST_BACKUP_AT_UID_KEY = 'last_backup_at_uid';
 const BACKUP_READY_UID_KEY = 'cloud_backup_ready_uid';
@@ -127,6 +128,25 @@ interface KitWishlistRow {
   note: string | null;
   price: number | null;
   added_at: string | null;
+}
+
+interface KitWishlistColorRow {
+  id: number;
+  wishlist_id: number;
+  name: string | null;
+  note: string | null;
+  sort_order: number;
+  added_at: string | null;
+}
+
+interface KitWishlistColorPaintRow {
+  wishlist_color_id: number;
+  catalog_code: string | null;
+  brand: string;
+  series: string;
+  code: string;
+  ratio: number;
+  sort_order: number;
 }
 
 interface KitColorRow {
@@ -246,6 +266,22 @@ export interface BackupKitWishlistPhoto {
   sort_order: number;
 }
 
+export interface BackupKitWishlistColor {
+  localRef: string;
+  wishlistLocalRef: string;
+  name: string | null;
+  note: string | null;
+  sort_order: number;
+  added_at: string | null;
+}
+
+export interface BackupKitWishlistColorPaint {
+  wishlistColorLocalRef: string;
+  catalogCode: string;
+  ratio: number;
+  sort_order: number;
+}
+
 export interface BackupKitColor {
   localRef: string;
   kitLocalRef: string;
@@ -301,6 +337,9 @@ export interface BackupSnapshot {
   mixRecipePaints?: BackupMixRecipePaint[];
   // v5で追加。旧スナップショットには存在しないため optional。
   kitWishlist?: BackupKitWishlistItem[];
+  // v7で追加。旧スナップショットには存在しないため optional。
+  kitWishlistColors?: BackupKitWishlistColor[];
+  kitWishlistColorPaints?: BackupKitWishlistColorPaint[];
   // v6で追加。旧スナップショットには存在しないため optional。
   kitWishlistPhotos?: BackupKitWishlistPhoto[];
 }
@@ -324,6 +363,10 @@ function kitLocalRef(id: number): string {
 
 function kitWishlistLocalRef(id: number): string {
   return `kit_wishlist_${id}`;
+}
+
+function kitWishlistColorLocalRef(id: number): string {
+  return `kitwishlistcolor_${id}`;
 }
 
 function kitColorLocalRef(id: number): string {
@@ -380,6 +423,8 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
   let kitBoxRows!: KitBoxRow[];
   let kitRows!: KitRow[];
   let kitWishlistRows!: KitWishlistRow[];
+  let kitWishlistColorRows!: KitWishlistColorRow[];
+  let kitWishlistColorPaintRows!: KitWishlistColorPaintRow[];
   let kitColorRows!: KitColorRow[];
   let kitColorPaintRows!: KitColorPaintRow[];
   let mixRecipeRows!: MixRecipeRow[];
@@ -414,6 +459,13 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
     );
     kitWishlistRows = await tx.getAllAsync<KitWishlistRow>(
       'SELECT id, name, maker, series, category, scale, note, price, added_at FROM kit_wishlist ORDER BY id'
+    );
+    kitWishlistColorRows = await tx.getAllAsync<KitWishlistColorRow>(
+      'SELECT id, wishlist_id, name, note, sort_order, added_at FROM kit_wishlist_colors ORDER BY sort_order, id'
+    );
+    kitWishlistColorPaintRows = await tx.getAllAsync<KitWishlistColorPaintRow>(
+      'SELECT kcp.wishlist_color_id, c.catalog_code, c.brand, c.series, c.code, kcp.ratio, kcp.sort_order' +
+      ' FROM kit_wishlist_color_paints kcp JOIN catalog_paints c ON kcp.paint_id = c.id ORDER BY kcp.sort_order, kcp.id'
     );
     kitColorRows = await tx.getAllAsync<KitColorRow>('SELECT id, kit_id, name, note, sort_order, added_at FROM kit_colors ORDER BY sort_order, id');
     kitColorPaintRows = await tx.getAllAsync<KitColorPaintRow>(
@@ -542,6 +594,20 @@ export async function buildBackupSnapshot(): Promise<BackupSnapshot> {
       price: item.price,
       added_at: item.added_at,
     })),
+    kitWishlistColors: kitWishlistColorRows.map((color) => ({
+      localRef: kitWishlistColorLocalRef(color.id),
+      wishlistLocalRef: kitWishlistLocalRef(color.wishlist_id),
+      name: color.name,
+      note: color.note,
+      sort_order: color.sort_order,
+      added_at: color.added_at,
+    })),
+    kitWishlistColorPaints: kitWishlistColorPaintRows.map((paint) => ({
+      wishlistColorLocalRef: kitWishlistColorLocalRef(paint.wishlist_color_id),
+      catalogCode: paintCatalogCode(paint),
+      ratio: paint.ratio,
+      sort_order: paint.sort_order,
+    })),
     defaultKitBoxLocalRef: defaultKitBoxExists && defaultKitBoxId ? kitBoxLocalRef(Number(defaultKitBoxId)) : null,
     // v3: hasPhotoBackup(スタンダードプラン)加入者のみ、アップロード済みの
     // キット写真をStorageパス参照として含める。ライトプラン/未加入時は含めない。
@@ -640,6 +706,7 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
   let orphanedKitPhotoUris: string[] = [];
   const kitIdByLocalRef = new Map<string, number>();
   const kitWishlistIdByLocalRef = new Map<string, number>();
+  const kitWishlistColorIdByLocalRef = new Map<string, number>();
   const mixRecipeIdByLocalRef = new Map<string, number>();
   const savedKitPhotos = getEntitlements().hasPhotoBackup ? snapshot.kitPhotos ?? [] : [];
   const savedKitWishlistPhotos = getEntitlements().hasPhotoBackup && snapshot.schemaVersion >= 6
@@ -682,6 +749,8 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
       await tx.runAsync('DELETE FROM mix_recipes');
       await tx.runAsync('DELETE FROM kit_color_paints');
       await tx.runAsync('DELETE FROM kit_colors');
+      await tx.runAsync('DELETE FROM kit_wishlist_color_paints');
+      await tx.runAsync('DELETE FROM kit_wishlist_colors');
       await tx.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
       await tx.runAsync("UPDATE catalog_paints SET notes = NULL WHERE source = 'catalog'");
 
@@ -797,6 +866,32 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
         [item.name, item.maker, item.series, item.category, item.scale, item.note, item.price, item.added_at]
       );
       kitWishlistIdByLocalRef.set(item.localRef, result.lastInsertRowId);
+    }
+
+    for (const color of snapshot.kitWishlistColors ?? []) {
+      const wishlistId = kitWishlistIdByLocalRef.get(color.wishlistLocalRef);
+      if (!wishlistId) {
+        console.warn('restoreFromSnapshot: skipping candidate color for missing candidate', color.wishlistLocalRef);
+        continue;
+      }
+      const result = await tx.runAsync(
+        'INSERT INTO kit_wishlist_colors (wishlist_id, name, note, sort_order, added_at) VALUES (?, ?, ?, ?, ?)',
+        [wishlistId, color.name, color.note, color.sort_order, color.added_at]
+      );
+      kitWishlistColorIdByLocalRef.set(color.localRef, result.lastInsertRowId);
+    }
+
+    for (const cp of snapshot.kitWishlistColorPaints ?? []) {
+      const wishlistColorId = kitWishlistColorIdByLocalRef.get(cp.wishlistColorLocalRef);
+      const paintId = await resolvePaintId(cp.catalogCode, tx);
+      if (!wishlistColorId || !paintId) {
+        console.warn('restoreFromSnapshot: skipping candidate color paint for missing candidate color or catalog_code', cp.wishlistColorLocalRef, cp.catalogCode);
+        continue;
+      }
+      await tx.runAsync(
+        'INSERT INTO kit_wishlist_color_paints (wishlist_color_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
+        [wishlistColorId, paintId, cp.ratio, cp.sort_order]
+      );
     }
 
     for (const photo of kitWishlistPhotosToRestore) {
