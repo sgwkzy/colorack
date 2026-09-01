@@ -9,7 +9,6 @@ import {
   addKitPhoto,
   deleteKit,
   getDB,
-  getDefaultKitBoxId,
   getKitColors,
   getKitDetail,
   getKitPhotos,
@@ -46,6 +45,7 @@ import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
 import RestoreToBoxModal from './RestoreToBoxModal';
+import { acquireBoxSelectionLock, loadBoxSelectionPlan, withBoxSelectionLock } from '../lib/boxSelection';
 
 interface Box { id: number; name: string; }
 
@@ -96,12 +96,12 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [series, setSeries] = useState('');
   const [category, setCategory] = useState('');
   const [boxes, setBoxes] = useState<Box[]>([]);
-  const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [boxPickerOpen, setBoxPickerOpen] = useState(false);
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<KitStatus | null>(null);
-  const [restoreBoxId, setRestoreBoxId] = useState<number | null>(null);
   const [restoreBusy, setRestoreBusy] = useState(false);
+  const restoreBusyRef = useRef(false);
+  const restoreRequestRef = useRef(false);
   const [detailTab, setDetailTab] = useState<'details' | 'colors'>('details');
   const [editMode, setEditMode] = useState(false);
   const [childOverlayOpen, setChildOverlayOpen] = useState(false);
@@ -165,13 +165,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   useEffect(() => {
     if (visible && kitId != null) {
       void load(true);
-      Promise.all([
-        getDefaultKitBoxId(),
-        getDB().getAllAsync<Box>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id'),
-      ]).then(([defaultId, nextBoxes]) => {
-        setDefaultBoxId(defaultId);
-        setBoxes(nextBoxes);
-      }).catch((error) => console.error('KitDetailModal: failed to load Boxes', error));
+      getDB().getAllAsync<Box>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id')
+        .then(setBoxes)
+        .catch((error) => console.error('KitDetailModal: failed to load Boxes', error));
     } else {
       loadVersionRef.current += 1;
       setLoadState('loading');
@@ -188,8 +184,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setBoxPickerOpen(false);
       setStatusPickerOpen(false);
       setRestoreStatus(null);
-      setRestoreBoxId(null);
       setRestoreBusy(false);
+      restoreBusyRef.current = false;
       setDetailTab('details');
       setEditMode(false);
       setViewerOpen(false);
@@ -332,26 +328,42 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     if (action.kind === 'noop') return;
     setStatusPickerOpen(false);
     if (action.kind === 'restore') {
-      setRestoreStatus(action.status);
-      setRestoreBoxId(defaultBoxId ?? boxes[0]?.id ?? null);
+      await withBoxSelectionLock(restoreRequestRef, async () => {
+        let selection;
+        try {
+          selection = await loadBoxSelectionPlan(() => getDB().getAllAsync<Box>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id'));
+          setBoxes(selection.boxes);
+        } catch (error) {
+          console.error('KitDetailModal: failed to reload Boxes', error);
+          Alert.alert(t('error'), t('loadFailed'));
+          return;
+        }
+        const { plan } = selection;
+        if (plan.kind === 'unavailable') {
+          Alert.alert(t('error'), t('noKitBoxAvailable'));
+        } else if (plan.kind === 'direct') {
+          await restoreToBox(action.status, plan.boxId);
+        } else {
+          setRestoreStatus(action.status);
+        }
+      });
       return;
     }
     await persist(() => setKitStatus(detail.id, action.status));
   };
 
-  const effectiveRestoreBoxId = restoreBoxId ?? defaultBoxId ?? boxes[0]?.id ?? null;
-
-  const confirmRestore = async () => {
-    if (restoreBusy || !detail || restoreStatus == null || effectiveRestoreBoxId == null) return;
+  const restoreToBox = async (status: KitStatus, boxId: number) => {
+    if (!detail || !acquireBoxSelectionLock(restoreBusyRef)) return;
     setRestoreBusy(true);
     try {
-      await setKitStatus(detail.id, restoreStatus, effectiveRestoreBoxId);
+      await setKitStatus(detail.id, status, boxId);
       await load();
       onChanged?.();
       setRestoreStatus(null);
     } catch (error) {
       reportSaveFailure(error);
     } finally {
+      restoreBusyRef.current = false;
       setRestoreBusy(false);
     }
   };
@@ -631,11 +643,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
           <RestoreToBoxModal
             visible={restoreStatus != null}
             boxes={boxes}
-            selectedBoxId={effectiveRestoreBoxId}
             busy={restoreBusy}
-            onSelect={setRestoreBoxId}
+            onChoose={(boxId) => { if (restoreStatus) void restoreToBox(restoreStatus, boxId); }}
             onCancel={() => setRestoreStatus(null)}
-            onConfirm={confirmRestore}
           />
         </SafeAreaView>
         </SwipeBack>

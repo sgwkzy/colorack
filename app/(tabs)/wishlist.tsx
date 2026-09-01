@@ -19,6 +19,7 @@ import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintRow from '../../components/PaintRow';
 import Toast from '../../components/Toast';
 import ListActionBar, { ListToolbar } from '../../components/ListActionBar';
+import { boxSelectionPlan } from '../../lib/boxSelection';
 
 interface ListItem {
   id: number;
@@ -43,12 +44,6 @@ const SORT_ORDER: Record<Sort, string> = {
   brand: 'c.brand ASC, c.name_ja ASC',
   code: 'c.code COLLATE NOCASE ASC',
 };
-
-function wishlistMovePlan(boxes: readonly BoxChoice[]): { kind: 'unavailable' } | { kind: 'direct'; boxId: number } | { kind: 'choose' } {
-  if (boxes.length === 0) return { kind: 'unavailable' };
-  if (boxes.length === 1) return { kind: 'direct', boxId: boxes[0].id };
-  return { kind: 'choose' };
-}
 
 function wishlistActionForOpenedSide(direction: 'left' | 'right'): 'move' | 'delete' {
   return direction === 'right' ? 'delete' : 'move';
@@ -197,7 +192,7 @@ export default function WishlistScreen() {
       Alert.alert(t('error'), t('loadFailed'));
       return;
     }
-    const plan = wishlistMovePlan(boxes);
+    const plan = boxSelectionPlan(boxes);
     if (plan.kind === 'unavailable') {
       Alert.alert(t('error'), t('noBoxAvailable'));
       return;

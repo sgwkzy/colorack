@@ -110,10 +110,11 @@ export async function updateInventoryBox(inventoryId: number, boxId: number): Pr
 // boxId 未指定時は従来どおり、ボックス未所属ならデフォルトボックスへ入れる。
 export async function setInventoryStatus(inventoryId: number, status: PaintStatus, boxId?: number): Promise<void> {
   if (status !== 'used_up' && boxId != null) {
-    await getDB().runAsync(
-      "UPDATE inventory SET status = ?, box_id = ?, status_changed_at = datetime('now') WHERE id = ?",
-      [status, boxId, inventoryId]
+    const result = await getDB().runAsync(
+      "UPDATE inventory SET status = ?, box_id = ?, status_changed_at = datetime('now') WHERE id = ? AND EXISTS (SELECT 1 FROM boxes WHERE id = ?)",
+      [status, boxId, inventoryId, boxId]
     );
+    if (result.changes === 0) throw new Error('Inventory or Box not found');
     return;
   }
   const defaultBoxId = status === 'used_up' ? null : await getDefaultBoxId();

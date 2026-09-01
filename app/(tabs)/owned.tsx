@@ -1,10 +1,10 @@
 // app/(tabs)/owned.tsx
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, LayoutAnimation, Modal, Pressable, ScrollView,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, LayoutAnimation,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
-import { IconBox, IconChevronDown } from '@tabler/icons-react-native';
+import { IconBox } from '@tabler/icons-react-native';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { getDB, getDefaultBoxId, getListMembership, PaintStatus, setInventoryStatus } from '../../lib/db';
 import { logEvent, useScreenView } from '../../lib/analytics';
@@ -24,6 +24,8 @@ import InventoryDetailModal from '../../components/InventoryDetailModal';
 import PaintRow from '../../components/PaintRow';
 import Toast from '../../components/Toast';
 import ListActionBar, { ListToolbar } from '../../components/ListActionBar';
+import RestoreToBoxModal from '../../components/RestoreToBoxModal';
+import { acquireBoxSelectionLock, loadBoxSelectionPlan, withBoxSelectionLock } from '../../lib/boxSelection';
 
 interface CountRow { n: number; }
 
@@ -76,10 +78,10 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [boxes, setBoxes] = useState<{ id: number; name: string }[]>([]);
-  // 使用済み→在庫の戻し先を選ぶダイアログ。restoreItem が対象、restoreBoxId が選択中のボックス。
   const [restoreItem, setRestoreItem] = useState<InventoryItem | null>(null);
-  const [restoreBoxId, setRestoreBoxId] = useState<number | null>(null);
-  const [restorePickerOpen, setRestorePickerOpen] = useState(false);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const restoreBusyRef = useRef(false);
+  const restoreRequestRef = useRef(false);
   const [showAdd, setShowAdd] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [detailInventoryId, setDetailInventoryId] = useState<number | null>(null);
@@ -261,32 +263,48 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
       },
     ]);
   };
-  const toggleStockUse = (item: InventoryItem) => {
-    // 使用済みは box_id が NULL なので、在庫へ戻すときは戻し先をユーザーに選ばせる。
-    // 初期選択はデフォルトボックス。ボックスが1つでも確認を挟む(キャンセルで戻さない)。
+  const restoreToBox = async (item: InventoryItem, boxId: number) => {
+    if (!acquireBoxSelectionLock(restoreBusyRef)) return;
+    setRestoreBusy(true);
+    try {
+      await setInventoryStatus(item.id, 'owned', boxId);
+      setRestoreItem(null);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      reload();
+    } catch (error) {
+      console.error('owned: failed to restore used paint', error);
+      Alert.alert(t('error'), t('saveFailed'));
+    } finally {
+      restoreBusyRef.current = false;
+      setRestoreBusy(false);
+    }
+  };
+
+  const toggleStockUse = async (item: InventoryItem) => {
     if (item.status === 'used_up') {
-      setRestoreBoxId(defaultBoxId ?? boxes[0]?.id ?? null);
-      setRestorePickerOpen(false);
-      setRestoreItem(item);
+      await withBoxSelectionLock(restoreRequestRef, async () => {
+        let selection;
+        try {
+          selection = await loadBoxSelectionPlan(() => getDB().getAllAsync<{ id: number; name: string }>('SELECT id, name FROM boxes ORDER BY sort_order, id'));
+          setBoxes(selection.boxes);
+        } catch (error) {
+          console.error('owned: failed to reload Boxes', error);
+          Alert.alert(t('error'), t('loadFailed'));
+          return;
+        }
+        const { plan } = selection;
+        if (plan.kind === 'unavailable') {
+          Alert.alert(t('error'), t('noBoxAvailable'));
+        } else if (plan.kind === 'direct') {
+          await restoreToBox(item, plan.boxId);
+        } else {
+          setRestoreItem(item);
+        }
+      });
       return;
     }
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setStatus(item, item.status === 'in_use' ? 'owned' : 'in_use');
-  };
-
-  // boxes は useFocusEffect で非同期に取得するため、開いた時点で未取得だと
-  // restoreBoxId が null になりうる。その場合に「戻す」が押せない行き止まりに
-  // ならないよう、表示・確定の両方でこの派生値を使う。
-  const effectiveRestoreBoxId = restoreBoxId ?? defaultBoxId ?? boxes[0]?.id ?? null;
-
-  const confirmRestore = async () => {
-    if (!restoreItem || effectiveRestoreBoxId == null) return;
-    const item = restoreItem;
-    setRestoreItem(null);
-    setRestorePickerOpen(false);
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    await setInventoryStatus(item.id, 'owned', effectiveRestoreBoxId);
-    reload();
+    await setStatus(item, item.status === 'in_use' ? 'owned' : 'in_use');
   };
   const markUsedUp = async (item: InventoryItem) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -419,57 +437,13 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
         onClose={() => setDetailInventoryId(null)}
         onChanged={reload}
       />
-      {/* 使用済み→在庫の戻し先選択。iOSの入れ子モーダルを避けるため、ボックス選択は
-          別モーダルにせずこのダイアログ内でインラインに展開する。 */}
-      <Modal visible={!!restoreItem} transparent animationType="fade" onRequestClose={() => setRestoreItem(null)}>
-        <View style={styles.restoreRoot}>
-          <Pressable style={styles.restoreBackdrop} onPress={() => setRestoreItem(null)} />
-          <View style={styles.restoreCard}>
-            <Text style={styles.restoreTitle}>{t('restoreToBoxTitle')}</Text>
-            <Text style={styles.restoreMessage}>{t('restoreToBoxMessage')}</Text>
-            <TouchableOpacity
-              style={styles.restoreSelect}
-              onPress={() => setRestorePickerOpen((open) => !open)}
-              accessibilityRole="button"
-              accessibilityLabel={t('box')}
-            >
-              <Text style={styles.restoreSelectText} numberOfLines={1}>
-                {boxes.find((b) => b.id === effectiveRestoreBoxId)?.name ?? t('unassigned')}
-              </Text>
-              <IconChevronDown color={colors.textMuted} size={18} />
-            </TouchableOpacity>
-            {restorePickerOpen ? (
-              <ScrollView style={styles.restoreList}>
-                {boxes.map((box) => (
-                  <TouchableOpacity
-                    key={box.id}
-                    style={styles.restoreOption}
-                    onPress={() => { setRestoreBoxId(box.id); setRestorePickerOpen(false); }}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: box.id === effectiveRestoreBoxId }}
-                  >
-                    <Text style={styles.restoreOptionText} numberOfLines={1}>{box.name}</Text>
-                    <Text style={styles.restoreCheck}>{box.id === effectiveRestoreBoxId ? '\u2713' : ''}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            ) : null}
-            <View style={styles.restoreActions}>
-              <TouchableOpacity style={styles.restoreBtn} onPress={() => setRestoreItem(null)} accessibilityRole="button">
-                <Text style={styles.restoreBtnText}>{t('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.restoreBtn}
-                onPress={confirmRestore}
-                disabled={effectiveRestoreBoxId == null}
-                accessibilityRole="button"
-              >
-                <Text style={[styles.restoreBtnText, styles.restoreBtnPrimary, effectiveRestoreBoxId == null && styles.restoreBtnDisabled]}>{t('restore')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <RestoreToBoxModal
+        visible={!!restoreItem}
+        boxes={boxes}
+        busy={restoreBusy}
+        onChoose={(boxId) => { if (restoreItem) void restoreToBox(restoreItem, boxId); }}
+        onCancel={() => setRestoreItem(null)}
+      />
 
       <ActionSheet
         visible={!!actionSheet}
@@ -492,22 +466,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
   statusBarWrap: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
   statusCount: { color: colors.text, fontSize: 15, fontVariant: ['tabular-nums'] },
-  restoreRoot: { flex: 1, justifyContent: 'center', padding: spacing.xxl },
-  restoreBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.32)' },
-  restoreCard: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.xl },
-  restoreTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
-  restoreMessage: { color: colors.textMuted, fontSize: 13, marginTop: spacing.xs },
-  restoreSelect: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, marginTop: spacing.lg, paddingHorizontal: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm },
-  restoreSelectText: { flex: 1, color: colors.text, fontSize: 16 },
-  restoreList: { maxHeight: 220, marginTop: spacing.sm, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.sm },
-  restoreOption: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderLight },
-  restoreOptionText: { flex: 1, color: colors.text, fontSize: 16 },
-  restoreCheck: { color: colors.primaryText, fontSize: 18, fontWeight: '700' },
-  restoreActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.md, marginTop: spacing.lg },
-  restoreBtn: { minHeight: touch.min, justifyContent: 'center', paddingHorizontal: spacing.lg },
-  restoreBtnText: { color: colors.textMuted, fontSize: 16, fontWeight: '600' },
-  restoreBtnPrimary: { color: colors.primaryText },
-  restoreBtnDisabled: { color: colors.textFaint },
   statusBadge: { minWidth: 56, minHeight: 32, borderRadius: radius.pill, marginLeft: spacing.sm, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center' },
   statusBadgeText: { fontSize: 12, fontWeight: '700' },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },

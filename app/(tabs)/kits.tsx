@@ -20,6 +20,7 @@ import ListActionBar, { ListToolbar } from '../../components/ListActionBar';
 import { deleteKitPhoto } from '../../lib/kitPhoto';
 import { useModalLock } from '../../lib/modalLock';
 import RestoreToBoxModal from '../../components/RestoreToBoxModal';
+import { acquireBoxSelectionLock, loadBoxSelectionPlan, withBoxSelectionLock } from '../../lib/boxSelection';
 
 interface CountRow { n: number; }
 
@@ -80,8 +81,9 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [boxes, setBoxes] = useState<{ id: number; name: string }[]>([]);
   const [restoreItem, setRestoreItem] = useState<KitListItem | null>(null);
-  const [restoreBoxId, setRestoreBoxId] = useState<number | null>(null);
   const [restoreBusy, setRestoreBusy] = useState(false);
+  const restoreBusyRef = useRef(false);
+  const restoreRequestRef = useRef(false);
   const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const loadVersionRef = useRef(0);
@@ -177,27 +179,11 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
 
   const reload = () => load(selected, statuses, filter, sort);
 
-  // 未着手⇄制作中 トグル(完成品画面では完成→未着手に戻す)。塗料の在庫⇄使用中トグルと同じ挙動。
-  const toggleKitStatus = async (item: KitListItem) => {
-    const action = kitListStatusAction(item.status);
-    if (action.kind === 'restore') {
-      setRestoreBoxId(defaultBoxId ?? boxes[0]?.id ?? null);
-      setRestoreItem(item);
-      return;
-    }
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    await setKitStatus(item.id, action.status);
-    reload();
-  };
-
-  const effectiveRestoreBoxId = restoreBoxId ?? defaultBoxId ?? boxes[0]?.id ?? null;
-
-  const confirmRestore = async () => {
-    if (restoreBusy || !restoreItem || effectiveRestoreBoxId == null) return;
-    const item = restoreItem;
+  const restoreToBox = async (item: KitListItem, boxId: number) => {
+    if (!acquireBoxSelectionLock(restoreBusyRef)) return;
     setRestoreBusy(true);
     try {
-      await setKitStatus(item.id, 'not_started', effectiveRestoreBoxId);
+      await setKitStatus(item.id, 'not_started', boxId);
       setRestoreItem(null);
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       reload();
@@ -205,8 +191,39 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
       console.error('kits: failed to restore completed kit', error);
       Alert.alert(t('error'), t('saveFailed'));
     } finally {
+      restoreBusyRef.current = false;
       setRestoreBusy(false);
     }
+  };
+
+  // 未着手⇄制作中 トグル(完成品画面では完成→未着手に戻す)。塗料の在庫⇄使用中トグルと同じ挙動。
+  const toggleKitStatus = async (item: KitListItem) => {
+    const action = kitListStatusAction(item.status);
+    if (action.kind === 'restore') {
+      await withBoxSelectionLock(restoreRequestRef, async () => {
+        let selection;
+        try {
+          selection = await loadBoxSelectionPlan(() => getDB().getAllAsync<{ id: number; name: string }>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id'));
+          setBoxes(selection.boxes);
+        } catch (error) {
+          console.error('kits: failed to reload Boxes', error);
+          Alert.alert(t('error'), t('loadFailed'));
+          return;
+        }
+        const { plan } = selection;
+        if (plan.kind === 'unavailable') {
+          Alert.alert(t('error'), t('noKitBoxAvailable'));
+        } else if (plan.kind === 'direct') {
+          await restoreToBox(item, plan.boxId);
+        } else {
+          setRestoreItem(item);
+        }
+      });
+      return;
+    }
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    await setKitStatus(item.id, action.status);
+    reload();
   };
 
   const completeKit = async (item: KitListItem) => {
@@ -363,11 +380,9 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
       <RestoreToBoxModal
         visible={!!restoreItem}
         boxes={boxes}
-        selectedBoxId={effectiveRestoreBoxId}
         busy={restoreBusy}
-        onSelect={setRestoreBoxId}
+        onChoose={(boxId) => { if (restoreItem) void restoreToBox(restoreItem, boxId); }}
         onCancel={() => setRestoreItem(null)}
-        onConfirm={confirmRestore}
       />
       <ActionSheet
         visible={!!actionSheet}

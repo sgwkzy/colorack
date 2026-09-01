@@ -95,10 +95,11 @@ export async function updateKitBox(kitId: number, boxId: number): Promise<void> 
 
 export async function setKitStatus(kitId: number, status: KitStatus, boxId?: number): Promise<void> {
   if (status !== 'completed' && boxId != null) {
-    await getDB().runAsync(
-      "UPDATE kits SET status = ?, box_id = ?, status_changed_at = datetime('now') WHERE id = ?",
-      [status, boxId, kitId]
+    const result = await getDB().runAsync(
+      "UPDATE kits SET status = ?, box_id = ?, status_changed_at = datetime('now') WHERE id = ? AND EXISTS (SELECT 1 FROM kit_boxes WHERE id = ?)",
+      [status, boxId, kitId, boxId]
     );
+    if (result.changes === 0) throw new Error('Kit or Box not found');
     return;
   }
   const defaultBoxId = status === 'completed' ? null : await getDefaultKitBoxId();

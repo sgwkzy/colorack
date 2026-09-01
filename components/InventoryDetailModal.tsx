@@ -32,6 +32,8 @@ import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
 import Toast from './Toast';
 import { useModalLock } from '../lib/modalLock';
+import RestoreToBoxModal from './RestoreToBoxModal';
+import { acquireBoxSelectionLock, loadBoxSelectionPlan, withBoxSelectionLock } from '../lib/boxSelection';
 
 interface Box { id: number; name: string; }
 type LoadState = 'loading' | 'ready' | 'error';
@@ -76,6 +78,10 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [boxPickerOpen, setBoxPickerOpen] = useState(false);
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
+  const [restoreStatus, setRestoreStatus] = useState<PaintStatus | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const restoreBusyRef = useRef(false);
+  const restoreRequestRef = useRef(false);
   const [colorDetailVisible, setColorDetailVisible] = useState(false);
   const [showFullName, setShowFullName] = useState(false);
   const [toast, setToast] = useState('');
@@ -125,6 +131,9 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
       setLoadState('ready');
       setBoxPickerOpen(false);
       setStatusPickerOpen(false);
+      setRestoreStatus(null);
+      setRestoreBusy(false);
+      restoreBusyRef.current = false;
       setColorDetailVisible(false);
       setToast('');
     }
@@ -197,10 +206,50 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
   const changeStatus = async (status: PaintStatus) => {
     if (!detail || detail.status === status) return;
     const previous = detail;
+    setStatusPickerOpen(false);
     if (status === 'used_up') { promptAddToWishlist(previous); return; }
+    if (detail.status === 'used_up') {
+      await withBoxSelectionLock(restoreRequestRef, async () => {
+        let selection;
+        try {
+          selection = await loadBoxSelectionPlan(() => getDB().getAllAsync<Box>('SELECT id, name FROM boxes ORDER BY sort_order, id'));
+          setBoxes(selection.boxes);
+        } catch (error) {
+          console.error('InventoryDetailModal: failed to reload Boxes', error);
+          Alert.alert(t('error'), t('loadFailed'));
+          return;
+        }
+        const { plan } = selection;
+        if (plan.kind === 'unavailable') {
+          Alert.alert(t('error'), t('noBoxAvailable'));
+        } else if (plan.kind === 'direct') {
+          await restoreToBox(status, plan.boxId);
+        } else {
+          setRestoreStatus(status);
+        }
+      });
+      return;
+    }
     await setInventoryStatus(detail.id, status);
     await load();
     onChanged?.();
+  };
+
+  const restoreToBox = async (status: PaintStatus, boxId: number) => {
+    if (!detail || !acquireBoxSelectionLock(restoreBusyRef)) return;
+    setRestoreBusy(true);
+    try {
+      await setInventoryStatus(detail.id, status, boxId);
+      await load();
+      onChanged?.();
+      setRestoreStatus(null);
+    } catch (error) {
+      console.error('InventoryDetailModal: failed to restore used paint', error);
+      Alert.alert(t('error'), t('saveFailed'));
+    } finally {
+      restoreBusyRef.current = false;
+      setRestoreBusy(false);
+    }
   };
 
   // datetime('now') は 'YYYY-MM-DD HH:MM:SS' 形式なので秒を切り落として表示。
@@ -350,6 +399,13 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
               { text: t('cancel'), style: 'cancel' },
             ]}
             onClose={() => setStatusPickerOpen(false)}
+          />
+          <RestoreToBoxModal
+            visible={restoreStatus != null}
+            boxes={boxes}
+            busy={restoreBusy}
+            onChoose={(boxId) => { if (restoreStatus) void restoreToBox(restoreStatus, boxId); }}
+            onCancel={() => setRestoreStatus(null)}
           />
           <PaintDetailModal
             visible={colorDetailVisible}
