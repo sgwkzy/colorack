@@ -3,8 +3,8 @@ import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity,
 import { IconChevronLeft, IconChevronRight, IconFlask, IconPalette, IconPlus, IconX } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAndroidBack } from '../lib/androidBack';
-import { addKitColor, addKitColorFromSummary, getDB, getMixRecipes } from '../lib/db';
-import { ColorMixSummary, draftFromSummary, normalizeDraftPaints } from '../lib/colorMixDraft';
+import { getDB, getMixRecipes } from '../lib/db';
+import { ColorMixSummary, draftFromSummary } from '../lib/colorMixDraft';
 import { t, useLocale } from '../lib/i18n';
 import { paintName } from '../lib/paintLabel';
 import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
@@ -17,10 +17,13 @@ type Route = 'source' | 'paint' | 'saved' | 'newMix';
 
 interface Props {
   visible: boolean;
-  kitId: number;
   requestCloseRef: MutableRefObject<() => void>;
   onClose: () => void;
-  onAdded: () => void | Promise<void>;
+  onSaveColor: (
+    name: string | null,
+    note: string | null,
+    paints: { paintId: number; ratio: number }[],
+  ) => Promise<void>;
 }
 
 interface SourceOptionProps {
@@ -50,7 +53,7 @@ function SourceOption({ icon, title, help, onPress, styles, chevronColor }: Sour
   );
 }
 
-export default function KitColorComposerModal({ visible, kitId, requestCloseRef, onClose, onAdded }: Props) {
+export default function KitColorComposerModal({ visible, requestCloseRef, onClose, onSaveColor }: Props) {
   useLocale();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -99,13 +102,12 @@ export default function KitColorComposerModal({ visible, kitId, requestCloseRef,
     if (visible && route !== 'newMix') requestCloseRef.current = back;
   }, [visible, route, requestCloseRef, back]);
 
-  const finishAdd = async () => {
-    try {
-      await onAdded();
-    } catch (error) {
-      console.error('KitColorComposerModal: failed to refresh kit colors', error);
-      Alert.alert(t('error'), t('loadFailed'));
-    }
+  const saveColor = async (
+    name: string | null,
+    note: string | null,
+    paints: { paintId: number; ratio: number }[],
+  ) => {
+    await onSaveColor(name, note, paints);
     onClose();
   };
 
@@ -119,8 +121,7 @@ export default function KitColorComposerModal({ visible, kitId, requestCloseRef,
         [id],
       );
       if (!paint) throw new Error('paint_not_found');
-      await addKitColor(kitId, paintName(paint.name_ja, paint.name_en), null, [{ paintId: paint.id, ratio: 1 }]);
-      await finishAdd();
+      await saveColor(paintName(paint.name_ja, paint.name_en), null, [{ paintId: paint.id, ratio: 1 }]);
       return true;
     } catch (error) {
       console.error('KitColorComposerModal: failed to add paint', error);
@@ -137,8 +138,11 @@ export default function KitColorComposerModal({ visible, kitId, requestCloseRef,
     savingRef.current = true;
     setSavingId(recipe.id);
     try {
-      await addKitColorFromSummary(kitId, recipe);
-      await finishAdd();
+      await saveColor(
+        recipe.name,
+        recipe.note,
+        recipe.paints.map((paint) => ({ paintId: paint.paint_id, ratio: paint.ratio })),
+      );
     } catch (error) {
       console.error('KitColorComposerModal: failed to copy saved mix', error);
       Alert.alert(t('error'), t('saveFailed'));
@@ -163,15 +167,11 @@ export default function KitColorComposerModal({ visible, kitId, requestCloseRef,
           saveLabel={t('saveToKit')}
           initialDraft={initialDraft}
           onBack={back}
-          onSave={async (draft) => {
-            await addKitColor(
-              kitId,
-              draft.name.trim() || null,
-              draft.note.trim() || null,
-              normalizeDraftPaints(draft.paints),
-            );
-            await finishAdd();
-          }}
+          onSave={(draft) => saveColor(
+            draft.name.trim() || null,
+            draft.note.trim() || null,
+            draft.paints.map((paint) => ({ paintId: paint.paint_id, ratio: paint.percentage / 100 })),
+          )}
           onClose={close}
         />
       ) : (

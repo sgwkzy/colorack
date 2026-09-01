@@ -1,11 +1,11 @@
 // components/KitDetailModal.tsx
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, type ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconChevronDown, IconChevronLeft, IconEdit, IconGripVertical, IconPlus, IconTrash, IconX } from '@tabler/icons-react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Modal, type ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { IconChevronDown, IconChevronLeft, IconEdit, IconTrash, IconX } from '@tabler/icons-react-native';
 import { useAnimatedRef } from 'react-native-reanimated';
-import Sortable, { type SortableGridRenderItem } from 'react-native-sortables';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
+  addKitColor,
   addKitPhoto,
   deleteKit,
   getDB,
@@ -13,7 +13,6 @@ import {
   getKitDetail,
   getKitPhotos,
   getOwnedCountMap,
-  KitColorSummary,
   KitDetail,
   KitPhoto,
   KitStatus,
@@ -33,18 +32,14 @@ import {
   updateKitSeries,
 } from '../lib/db';
 import { deleteKitPhoto } from '../lib/kitPhoto';
-import { draftFromSummary, moveMixRecipe, normalizeDraftPaints, sameColorOrder } from '../lib/colorMixDraft';
 import { useAndroidBack } from '../lib/androidBack';
 import { t } from '../lib/i18n';
 import { useModalLock } from '../lib/modalLock';
-import { lightColors, radius, spacing, useTheme } from '../lib/theme';
+import { spacing, useTheme } from '../lib/theme';
 import { makeStyles } from './KitDetail/styles';
 import ActionSheet from './ActionSheet';
 import ClearableInput from './ClearableInput';
-import KitColorComposerModal from './KitColorComposerModal';
-import KitColorRow from './KitColorRow';
-import ColorMixDetailModal from './ColorMixDetailModal';
-import ColorMixEditorModal from './ColorMixEditorModal';
+import KitUsedColorsPanel, { type UsedColorRepository } from './KitUsedColorsPanel';
 import KitPhotoGrid from './KitPhotoGrid';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
@@ -75,11 +70,10 @@ interface Props {
 export default function KitDetailModal({ visible, kitId, onClose, onChanged }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
-  const styles = makeStyles(colors);
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const loadVersionRef = useRef(0);
   const [detail, setDetail] = useState<KitDetail | null>(null);
-  const [kitColors, setKitColors] = useState<KitColorSummary[]>([]);
   const [ownedMap, setOwnedMap] = useState<Map<number, number>>(new Map());
   const [photos, setPhotos] = useState<KitPhoto[]>([]);
   const [name, setName] = useState('');
@@ -92,16 +86,22 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [boxPickerOpen, setBoxPickerOpen] = useState(false);
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<'details' | 'colors'>('details');
-  const [selectedColor, setSelectedColor] = useState<KitColorSummary | null>(null);
-  const [colorDetailOpen, setColorDetailOpen] = useState(false);
-  const [editingColor, setEditingColor] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [orderSaving, setOrderSaving] = useState(false);
+  const [childOverlayOpen, setChildOverlayOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const scrollRef = useAnimatedRef<ScrollView>();
   const childRequestCloseRef = useRef<() => void>(() => {});
+  const usedColorRepository = useMemo<UsedColorRepository>(() => {
+    const usedKitId = detail?.id ?? 0;
+    return {
+      load: () => getKitColors(usedKitId),
+      add: (name, note, paints) => addKitColor(usedKitId, name, note, paints),
+      update: (colorId, name, note, paints) => updateKitColor(colorId, name, note, paints),
+      remove: removeKitColor,
+      reorder: reorderKitColors,
+    };
+  }, [detail?.id]);
 
   const dateLabel = (value: string | null) => (value ? value.slice(0, 16) : t('unknown'));
 
@@ -113,12 +113,11 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     const loadVersion = ++loadVersionRef.current;
     if (seedEditFields) setLoadState('loading');
     try {
-      const [row, colorRows, photoRows, owned] = await Promise.all([
-        getKitDetail(kitId), getKitColors(kitId), getKitPhotos(kitId), getOwnedCountMap(),
+      const [row, photoRows, owned] = await Promise.all([
+        getKitDetail(kitId), getKitPhotos(kitId), getOwnedCountMap(),
       ]);
       if (loadVersion !== loadVersionRef.current) return false;
       setDetail(row);
-      setKitColors(colorRows);
       setPhotos(photoRows);
       setOwnedMap(owned);
       if (seedEditFields) {
@@ -149,7 +148,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       loadVersionRef.current += 1;
       setLoadState('loading');
       setDetail(null);
-      setKitColors([]);
       setOwnedMap(new Map());
       setPhotos([]);
       setName('');
@@ -161,13 +159,10 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setCategory('');
       setBoxPickerOpen(false);
       setStatusPickerOpen(false);
-      setPickerOpen(false);
       setDetailTab('details');
       setEditMode(false);
       setViewerOpen(false);
-      setSelectedColor(null);
-      setColorDetailOpen(false);
-      setEditingColor(false);
+      setChildOverlayOpen(false);
     }
   }, [visible, load]);
 
@@ -334,95 +329,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
     onChanged?.();
   };
 
-  const removeColor = async (kitColorId: number) => {
-    try {
-      await removeKitColor(kitColorId);
-      setKitColors((current) => current.filter((color) => color.id !== kitColorId));
-      setColorDetailOpen(false);
-      setSelectedColor(null);
-      await load();
-    } catch (error) {
-      console.error('KitDetailModal: failed to remove kit color', error);
-      Alert.alert(t('error'), t('saveFailed'));
-    }
-  };
-
-  const confirmRemoveColor = (color: KitColorSummary) => {
-    Alert.alert(color.name || t('mixResult'), t('deleteMixConfirm'), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('delete'), style: 'destructive', onPress: () => removeColor(color.id) },
-    ]);
-  };
-
-  const saveColor = async (draft: ReturnType<typeof draftFromSummary>) => {
-    if (!selectedColor) return;
-    await updateKitColor(
-      selectedColor.id,
-      draft.name.trim() || null,
-      draft.note.trim() || null,
-      normalizeDraftPaints(draft.paints),
-    );
-    await load();
-    setEditingColor(false);
-  };
-
-  const saveColorOrder = useCallback(async (next: KitColorSummary[]) => {
-    const previous = kitColors;
-    if (orderSaving || sameColorOrder(previous, next)) return;
-    setKitColors(next);
-    setOrderSaving(true);
-    try {
-      await reorderKitColors(next.map((c) => c.id));
-    } catch (error) {
-      console.error('KitDetailModal: failed to reorder kit colors', error);
-      setKitColors(previous);
-      Alert.alert(t('error'), t('saveFailed'));
-    } finally {
-      setOrderSaving(false);
-    }
-  }, [kitColors, orderSaving]);
-
-  const moveColor = useCallback((kitColorId: number, direction: -1 | 1) => {
-    const next = moveMixRecipe(kitColors, kitColorId, direction);
-    if (next !== kitColors) void saveColorOrder(next);
-  }, [kitColors, saveColorOrder]);
-
-  const renderKitColor = useCallback<SortableGridRenderItem<KitColorSummary>>(({ item, index }) => {
-    const colorLabel = item.name?.trim() || item.paints[0]?.code || t('mixResult');
-    return (
-      <KitColorRow
-        color={item}
-        ownedMap={ownedMap}
-        disabled={orderSaving}
-        onPress={() => { setSelectedColor(item); setColorDetailOpen(true); }}
-        dragHandle={(
-          <Sortable.Handle style={styles.dragHandle}>
-            <View
-              pointerEvents="none"
-              accessible
-              accessibilityRole="adjustable"
-              accessibilityLabel={`${colorLabel} ${t('sort')}`}
-              accessibilityState={{ disabled: orderSaving }}
-              accessibilityValue={{ min: 1, max: kitColors.length, now: index + 1, text: `${index + 1}/${kitColors.length}` }}
-              accessibilityActions={[
-                { name: 'decrement', label: t('moveUp') },
-                { name: 'increment', label: t('moveDown') },
-              ]}
-              onAccessibilityAction={({ nativeEvent }) => {
-                if (orderSaving) return;
-                if (nativeEvent.actionName === 'decrement') moveColor(item.id, -1);
-                if (nativeEvent.actionName === 'increment') moveColor(item.id, 1);
-              }}
-              style={[styles.dragHandleContent, orderSaving && styles.dragHandleDisabled]}
-            >
-              <IconGripVertical color={colors.textMuted} size={22} />
-            </View>
-          </Sortable.Handle>
-        )}
-      />
-    );
-  }, [colors.textMuted, kitColors.length, moveColor, orderSaving, ownedMap, styles]);
-
   const confirmDelete = () => {
     if (!detail) return;
     Alert.alert(detail.name, t('deleteKitConfirm'), [
@@ -440,7 +346,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   };
 
   const boxName = boxes.find((b) => b.id === detail?.box_id)?.name ?? t('unassigned');
-  const childOverlayOpen = pickerOpen || editingColor;
   useAndroidBack(visible && !viewerOpen, () => {
     if (childOverlayOpen) childRequestCloseRef.current();
     else void closeAfterSavingFields();
@@ -623,44 +528,15 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                     />
                   </View>
                 </>
-              ) : (
-                <View style={styles.paintsSection}>
-                  <View style={styles.paintsHeader}>
-                    <Text style={styles.sectionTitle}>{t('kitUsedColors')}</Text>
-                    <TouchableOpacity
-                      accessibilityRole="button"
-                      accessibilityLabel={t('addUsedColor')}
-                      onPress={() => setPickerOpen(true)}
-                      style={styles.addColorButton}
-                    >
-                      <IconPlus color={colors.primary} size={18} />
-                      <Text style={styles.addLink}>{t('addUsedColor')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                  {kitColors.length === 0 ? <Text style={styles.empty}>{t('emptyKitColors')}</Text> : null}
-                  {kitColors.length > 0 ? (
-                    <Sortable.Grid
-                      columns={1}
-                      customHandle
-                      data={kitColors}
-                      keyExtractor={(color) => String(color.id)}
-                      renderItem={renderKitColor}
-                      onDragEnd={({ data }) => { void saveColorOrder(data); }}
-                      rowGap={spacing.md}
-                      scrollableRef={scrollRef}
-                      sortEnabled={!orderSaving}
-                      dragActivationDelay={180}
-                      dragActivationFailOffset={8}
-                      reorderTriggerOrigin="touch"
-                      overDrag="vertical"
-                      activeItemScale={1.015}
-                      inactiveItemOpacity={0.92}
-                      autoScrollActivationOffset={80}
-                      autoScrollMaxVelocity={500}
-                    />
-                  ) : null}
-                </View>
-              )}
+              ) : null}
+              <KitUsedColorsPanel
+                active={detailTab === 'colors'}
+                repository={usedColorRepository}
+                ownedMap={ownedMap}
+                scrollableRef={scrollRef}
+                requestCloseRef={childRequestCloseRef}
+                onOverlayChange={setChildOverlayOpen}
+              />
             </SwipeDownScrollView>
           )}
 
@@ -692,35 +568,6 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
               { text: t('cancel'), style: 'cancel' },
             ]}
             onClose={() => setStatusPickerOpen(false)}
-          />
-          {detail ? (
-            <KitColorComposerModal
-              visible={pickerOpen}
-              kitId={detail.id}
-              requestCloseRef={childRequestCloseRef}
-              onClose={() => setPickerOpen(false)}
-              onAdded={async () => { await load(); }}
-            />
-          ) : null}
-          <ColorMixDetailModal
-            visible={colorDetailOpen}
-            color={selectedColor}
-            title={t('colorInfo')}
-            editLabel={t('editColorInfo')}
-            editable
-            ownedMap={ownedMap}
-            onEdit={() => { setColorDetailOpen(false); setEditingColor(true); }}
-            onDelete={() => selectedColor && confirmRemoveColor(selectedColor)}
-            onClose={() => setColorDetailOpen(false)}
-          />
-          <ColorMixEditorModal
-            visible={editingColor}
-            embedded
-            requestCloseRef={childRequestCloseRef}
-            title={t('editColorInfo')}
-            initialDraft={draftFromSummary(selectedColor)}
-            onSave={saveColor}
-            onClose={() => setEditingColor(false)}
           />
         </SafeAreaView>
         </SwipeBack>
