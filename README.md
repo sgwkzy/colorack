@@ -64,24 +64,7 @@ python scripts/generate_seed_catalog.py    # official_catalog.sqlite3 から ass
 - `data/` — クロール生成物(git管理外)
 - `docs/privacy.html` — ストア掲載用プライバシーポリシー(GitHub Pagesで公開: https://sgwkzy.github.io/colorack/privacy.html)
 
-## Android ビルド・ストア公開
+## アプリのビルド・ストア提出
 
-パッケージ名・AdMob ID は `.env`(git管理外)で管理し、`app.config.js` が読み込む。
-EAS のクラウドビルドはローカルの `.env` を見ないため、同じ値を EAS 側にも登録済み
-(`eas env:create --scope project ...`、environment=production)。
-
-```powershell
-. $PROFILE; $env:Path = "$env:APPDATA\npm;$env:Path"
-npx eas-cli build --platform android --profile production --non-interactive
-```
-
-`eas.json` の `cli.appVersionSource` は `local` とし、`app.config.js` の
-`android.versionCode` を手動でインクリメントする運用(EAS のリモート自動採番は
-対話コマンドが必須で自動化しづらいため見送った)。ビルドごとに `versionCode` を
-1つ上げてから実行すること。
-
-ストア掲載アセット(`assets/store-icon-512.png` / `assets/store-feature-graphic.png`)は
-`assets/icon.png` から生成したもの。
-
-Google Play は個人開発者アカウントに「クローズドテストを12人以上・14日間」の
-実施を義務付けており、これを満たすまで本番トラックへは公開できない。
+iOS / Android のリリースは [`docs/app-release-runbook.md`](docs/app-release-runbook.md) に従う。
+バージョン変更はDEV、承認済みコミットのビルドとSubmitはOPSで行う。
