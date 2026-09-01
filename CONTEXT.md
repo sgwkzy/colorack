@@ -15,3 +15,7 @@ _Avoid_: 購入候補、買い物リスト項目
 **キットBox**:
 A storage grouping for owned kits. Purchase candidates never belong to a Kit Box.
 _Avoid_: 買い物リスト、購入候補の保存先
+
+**キット使用色**:
+A color plan attached to exactly one purchase candidate or owned kit. Moving a purchase candidate to a Box transfers the values into independent owned-kit records and leaves no lasting link.
+_Avoid_: 保存済み混色、購入候補と所有キットで共有する色
