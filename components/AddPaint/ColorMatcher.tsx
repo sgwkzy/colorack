@@ -33,6 +33,7 @@ interface Paint {
 interface Props {
   onSelect: (paint: Paint) => void;
   onSelectView: (paint: Paint) => void;
+  selectionOnly?: boolean;
   // 一覧を最上部からさらに引っ張って離した時に親モーダルを閉じる
   onRequestClose?: () => void;
   // 指定時、塗料種別フィルタをこの1種類に固定し、種別チップUIを非表示にする
@@ -42,7 +43,7 @@ interface Props {
 const EMPTY_FILTER: PaintFilter = { brands: [], series: [], gloss: [], types: [], search: '' };
 type FilterOption = { brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null };
 
-export default function ColorMatcher({ onSelect, onSelectView, onRequestClose, lockedPaintType }: Props) {
+export default function ColorMatcher({ onSelect, onSelectView, selectionOnly = false, onRequestClose, lockedPaintType }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const closeProps = onRequestClose ? swipeDownCloseProps(onRequestClose) : undefined;
@@ -158,11 +159,15 @@ export default function ColorMatcher({ onSelect, onSelectView, onRequestClose, l
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
-          <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)} accessibilityRole={selectionOnly ? 'button' : undefined} accessibilityLabel={selectionOnly ? `${t('add')} ${item.code} ${item.name_ja}` : undefined}>
             <PaintRow paint={item} subSuffix={` · ΔE=${item.de.toFixed(1)}`} ownedCount={ownedCounts.get(item.id) ?? 0} quietOwnedBadge>
-              <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)} accessibilityRole="button" accessibilityLabel={t('add')}>
-                <IconPlus color={colors.primary} size={20} />
-              </TouchableOpacity>
+              {selectionOnly ? (
+                <View pointerEvents="none" style={styles.addBtn}><IconPlus color={colors.primary} size={20} /></View>
+              ) : (
+                <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)} accessibilityRole="button" accessibilityLabel={t('add')}>
+                  <IconPlus color={colors.primary} size={20} />
+                </TouchableOpacity>
+              )}
             </PaintRow>
           </TouchableOpacity>
         )}

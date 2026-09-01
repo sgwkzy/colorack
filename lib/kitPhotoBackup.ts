@@ -42,10 +42,8 @@ export function kitPhotoStoragePath(uid: string, filename: string): string {
   return `users/${uid}/kit-photos/${filename}`;
 }
 
-interface PendingPhotoRow {
-  id: number;
-  uri: string;
-}
+type PendingPhotoTarget = 'kit_photos' | 'kit_wishlist_photos';
+type PendingPhotoRow = { target: PendingPhotoTarget; id: number; uri: string };
 
 // バックグラウンド遷移のたびに全量アップロードすると、未変更の写真まで毎回
 // 再送してしまい通信量・書き込み回数コストが無視できなくなる。synced_atが
@@ -62,7 +60,14 @@ export async function uploadPendingKitPhotos(expectedUid: string): Promise<void>
   assertCurrentUser(expectedUid);
 
   const db = getDB();
-  const pending = await db.getAllAsync<PendingPhotoRow>('SELECT id, uri FROM kit_photos WHERE synced_at IS NULL');
+  const kitPhotos = await db.getAllAsync<{ id: number; uri: string }>('SELECT id, uri FROM kit_photos WHERE synced_at IS NULL');
+  const kitWishlistPhotos = await db.getAllAsync<{ id: number; uri: string }>(
+    'SELECT p.id, p.uri FROM kit_wishlist_photos p JOIN kit_wishlist w ON w.id = p.wishlist_id WHERE p.synced_at IS NULL'
+  );
+  const pending: PendingPhotoRow[] = [
+    ...kitPhotos.map((photo): PendingPhotoRow => ({ target: 'kit_photos', ...photo })),
+    ...kitWishlistPhotos.map((photo): PendingPhotoRow => ({ target: 'kit_wishlist_photos', ...photo })),
+  ];
   for (const photo of pending) {
     assertCurrentUser(expectedUid);
     const path = kitPhotoStoragePath(expectedUid, generatePhotoFilename());
@@ -73,7 +78,10 @@ export async function uploadPendingKitPhotos(expectedUid: string): Promise<void>
       assertCurrentUser(expectedUid);
       await db.withExclusiveTransactionAsync(async (tx) => {
         assertCurrentUser(expectedUid);
-        await tx.runAsync("UPDATE kit_photos SET synced_at = datetime('now'), storage_path = ? WHERE id = ?", [path, photo.id]);
+        const updateSql = photo.target === 'kit_photos'
+          ? "UPDATE kit_photos SET synced_at = datetime('now'), storage_path = ? WHERE id = ?"
+          : "UPDATE kit_wishlist_photos SET synced_at = datetime('now'), storage_path = ? WHERE id = ?";
+        await tx.runAsync(updateSql, [path, photo.id]);
         assertCurrentUser(expectedUid);
       });
     } catch (e) {
@@ -83,7 +91,7 @@ export async function uploadPendingKitPhotos(expectedUid: string): Promise<void>
   }
 }
 
-export async function downloadKitPhotosForRestore(photos: BackupKitPhoto[]): Promise<Map<string, string>> {
+export async function downloadKitPhotosForRestore(photos: { storagePath: string }[]): Promise<Map<string, string>> {
   const localUriByStoragePath = new Map<string, string>();
   if (!getEntitlements().hasPhotoBackup) return localUriByStoragePath;
   if (!storage || photos.length === 0) return localUriByStoragePath;

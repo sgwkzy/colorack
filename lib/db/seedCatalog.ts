@@ -42,7 +42,9 @@ export async function upsertCatalogFromSeed(db: SQLite.SQLiteDatabase): Promise<
       ' AND catalog_code NOT IN (SELECT catalog_code FROM seed_catalog_codes)' +
       ' AND id NOT IN (SELECT paint_id FROM inventory)' +
       ' AND id NOT IN (SELECT paint_id FROM lists)' +
-      ' AND id NOT IN (SELECT paint_id FROM kit_color_paints)',
+      ' AND id NOT IN (SELECT paint_id FROM kit_color_paints)' +
+      ' AND id NOT IN (SELECT paint_id FROM kit_wishlist_color_paints)' +
+      ' AND id NOT IN (SELECT paint_id FROM mix_recipe_paints)',
     );
   });
 }

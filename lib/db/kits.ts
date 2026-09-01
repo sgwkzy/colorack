@@ -88,12 +88,20 @@ export async function updateKitPrice(kitId: number, price: string): Promise<void
 
 export async function updateKitBox(kitId: number, boxId: number): Promise<void> {
   await getDB().runAsync(
-    "UPDATE kits SET box_id = ?, status_changed_at = datetime('now') WHERE id = ?",
+    "UPDATE kits SET box_id = ?, status_changed_at = datetime('now') WHERE id = ? AND status != 'completed'",
     [boxId, kitId]
   );
 }
 
-export async function setKitStatus(kitId: number, status: KitStatus): Promise<void> {
+export async function setKitStatus(kitId: number, status: KitStatus, boxId?: number): Promise<void> {
+  if (status !== 'completed' && boxId != null) {
+    const result = await getDB().runAsync(
+      "UPDATE kits SET status = ?, box_id = ?, status_changed_at = datetime('now') WHERE id = ? AND EXISTS (SELECT 1 FROM kit_boxes WHERE id = ?)",
+      [status, boxId, kitId, boxId]
+    );
+    if (result.changes === 0) throw new Error('Kit or Box not found');
+    return;
+  }
   const defaultBoxId = status === 'completed' ? null : await getDefaultKitBoxId();
   await getDB().runAsync(
     "UPDATE kits SET status = ?, box_id = CASE WHEN ? = 'completed' THEN NULL WHEN box_id IS NULL THEN ? ELSE box_id END, status_changed_at = datetime('now') WHERE id = ?",
@@ -107,7 +115,6 @@ export async function deleteKit(kitId: number): Promise<void> {
     await db.runAsync('DELETE FROM kit_color_paints WHERE kit_color_id IN (SELECT id FROM kit_colors WHERE kit_id = ?)', [kitId]);
     await db.runAsync('DELETE FROM kit_colors WHERE kit_id = ?', [kitId]);
     await db.runAsync('DELETE FROM kit_photos WHERE kit_id = ?', [kitId]);
-    await db.runAsync('DELETE FROM kit_lists WHERE kit_id = ?', [kitId]);
     await db.runAsync('DELETE FROM kits WHERE id = ?', [kitId]);
   });
 }

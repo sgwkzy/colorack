@@ -19,15 +19,37 @@ const JPEG_QUALITY = 0.7;
 // 写真参照を現在のコンテナへ付け替える。ファイルが存在する場合だけ更新するので、
 // 失われた写真への参照を別のファイルに誤って向けることはない。
 export async function migrateKitPhotoUris(db: SQLite.SQLiteDatabase): Promise<void> {
-  const rows = await db.getAllAsync<{ id: number; uri: string }>('SELECT id, uri FROM kit_photos');
-  for (const row of rows) {
-    const marker = '/kit-photos/';
-    const index = row.uri.lastIndexOf(marker);
-    const fileName = index >= 0 ? row.uri.slice(index + marker.length) : '';
-    if (!fileName || fileName.includes('/')) continue;
-    const currentUri = `${KIT_PHOTO_DIR}${fileName}`;
-    if (currentUri === row.uri || !(await FileSystem.getInfoAsync(currentUri)).exists) continue;
-    await db.runAsync('UPDATE kit_photos SET uri = ? WHERE id = ?', [currentUri, row.id]);
+  for (const table of ['kit_photos', 'kit_wishlist_photos'] as const) {
+    const rows = await db.getAllAsync<{ id: number; uri: string }>(`SELECT id, uri FROM ${table}`);
+    for (const row of rows) {
+      const marker = '/kit-photos/';
+      const index = row.uri.lastIndexOf(marker);
+      const fileName = index >= 0 ? row.uri.slice(index + marker.length) : '';
+      if (!fileName || fileName.includes('/')) continue;
+      const currentUri = `${KIT_PHOTO_DIR}${fileName}`;
+      if (currentUri === row.uri || !(await FileSystem.getInfoAsync(currentUri)).exists) continue;
+      await db.runAsync(`UPDATE ${table} SET uri = ? WHERE id = ?`, [currentUri, row.id]);
+    }
+  }
+}
+
+export async function cleanupOrphanedKitPhotos(db: SQLite.SQLiteDatabase): Promise<void> {
+  if (!(await FileSystem.getInfoAsync(KIT_PHOTO_DIR)).exists) return;
+
+  const [ownedRows, wishlistRows] = await Promise.all([
+    db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_photos'),
+    db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_wishlist_photos'),
+  ]);
+  const referencedUris = new Set([...ownedRows, ...wishlistRows].map((row) => row.uri));
+  for (const name of await FileSystem.readDirectoryAsync(KIT_PHOTO_DIR)) {
+    const uri = `${KIT_PHOTO_DIR}${name}`;
+    const info = await FileSystem.getInfoAsync(uri);
+    if (!info.exists || info.isDirectory || referencedUris.has(uri)) continue;
+    try {
+      await deleteKitPhoto(uri);
+    } catch (error) {
+      console.error('cleanupOrphanedKitPhotos: failed to delete kit photo', uri, error);
+    }
   }
 }
 
