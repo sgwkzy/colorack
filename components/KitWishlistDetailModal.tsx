@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { IconBox, IconChevronLeft, IconEdit, IconTrash, IconX } from '@tabler/icons-react-native';
 import { useAnimatedRef } from 'react-native-reanimated';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -38,6 +38,54 @@ interface KitWishlistDetailModalProps {
   onChanged(): void;
   onMove(item: KitWishlistItem): void;
   onDelete(item: KitWishlistItem): void;
+}
+
+type ValueRef<T> = { current: T };
+type LatestRead<T> = { current: true; value: T } | { current: false };
+
+export async function readLatestWishlistDetail<T>(
+  versionRef: ValueRef<number>,
+  read: () => Promise<T>,
+): Promise<LatestRead<T>> {
+  const version = ++versionRef.current;
+  try {
+    const value = await read();
+    return version === versionRef.current ? { current: true, value } : { current: false };
+  } catch (error) {
+    if (version !== versionRef.current) return { current: false };
+    throw error;
+  }
+}
+
+export function handoffWishlistParentAction(
+  platform: string,
+  pendingActionRef: ValueRef<(() => void) | null>,
+  closeModal: () => void,
+  action: () => void,
+) {
+  if (platform === 'ios') {
+    pendingActionRef.current = action;
+    closeModal();
+    return;
+  }
+  closeModal();
+  action();
+}
+
+export function runPendingWishlistParentAction(pendingActionRef: ValueRef<(() => void) | null>) {
+  const action = pendingActionRef.current;
+  pendingActionRef.current = null;
+  action?.();
+}
+
+export async function discardWishlistDraftPhotos(
+  draftPhotoUris: Set<string>,
+  removePhotos: (uris: readonly string[]) => Promise<void>,
+  closeModal: () => void,
+) {
+  await removePhotos([...draftPhotoUris]);
+  draftPhotoUris.clear();
+  closeModal();
 }
 
 export default function KitWishlistDetailModal({
@@ -102,15 +150,13 @@ export default function KitWishlistDetailModal({
 
   const load = useCallback(async (seedEditFields = false): Promise<boolean> => {
     if (wishlistId == null) return false;
-    const loadVersion = ++loadVersionRef.current;
     if (seedEditFields) setLoadState('loading');
     try {
-      const [nextItem, nextPhotos, owned] = await Promise.all([
-        getKitWishlistItem(wishlistId),
-        getKitWishlistPhotos(wishlistId),
-        getOwnedCountMap(),
-      ]);
-      if (loadVersion !== loadVersionRef.current) return false;
+      const result = await readLatestWishlistDetail(loadVersionRef, () => Promise.all([
+        getKitWishlistItem(wishlistId), getKitWishlistPhotos(wishlistId), getOwnedCountMap(),
+      ]));
+      if (!result.current) return false;
+      const [nextItem, nextPhotos, owned] = result.value;
       setItem(nextItem);
       setPhotos(nextPhotos);
       setOwnedMap(owned);
@@ -118,7 +164,6 @@ export default function KitWishlistDetailModal({
       setLoadState('ready');
       return true;
     } catch (error) {
-      if (loadVersion !== loadVersionRef.current) return false;
       console.error('KitWishlistDetailModal: failed to load candidate', error);
       if (seedEditFields) setLoadState('error');
       else Alert.alert(t('error'), t('loadFailed'));
@@ -227,9 +272,7 @@ export default function KitWishlistDetailModal({
   const discardChanges = useCallback(async () => {
     if (savingRef.current) return;
     try {
-      await removeDetachedCandidatePhotos([...draftPhotoUrisRef.current]);
-      draftPhotoUrisRef.current.clear();
-      onClose();
+      await discardWishlistDraftPhotos(draftPhotoUrisRef.current, removeDetachedCandidatePhotos, onClose);
     } catch (error) {
       console.error('KitWishlistDetailModal: failed to discard candidate photos', error);
       Alert.alert(t('error'), t('saveFailed'));
@@ -255,17 +298,14 @@ export default function KitWishlistDetailModal({
   const requestParentAction = (action: 'move' | 'delete') => {
     if (!item || editMode || savingRef.current) return;
     const currentItem = item;
-    pendingActionRef.current = () => {
+    handoffWishlistParentAction(Platform.OS, pendingActionRef, onClose, () => {
       if (action === 'move') onMove(currentItem);
       else onDelete(currentItem);
-    };
-    onClose();
+    });
   };
 
   const handleDismiss = () => {
-    const action = pendingActionRef.current;
-    pendingActionRef.current = null;
-    action?.();
+    runPendingWishlistParentAction(pendingActionRef);
   };
 
   useAndroidBack(visible && !viewerOpen, () => {
