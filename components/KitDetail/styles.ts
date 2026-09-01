@@ -21,6 +21,7 @@ export const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   divider: { width: StyleSheet.hairlineWidth, backgroundColor: colors.borderLight },
   picker: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   pickerText: { flex: 1, color: colors.text, fontSize: 14, fontWeight: '600' },
+  disabledText: { color: colors.textFaint },
   card: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, padding: spacing.lg, gap: spacing.md },
   field: { gap: spacing.xs },
   fieldRow: { flexDirection: 'row', gap: spacing.lg },

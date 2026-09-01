@@ -9,6 +9,7 @@ import {
   addKitPhoto,
   deleteKit,
   getDB,
+  getDefaultKitBoxId,
   getKitColors,
   getKitDetail,
   getKitPhotos,
@@ -44,6 +45,7 @@ import KitPhotoGrid from './KitPhotoGrid';
 import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
+import RestoreToBoxModal from './RestoreToBoxModal';
 
 interface Box { id: number; name: string; }
 
@@ -52,6 +54,16 @@ const STATUS_OPTIONS: { value: KitStatus; labelKey: string }[] = [
   { value: 'building', labelKey: 'statusBuilding' },
   { value: 'completed', labelKey: 'statusCompleted' },
 ];
+
+export function canChangeKitBox(status: KitStatus): boolean {
+  return status !== 'completed';
+}
+
+export function kitDetailStatusAction(current: KitStatus, next: KitStatus): { kind: 'noop' } | { kind: 'restore'; status: KitStatus } | { kind: 'update'; status: KitStatus } {
+  if (current === next) return { kind: 'noop' };
+  if (current === 'completed' && next !== 'completed') return { kind: 'restore', status: next };
+  return { kind: 'update', status: next };
+}
 
 export function parseKitPrice(value: string): number | null | undefined {
   const trimmed = value.trim();
@@ -84,8 +96,12 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   const [series, setSeries] = useState('');
   const [category, setCategory] = useState('');
   const [boxes, setBoxes] = useState<Box[]>([]);
+  const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
   const [boxPickerOpen, setBoxPickerOpen] = useState(false);
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
+  const [restoreStatus, setRestoreStatus] = useState<KitStatus | null>(null);
+  const [restoreBoxId, setRestoreBoxId] = useState<number | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
   const [detailTab, setDetailTab] = useState<'details' | 'colors'>('details');
   const [editMode, setEditMode] = useState(false);
   const [childOverlayOpen, setChildOverlayOpen] = useState(false);
@@ -149,7 +165,13 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   useEffect(() => {
     if (visible && kitId != null) {
       void load(true);
-      getDB().getAllAsync<Box>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id').then(setBoxes);
+      Promise.all([
+        getDefaultKitBoxId(),
+        getDB().getAllAsync<Box>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id'),
+      ]).then(([defaultId, nextBoxes]) => {
+        setDefaultBoxId(defaultId);
+        setBoxes(nextBoxes);
+      }).catch((error) => console.error('KitDetailModal: failed to load Boxes', error));
     } else {
       loadVersionRef.current += 1;
       setLoadState('loading');
@@ -165,6 +187,9 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
       setCategory('');
       setBoxPickerOpen(false);
       setStatusPickerOpen(false);
+      setRestoreStatus(null);
+      setRestoreBoxId(null);
+      setRestoreBusy(false);
       setDetailTab('details');
       setEditMode(false);
       setViewerOpen(false);
@@ -294,7 +319,7 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   };
 
   const changeBox = async (boxId: number) => {
-    if (!detail) return;
+    if (!detail || !canChangeKitBox(detail.status)) return;
     setBoxPickerOpen(false);
     await updateKitBox(detail.id, boxId);
     await load();
@@ -302,11 +327,33 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
   };
 
   const changeStatus = async (status: KitStatus) => {
-    if (!detail || detail.status === status) return;
+    if (!detail) return;
+    const action = kitDetailStatusAction(detail.status, status);
+    if (action.kind === 'noop') return;
     setStatusPickerOpen(false);
-    await setKitStatus(detail.id, status);
-    await load();
-    onChanged?.();
+    if (action.kind === 'restore') {
+      setRestoreStatus(action.status);
+      setRestoreBoxId(defaultBoxId ?? boxes[0]?.id ?? null);
+      return;
+    }
+    await persist(() => setKitStatus(detail.id, action.status));
+  };
+
+  const effectiveRestoreBoxId = restoreBoxId ?? defaultBoxId ?? boxes[0]?.id ?? null;
+
+  const confirmRestore = async () => {
+    if (restoreBusy || !detail || restoreStatus == null || effectiveRestoreBoxId == null) return;
+    setRestoreBusy(true);
+    try {
+      await setKitStatus(detail.id, restoreStatus, effectiveRestoreBoxId);
+      await load();
+      onChanged?.();
+      setRestoreStatus(null);
+    } catch (error) {
+      reportSaveFailure(error);
+    } finally {
+      setRestoreBusy(false);
+    }
   };
 
   const addPhoto = async (uri: string) => {
@@ -495,8 +542,8 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
                   <View style={styles.controlCard}>
                     <View style={styles.control}>
                       <Text style={styles.sectionTitle}>{t('box')}</Text>
-                      <TouchableOpacity style={styles.picker} onPress={() => setBoxPickerOpen(true)}>
-                        <Text numberOfLines={1} style={styles.pickerText}>{boxName}</Text>
+                      <TouchableOpacity style={styles.picker} onPress={() => setBoxPickerOpen(true)} disabled={!canChangeKitBox(detail.status)} accessibilityRole="button" accessibilityState={{ disabled: !canChangeKitBox(detail.status) }}>
+                        <Text numberOfLines={1} style={[styles.pickerText, !canChangeKitBox(detail.status) && styles.disabledText]}>{boxName}</Text>
                         <IconChevronDown size={16} color={colors.textMuted} />
                       </TouchableOpacity>
                     </View>
@@ -580,6 +627,15 @@ export default function KitDetailModal({ visible, kitId, onClose, onChanged }: P
               { text: t('cancel'), style: 'cancel' },
             ]}
             onClose={() => setStatusPickerOpen(false)}
+          />
+          <RestoreToBoxModal
+            visible={restoreStatus != null}
+            boxes={boxes}
+            selectedBoxId={effectiveRestoreBoxId}
+            busy={restoreBusy}
+            onSelect={setRestoreBoxId}
+            onCancel={() => setRestoreStatus(null)}
+            onConfirm={confirmRestore}
           />
         </SafeAreaView>
         </SwipeBack>

@@ -88,12 +88,19 @@ export async function updateKitPrice(kitId: number, price: string): Promise<void
 
 export async function updateKitBox(kitId: number, boxId: number): Promise<void> {
   await getDB().runAsync(
-    "UPDATE kits SET box_id = ?, status_changed_at = datetime('now') WHERE id = ?",
+    "UPDATE kits SET box_id = ?, status_changed_at = datetime('now') WHERE id = ? AND status != 'completed'",
     [boxId, kitId]
   );
 }
 
-export async function setKitStatus(kitId: number, status: KitStatus): Promise<void> {
+export async function setKitStatus(kitId: number, status: KitStatus, boxId?: number): Promise<void> {
+  if (status !== 'completed' && boxId != null) {
+    await getDB().runAsync(
+      "UPDATE kits SET status = ?, box_id = ?, status_changed_at = datetime('now') WHERE id = ?",
+      [status, boxId, kitId]
+    );
+    return;
+  }
   const defaultBoxId = status === 'completed' ? null : await getDefaultKitBoxId();
   await getDB().runAsync(
     "UPDATE kits SET status = ?, box_id = CASE WHEN ? = 'completed' THEN NULL WHEN box_id IS NULL THEN ? ELSE box_id END, status_changed_at = datetime('now') WHERE id = ?",

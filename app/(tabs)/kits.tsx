@@ -18,6 +18,8 @@ import KitDetailModal from '../../components/KitDetailModal';
 import KitFilterModal, { KitFilter } from '../../components/KitFilterModal';
 import ListActionBar, { ListToolbar } from '../../components/ListActionBar';
 import { deleteKitPhoto } from '../../lib/kitPhoto';
+import { useModalLock } from '../../lib/modalLock';
+import RestoreToBoxModal from '../../components/RestoreToBoxModal';
 
 interface CountRow { n: number; }
 
@@ -54,6 +56,11 @@ const KIT_SORT_ORDER: Record<KitSort, string> = {
   maker: 'maker ASC, name ASC',
 };
 
+export function kitListStatusAction(status: KitStatus): { kind: 'restore' } | { kind: 'update'; status: KitStatus } {
+  if (status === 'completed') return { kind: 'restore' };
+  return { kind: 'update', status: status === 'building' ? 'not_started' : 'building' };
+}
+
 export function KitsScreen({ completedScreen = false }: { completedScreen?: boolean }) {
   const locale = useLocale();
   const { colors } = useTheme();
@@ -71,6 +78,10 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   const [showFilter, setShowFilter] = useState(false);
   const [detailKitId, setDetailKitId] = useState<number | null>(null);
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
+  const [boxes, setBoxes] = useState<{ id: number; name: string }[]>([]);
+  const [restoreItem, setRestoreItem] = useState<KitListItem | null>(null);
+  const [restoreBoxId, setRestoreBoxId] = useState<number | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
   const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const loadVersionRef = useRef(0);
@@ -107,7 +118,17 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
     return () => { cancelled = true; };
   }, [completedScreen, locale, navigation, selected]);
 
-  useEffect(() => { getDefaultKitBoxId().then(setDefaultBoxId); }, []);
+  useFocusEffect(useCallback(() => {
+    Promise.all([
+      getDefaultKitBoxId(),
+      getDB().getAllAsync<{ id: number; name: string }>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id'),
+    ]).then(([defaultId, nextBoxes]) => {
+      setDefaultBoxId(defaultId);
+      setBoxes(nextBoxes);
+    }).catch((error) => console.error('kits: failed to load Boxes', error));
+  }, []));
+
+  useModalLock(!!restoreItem);
 
   const load = useCallback(async (sel: Selected, sf: KitStatus[], f: KitFilter, sortBy: KitSort) => {
     const loadVersion = ++loadVersionRef.current;
@@ -158,10 +179,34 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
 
   // 未着手⇄制作中 トグル(完成品画面では完成→未着手に戻す)。塗料の在庫⇄使用中トグルと同じ挙動。
   const toggleKitStatus = async (item: KitListItem) => {
+    const action = kitListStatusAction(item.status);
+    if (action.kind === 'restore') {
+      setRestoreBoxId(defaultBoxId ?? boxes[0]?.id ?? null);
+      setRestoreItem(item);
+      return;
+    }
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    if (item.status === 'completed') { await setKitStatus(item.id, 'not_started'); reload(); return; }
-    await setKitStatus(item.id, item.status === 'building' ? 'not_started' : 'building');
+    await setKitStatus(item.id, action.status);
     reload();
+  };
+
+  const effectiveRestoreBoxId = restoreBoxId ?? defaultBoxId ?? boxes[0]?.id ?? null;
+
+  const confirmRestore = async () => {
+    if (restoreBusy || !restoreItem || effectiveRestoreBoxId == null) return;
+    const item = restoreItem;
+    setRestoreBusy(true);
+    try {
+      await setKitStatus(item.id, 'not_started', effectiveRestoreBoxId);
+      setRestoreItem(null);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      reload();
+    } catch (error) {
+      console.error('kits: failed to restore completed kit', error);
+      Alert.alert(t('error'), t('saveFailed'));
+    } finally {
+      setRestoreBusy(false);
+    }
   };
 
   const completeKit = async (item: KitListItem) => {
@@ -274,6 +319,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
               hitSlop={6}
               accessibilityRole="button"
               accessibilityLabel={t(STATUS_LABEL_KEYS[item.status])}
+              accessibilityHint={item.status === 'completed' ? t('restoreToBoxMessage') : undefined}
             >
               <Text style={[styles.statusBadgeText, { color: item.status === 'completed' ? colors.usedUp : (item.status === 'building' ? colors.inUse : colors.primaryText) }]}>{t(STATUS_LABEL_KEYS[item.status])}</Text>
             </TouchableOpacity>
@@ -313,6 +359,15 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
         kitId={detailKitId}
         onClose={() => setDetailKitId(null)}
         onChanged={reload}
+      />
+      <RestoreToBoxModal
+        visible={!!restoreItem}
+        boxes={boxes}
+        selectedBoxId={effectiveRestoreBoxId}
+        busy={restoreBusy}
+        onSelect={setRestoreBoxId}
+        onCancel={() => setRestoreItem(null)}
+        onConfirm={confirmRestore}
       />
       <ActionSheet
         visible={!!actionSheet}

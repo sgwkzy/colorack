@@ -919,7 +919,9 @@ async function restoreFromSnapshotUnlocked(snapshot: BackupSnapshot, expectedUid
     }
 
     for (const kit of snapshot.kits ?? []) {
-      const kitBoxId = kit.kitBoxLocalRef ? kitBoxIdByLocalRef.get(kit.kitBoxLocalRef) ?? null : null;
+      const kitBoxId = kit.status === 'completed'
+        ? null
+        : (kit.kitBoxLocalRef ? kitBoxIdByLocalRef.get(kit.kitBoxLocalRef) ?? null : null);
       const result = await tx.runAsync(
         'INSERT INTO kits (box_id, name, maker, series, category, scale, note, price, status, added_at, status_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [kitBoxId, kit.name, kit.maker, kit.series, kit.category, kit.scale, kit.note, kit.price, kit.status, kit.added_at, kit.status_changed_at]
