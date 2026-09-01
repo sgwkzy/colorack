@@ -7,18 +7,21 @@ import type { KitColorSummary } from '../lib/db';
 import { draftFromSummary, moveMixRecipe, normalizeDraftPaints, sameColorOrder } from '../lib/colorMixDraft';
 import { t, useLocale } from '../lib/i18n';
 import { lightColors, spacing, useTheme } from '../lib/theme';
+import {
+  addUsedColor,
+  loadUsedColors,
+  removeUsedColor,
+  reorderUsedColors,
+  updateUsedColor,
+  type UsedColorLoadResult,
+  type UsedColorRepository,
+} from '../lib/usedColorOperations';
 import KitColorComposerModal from './KitColorComposerModal';
 import KitColorRow from './KitColorRow';
 import ColorMixDetailModal from './ColorMixDetailModal';
 import ColorMixEditorModal from './ColorMixEditorModal';
 
-export interface UsedColorRepository {
-  load(): Promise<KitColorSummary[]>;
-  add(name: string | null, note: string | null, paints: { paintId: number; ratio: number }[]): Promise<void>;
-  update(colorId: number, name: string | null, note: string | null, paints: { paintId: number; ratio: number }[]): Promise<void>;
-  remove(colorId: number): Promise<void>;
-  reorder(colorIds: number[]): Promise<void>;
-}
+export type { UsedColorRepository } from '../lib/usedColorOperations';
 
 interface KitUsedColorsPanelProps {
   active: boolean;
@@ -49,22 +52,28 @@ export default function KitUsedColorsPanel({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [orderSaving, setOrderSaving] = useState(false);
 
-  const load = useCallback(async (showLoading = false): Promise<boolean> => {
+  const runAndApply = useCallback(async (
+    operation: () => Promise<UsedColorLoadResult>,
+    showLoading = false,
+  ): Promise<boolean> => {
     const loadVersion = ++loadVersionRef.current;
     if (showLoading) setLoadState('loading');
-    try {
-      const nextColors = await repository.load();
-      if (loadVersion !== loadVersionRef.current) return false;
-      setKitColors(nextColors);
-      setLoadState('ready');
-      return true;
-    } catch (error) {
-      if (loadVersion !== loadVersionRef.current) return false;
-      console.error('KitUsedColorsPanel: failed to load used colors', error);
+    const result = await operation();
+    if (loadVersion !== loadVersionRef.current) return false;
+    if (!result.ok) {
+      console.error('KitUsedColorsPanel: failed to load used colors', result.error);
       setLoadState('error');
       return false;
     }
-  }, [repository]);
+    setKitColors(result.colors);
+    setLoadState('ready');
+    return true;
+  }, []);
+
+  const load = useCallback(
+    (showLoading = false) => runAndApply(() => loadUsedColors(repository), showLoading),
+    [repository, runAndApply],
+  );
 
   useEffect(() => {
     if (!active) {
@@ -91,17 +100,16 @@ export default function KitUsedColorsPanel({
     note: string | null,
     paints: { paintId: number; ratio: number }[],
   ) => {
-    await repository.add(name, note, paints);
-    await load();
-  }, [load, repository]);
+    await runAndApply(() => addUsedColor(repository, name, note, paints));
+  }, [repository, runAndApply]);
 
   const removeColor = async (kitColorId: number) => {
     try {
-      await repository.remove(kitColorId);
-      setKitColors((current) => current.filter((color) => color.id !== kitColorId));
-      setColorDetailOpen(false);
-      setSelectedColor(null);
-      await load();
+      await runAndApply(() => removeUsedColor(repository, kitColorId, () => {
+        setKitColors((current) => current.filter((color) => color.id !== kitColorId));
+        setColorDetailOpen(false);
+        setSelectedColor(null);
+      }));
     } catch (error) {
       console.error('KitUsedColorsPanel: failed to remove used color', error);
       Alert.alert(t('error'), t('saveFailed'));
@@ -117,13 +125,13 @@ export default function KitUsedColorsPanel({
 
   const saveColor = async (draft: ReturnType<typeof draftFromSummary>) => {
     if (!selectedColor) return;
-    await repository.update(
+    await runAndApply(() => updateUsedColor(
+      repository,
       selectedColor.id,
       draft.name.trim() || null,
       draft.note.trim() || null,
       normalizeDraftPaints(draft.paints),
-    );
-    await load();
+    ));
     setEditingColor(false);
   };
 
@@ -133,11 +141,12 @@ export default function KitUsedColorsPanel({
     setKitColors(next);
     setOrderSaving(true);
     try {
-      await repository.reorder(next.map((color) => color.id));
-    } catch (error) {
-      console.error('KitUsedColorsPanel: failed to reorder used colors', error);
-      setKitColors(previous);
-      Alert.alert(t('error'), t('saveFailed'));
+      const result = await reorderUsedColors(repository, previous, next);
+      if (!result.ok) {
+        console.error('KitUsedColorsPanel: failed to reorder used colors', result.error);
+        setKitColors(result.colors);
+        Alert.alert(t('error'), t('saveFailed'));
+      }
     } finally {
       setOrderSaving(false);
     }
