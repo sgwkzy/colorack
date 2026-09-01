@@ -13,8 +13,8 @@ export class PaintReferencedByColorError extends Error {
 
 async function assertPaintNotReferenced(db: ReturnType<typeof getDB>, paintId: number): Promise<void> {
   const reference = await db.getFirstAsync(
-    'SELECT 1 WHERE EXISTS (SELECT 1 FROM kit_color_paints WHERE paint_id = ?) OR EXISTS (SELECT 1 FROM mix_recipe_paints WHERE paint_id = ?)',
-    [paintId, paintId]
+    'SELECT 1 WHERE EXISTS (SELECT 1 FROM kit_color_paints WHERE paint_id = ?) OR EXISTS (SELECT 1 FROM mix_recipe_paints WHERE paint_id = ?) OR EXISTS (SELECT 1 FROM kit_wishlist_color_paints WHERE paint_id = ?)',
+    [paintId, paintId, paintId]
   );
   if (reference) throw new PaintReferencedByColorError();
 }
@@ -25,13 +25,15 @@ export async function resetCatalogToMaster(): Promise<void> {
   const db = getDB();
   await db.withExclusiveTransactionAsync(async (tx) => {
     const reference = await tx.getFirstAsync(
-      "SELECT 1 WHERE EXISTS (SELECT 1 FROM kit_color_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')) OR EXISTS (SELECT 1 FROM mix_recipe_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual'))"
+      "SELECT 1 WHERE EXISTS (SELECT 1 FROM kit_color_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')) OR EXISTS (SELECT 1 FROM mix_recipe_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')) OR EXISTS (SELECT 1 FROM kit_wishlist_color_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual'))"
     );
     if (reference) throw new PaintReferencedByColorError();
     await tx.runAsync("DELETE FROM inventory WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
     await tx.runAsync("DELETE FROM lists WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
     await tx.runAsync("DELETE FROM kit_color_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
     await tx.runAsync('DELETE FROM kit_colors WHERE id NOT IN (SELECT DISTINCT kit_color_id FROM kit_color_paints)');
+    await tx.runAsync("DELETE FROM kit_wishlist_color_paints WHERE paint_id IN (SELECT id FROM catalog_paints WHERE source = 'manual')");
+    await tx.runAsync('DELETE FROM kit_wishlist_colors WHERE id NOT IN (SELECT DISTINCT wishlist_color_id FROM kit_wishlist_color_paints)');
     await tx.runAsync("DELETE FROM catalog_paints WHERE source = 'manual'");
   });
   await upsertCatalogFromSeed(db);
@@ -54,7 +56,7 @@ export async function applyCatalogUpdate(rows: SeedRow[], version: number): Prom
       );
       await db.runAsync('INSERT INTO catalog_update_codes (catalog_code) VALUES (?)', [code]);
     }
-    await db.execAsync("DELETE FROM catalog_paints WHERE source = 'catalog' AND catalog_code NOT IN (SELECT catalog_code FROM catalog_update_codes) AND id NOT IN (SELECT paint_id FROM inventory) AND id NOT IN (SELECT paint_id FROM lists) AND id NOT IN (SELECT paint_id FROM kit_color_paints) AND id NOT IN (SELECT paint_id FROM mix_recipe_paints)");
+    await db.execAsync("DELETE FROM catalog_paints WHERE source = 'catalog' AND catalog_code NOT IN (SELECT catalog_code FROM catalog_update_codes) AND id NOT IN (SELECT paint_id FROM inventory) AND id NOT IN (SELECT paint_id FROM lists) AND id NOT IN (SELECT paint_id FROM kit_color_paints) AND id NOT IN (SELECT paint_id FROM kit_wishlist_color_paints) AND id NOT IN (SELECT paint_id FROM mix_recipe_paints)");
     await setSetting('catalog_applied_version', String(version));
     await db.execAsync(`PRAGMA user_version = ${version}`);
   });
@@ -69,6 +71,8 @@ export async function deletePaint(paintId: number): Promise<void> {
     await tx.runAsync('DELETE FROM lists WHERE paint_id = ?', [paintId]);
     await tx.runAsync('DELETE FROM kit_color_paints WHERE paint_id = ?', [paintId]);
     await tx.runAsync('DELETE FROM kit_colors WHERE id NOT IN (SELECT DISTINCT kit_color_id FROM kit_color_paints)');
+    await tx.runAsync('DELETE FROM kit_wishlist_color_paints WHERE paint_id = ?', [paintId]);
+    await tx.runAsync('DELETE FROM kit_wishlist_colors WHERE id NOT IN (SELECT DISTINCT wishlist_color_id FROM kit_wishlist_color_paints)');
     await tx.runAsync('DELETE FROM catalog_paints WHERE id = ?', [paintId]);
   });
 }

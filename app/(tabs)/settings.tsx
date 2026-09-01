@@ -162,6 +162,8 @@ export default function SettingsScreen() {
     const db = getDB();
     const photos = await db.getAllAsync<{ uri: string }>('SELECT uri FROM kit_wishlist_photos');
     await db.withTransactionAsync(async () => {
+      await db.runAsync('DELETE FROM kit_wishlist_color_paints');
+      await db.runAsync('DELETE FROM kit_wishlist_colors');
       await db.runAsync('DELETE FROM kit_wishlist_photos');
       await db.runAsync('DELETE FROM kit_wishlist');
     });
