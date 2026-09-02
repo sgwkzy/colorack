@@ -4,11 +4,12 @@ export interface KitPhoto {
   id: number;
   uri: string;
   sort_order: number;
+  storage_path: string | null;
 }
 
 export async function getKitPhotos(kitId: number): Promise<KitPhoto[]> {
   return getDB().getAllAsync<KitPhoto>(
-    'SELECT id, uri, sort_order FROM kit_photos WHERE kit_id = ? ORDER BY sort_order, id',
+    'SELECT id, uri, sort_order, storage_path FROM kit_photos WHERE kit_id = ? ORDER BY sort_order, id',
     [kitId]
   );
 }

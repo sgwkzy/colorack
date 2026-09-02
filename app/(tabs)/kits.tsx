@@ -18,6 +18,9 @@ import KitDetailModal from '../../components/KitDetailModal';
 import KitFilterModal, { KitFilter } from '../../components/KitFilterModal';
 import ListActionBar, { ListToolbar } from '../../components/ListActionBar';
 import { deleteKitPhoto } from '../../lib/kitPhoto';
+import { useModalLock } from '../../lib/modalLock';
+import RestoreToBoxModal from '../../components/RestoreToBoxModal';
+import { acquireBoxSelectionLock, loadBoxSelectionPlan, withBoxSelectionLock } from '../../lib/boxSelection';
 
 interface CountRow { n: number; }
 
@@ -54,7 +57,12 @@ const KIT_SORT_ORDER: Record<KitSort, string> = {
   maker: 'maker ASC, name ASC',
 };
 
-export function KitsScreen({ completedScreen = false, wishlistScreen = false }: { completedScreen?: boolean; wishlistScreen?: boolean }) {
+export function kitListStatusAction(status: KitStatus): { kind: 'restore' } | { kind: 'update'; status: KitStatus } {
+  if (status === 'completed') return { kind: 'restore' };
+  return { kind: 'update', status: status === 'building' ? 'not_started' : 'building' };
+}
+
+export function KitsScreen({ completedScreen = false }: { completedScreen?: boolean }) {
   const locale = useLocale();
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -71,17 +79,22 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
   const [showFilter, setShowFilter] = useState(false);
   const [detailKitId, setDetailKitId] = useState<number | null>(null);
   const [defaultBoxId, setDefaultBoxId] = useState<number | null>(null);
+  const [boxes, setBoxes] = useState<{ id: number; name: string }[]>([]);
+  const [restoreItem, setRestoreItem] = useState<KitListItem | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const restoreBusyRef = useRef(false);
+  const restoreRequestRef = useRef(false);
   const [actionSheet, setActionSheet] = useState<{ title?: string; message?: string; buttons: ActionSheetButton[] } | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
   const loadVersionRef = useRef(0);
 
   useEffect(() => {
-    if (completedScreen || wishlistScreen) return;
+    if (completedScreen) return;
     const requested = boxId === 'all' ? 'all' : Number(boxId);
     if (requested === 'all' || (Number.isInteger(requested) && requested > 0)) setSelected(requested);
-  }, [boxId, completedScreen, wishlistScreen]);
+  }, [boxId, completedScreen]);
 
-  useEffect(() => { if (!completedScreen && !wishlistScreen) setActiveKitBox(selected); }, [completedScreen, wishlistScreen, selected]);
+  useEffect(() => { if (!completedScreen) setActiveKitBox(selected); }, [completedScreen, selected]);
 
   // 実際にこの画面が表示された時点で、起動時復元先とドロワーのモードを常に一致させる。
   useFocusEffect(useCallback(() => {
@@ -91,8 +104,8 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
 
   useEffect(() => {
     let cancelled = false;
-    if (completedScreen || wishlistScreen) {
-      navigation.setOptions({ title: t(completedScreen ? 'completedKits' : 'kitWishlist') });
+    if (completedScreen) {
+      navigation.setOptions({ title: t('completedKits') });
       return;
     }
     if (selected === 'all') {
@@ -105,28 +118,36 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
       if (!cancelled && box) { navigation.setOptions({ title: box.name }); router.setParams({ boxName: box.name }); }
     });
     return () => { cancelled = true; };
-  }, [completedScreen, wishlistScreen, locale, navigation, selected]);
+  }, [completedScreen, locale, navigation, selected]);
 
-  useEffect(() => { getDefaultKitBoxId().then(setDefaultBoxId); }, []);
+  useFocusEffect(useCallback(() => {
+    Promise.all([
+      getDefaultKitBoxId(),
+      getDB().getAllAsync<{ id: number; name: string }>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id'),
+    ]).then(([defaultId, nextBoxes]) => {
+      setDefaultBoxId(defaultId);
+      setBoxes(nextBoxes);
+    }).catch((error) => console.error('kits: failed to load Boxes', error));
+  }, []));
+
+  useModalLock(!!restoreItem);
 
   const load = useCallback(async (sel: Selected, sf: KitStatus[], f: KitFilter, sortBy: KitSort) => {
     const loadVersion = ++loadVersionRef.current;
     const db = getDB();
-    const totalWhere = completedScreen || wishlistScreen || sel === 'all' ? '' : ' AND box_id = ?';
-    const totalArgs = completedScreen || wishlistScreen || sel === 'all' ? [] : [sel];
+    const totalWhere = completedScreen || sel === 'all' ? '' : ' AND box_id = ?';
+    const totalArgs = completedScreen || sel === 'all' ? [] : [sel];
     const where: string[] = [];
     const args: (string | number)[] = [];
 
-    if (wishlistScreen) {
-      where.push('id IN (SELECT kit_id FROM kit_lists)');
-    } else if (sf.length === 0) {
+    if (sf.length === 0) {
       where.push('1 = 0'); // 全OFFなら該当なし
     } else {
       where.push(`status IN (${sf.map(() => '?').join(',')})`);
       args.push(...sf);
     }
 
-    if (!completedScreen && !wishlistScreen && sel !== 'all') { where.push('box_id = ?'); args.push(sel); }
+    if (!completedScreen && sel !== 'all') { where.push('box_id = ?'); args.push(sel); }
 
     if (f.makers.length) { where.push(`maker IN (${f.makers.map(() => '?').join(',')})`); args.push(...f.makers); }
     if (f.series.length) { where.push(`series IN (${f.series.map(() => '?').join(',')})`); args.push(...f.series); }
@@ -134,9 +155,7 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
     if (f.scales.length) { where.push(`scale IN (${f.scales.map(() => '?').join(',')})`); args.push(...f.scales); }
     if (f.search.trim()) { where.push('name LIKE ?'); args.push(`%${f.search.trim()}%`); }
 
-    const orderBy = wishlistScreen && sortBy === 'added'
-      ? '(SELECT added_at FROM kit_lists WHERE kit_id = kits.id) DESC'
-      : KIT_SORT_ORDER[sortBy];
+    const orderBy = KIT_SORT_ORDER[sortBy];
     const sql =
       'SELECT id, name, maker, scale, status,'
       + ' (SELECT uri FROM kit_photos WHERE kit_id = kits.id ORDER BY sort_order, id LIMIT 1) AS thumb_uri'
@@ -144,9 +163,9 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
       + ' ORDER BY ' + orderBy;
 
     const [totalRow, nextFilterOptions, nextItems] = await Promise.all([
-      db.getFirstAsync<CountRow>(wishlistScreen ? 'SELECT COUNT(*) AS n FROM kit_lists' : "SELECT COUNT(*) AS n FROM kits WHERE status IN ('not_started','building')" + totalWhere, wishlistScreen ? [] : totalArgs),
+      db.getFirstAsync<CountRow>("SELECT COUNT(*) AS n FROM kits WHERE status IN ('not_started','building')" + totalWhere, totalArgs),
       db.getAllAsync<{ maker: string; series: string | null; category: string | null; scale: string | null }>(
-        wishlistScreen ? 'SELECT DISTINCT maker, series, category, scale FROM kits WHERE id IN (SELECT kit_id FROM kit_lists)' : 'SELECT DISTINCT maker, series, category, scale FROM kits'
+        'SELECT DISTINCT maker, series, category, scale FROM kits'
       ),
       db.getAllAsync<KitListItem>(sql, args),
     ]);
@@ -154,17 +173,56 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
     setKitTotal(totalRow?.n ?? 0);
     setFilterOptions(nextFilterOptions);
     setItems(nextItems);
-  }, [completedScreen, wishlistScreen]);
+  }, [completedScreen]);
 
   useFocusEffect(useCallback(() => { load(selected, statuses, filter, sort); }, [load, selected, statuses, filter, sort]));
 
   const reload = () => load(selected, statuses, filter, sort);
 
+  const restoreToBox = async (item: KitListItem, boxId: number) => {
+    if (!acquireBoxSelectionLock(restoreBusyRef)) return;
+    setRestoreBusy(true);
+    try {
+      await setKitStatus(item.id, 'not_started', boxId);
+      setRestoreItem(null);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      reload();
+    } catch (error) {
+      console.error('kits: failed to restore completed kit', error);
+      Alert.alert(t('error'), t('saveFailed'));
+    } finally {
+      restoreBusyRef.current = false;
+      setRestoreBusy(false);
+    }
+  };
+
   // 未着手⇄制作中 トグル(完成品画面では完成→未着手に戻す)。塗料の在庫⇄使用中トグルと同じ挙動。
   const toggleKitStatus = async (item: KitListItem) => {
+    const action = kitListStatusAction(item.status);
+    if (action.kind === 'restore') {
+      await withBoxSelectionLock(restoreRequestRef, async () => {
+        let selection;
+        try {
+          selection = await loadBoxSelectionPlan(() => getDB().getAllAsync<{ id: number; name: string }>('SELECT id, name FROM kit_boxes ORDER BY sort_order, id'));
+          setBoxes(selection.boxes);
+        } catch (error) {
+          console.error('kits: failed to reload Boxes', error);
+          Alert.alert(t('error'), t('loadFailed'));
+          return;
+        }
+        const { plan } = selection;
+        if (plan.kind === 'unavailable') {
+          Alert.alert(t('error'), t('noKitBoxAvailable'));
+        } else if (plan.kind === 'direct') {
+          await restoreToBox(item, plan.boxId);
+        } else {
+          setRestoreItem(item);
+        }
+      });
+      return;
+    }
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    if (item.status === 'completed') { await setKitStatus(item.id, 'not_started'); reload(); return; }
-    await setKitStatus(item.id, item.status === 'building' ? 'not_started' : 'building');
+    await setKitStatus(item.id, action.status);
     reload();
   };
 
@@ -192,21 +250,14 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
     ]);
   };
 
-  const removeWishlistItem = async (item: KitListItem) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    swipeRefs.current.get(item.id)?.close();
-    await getDB().runAsync('DELETE FROM kit_lists WHERE kit_id = ?', [item.id]);
-    reload();
-  };
-
   const renderDeleteAction = () => <View style={styles.deleteAction}><Text style={styles.swipeActionText}>{t('delete')}</Text></View>;
   const renderCompleteAction = () => <View style={styles.completeAction}><Text style={styles.swipeActionText}>{t('statusCompleted')}</Text></View>;
 
   const statusDefault = completedScreen
     ? statuses.length === 1 && statuses[0] === 'completed'
-    : wishlistScreen || (statuses.length === 2 && statuses.includes('not_started') && statuses.includes('building'));
+    : statuses.length === 2 && statuses.includes('not_started') && statuses.includes('building');
   const filterActive = !statusDefault || filter.makers.length > 0 || filter.series.length > 0 || filter.categories.length > 0 || filter.scales.length > 0 || filter.search.trim() !== '';
-  const trulyEmpty = completedScreen || wishlistScreen ? items.length === 0 : !filterActive && statusDefault && kitTotal === 0;
+  const trulyEmpty = completedScreen ? items.length === 0 : !filterActive && statusDefault && kitTotal === 0;
   const emptyMessage = trulyEmpty ? t('emptyKits') : t('noResults');
 
   const openSort = () => {
@@ -238,19 +289,33 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
           <Swipeable
             ref={(ref) => { if (ref) swipeRefs.current.set(item.id, ref); else swipeRefs.current.delete(item.id); }}
             renderRightActions={renderDeleteAction}
-            renderLeftActions={completedScreen || wishlistScreen ? undefined : renderCompleteAction}
+            renderLeftActions={completedScreen ? undefined : renderCompleteAction}
             onSwipeableOpen={(direction) => {
               if (direction === 'right') {
-                if (wishlistScreen) removeWishlistItem(item);
-                else deleteKitItem(item);
-              } else if (!wishlistScreen) completeKit(item);
+                deleteKitItem(item);
+              } else {
+                completeKit(item);
+              }
             }}
             onSwipeableWillOpen={() => swipeRefs.current.forEach((swipeable, id) => { if (id !== item.id) swipeable.close(); })}
             overshootRight={false}
             overshootLeft={false}
           >
           <View style={styles.row}>
-            <TouchableOpacity style={styles.rowPress} onPress={() => setDetailKitId(item.id)} accessibilityRole="button">
+            <TouchableOpacity
+              style={styles.rowPress}
+              onPress={() => setDetailKitId(item.id)}
+              accessibilityRole="button"
+              accessibilityLabel={item.name}
+              accessibilityActions={[
+                { name: 'delete', label: t('delete') },
+                ...(!completedScreen ? [{ name: 'complete', label: t('statusCompleted') }] : []),
+              ]}
+              onAccessibilityAction={({ nativeEvent }) => {
+                if (nativeEvent.actionName === 'delete') deleteKitItem(item);
+                if (nativeEvent.actionName === 'complete' && !completedScreen) void completeKit(item);
+              }}
+            >
               {item.thumb_uri ? (
                 <Image source={{ uri: item.thumb_uri }} style={styles.thumb} resizeMode="cover" />
               ) : (
@@ -271,6 +336,7 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
               hitSlop={6}
               accessibilityRole="button"
               accessibilityLabel={t(STATUS_LABEL_KEYS[item.status])}
+              accessibilityHint={item.status === 'completed' ? t('restoreToBoxMessage') : undefined}
             >
               <Text style={[styles.statusBadgeText, { color: item.status === 'completed' ? colors.usedUp : (item.status === 'building' ? colors.inUse : colors.primaryText) }]}>{t(STATUS_LABEL_KEYS[item.status])}</Text>
             </TouchableOpacity>
@@ -294,16 +360,15 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
         options={filterOptions}
         initial={filter}
         onApply={(f) => { setFilter(f); setShowFilter(false); }}
-        statusOptions={completedScreen || wishlistScreen ? undefined : STATUS_TOGGLES.map((option) => ({ value: option.key, label: t(option.label) }))}
-        initialStatuses={completedScreen || wishlistScreen ? undefined : statuses}
-        onApplyStatuses={completedScreen || wishlistScreen ? undefined : setStatuses}
+        statusOptions={completedScreen ? undefined : STATUS_TOGGLES.map((option) => ({ value: option.key, label: t(option.label) }))}
+        initialStatuses={completedScreen ? undefined : statuses}
+        onApplyStatuses={completedScreen ? undefined : setStatuses}
         onClose={() => setShowFilter(false)}
       />
 
       <AddKitModal
         visible={showAdd}
-        defaultBoxId={completedScreen || wishlistScreen || selected === 'all' ? defaultBoxId : selected}
-        addToWishlist={wishlistScreen}
+        defaultBoxId={completedScreen || selected === 'all' ? defaultBoxId : selected}
         onClose={() => { setShowAdd(false); reload(); }}
       />
       <KitDetailModal
@@ -311,6 +376,13 @@ export function KitsScreen({ completedScreen = false, wishlistScreen = false }: 
         kitId={detailKitId}
         onClose={() => setDetailKitId(null)}
         onChanged={reload}
+      />
+      <RestoreToBoxModal
+        visible={!!restoreItem}
+        boxes={boxes}
+        busy={restoreBusy}
+        onChoose={(boxId) => { if (restoreItem) void restoreToBox(restoreItem, boxId); }}
+        onCancel={() => setRestoreItem(null)}
       />
       <ActionSheet
         visible={!!actionSheet}
@@ -333,7 +405,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   statusBarWrap: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
   statusCount: { color: colors.text, fontSize: 15, fontVariant: ['tabular-nums'] },
   list: { paddingBottom: 104 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surface },
   rowPress: { flex: 1, minHeight: touch.min, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   thumb: { width: 48, height: 48, borderRadius: radius.sm },
   thumbPlaceholder: { width: 48, height: 48, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },

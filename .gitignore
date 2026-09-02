@@ -34,6 +34,11 @@ yarn-error.*
 .env
 .env*.local
 
+# Firebase config (contains API keys, project is public — keep local-only,
+# EAS builds pick it up from the local working directory)
+google-services.json
+GoogleService-Info.plist
+
 # generated catalog crawl data
 data/
 

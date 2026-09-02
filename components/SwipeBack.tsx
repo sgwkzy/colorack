@@ -18,7 +18,7 @@ export default function SwipeBack({ enabled, onBack, children }: Props) {
         enabled={enabled}
         activeOffsetX={20}
         failOffsetY={[-15, 15]}
-        hitSlop={{ left: -32 }}
+        hitSlop={{ left: 0, width: 32 }}
         onHandlerStateChange={onStateChange}
       >
         <View style={{ flex: 1 }}>{children}</View>

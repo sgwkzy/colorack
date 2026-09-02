@@ -40,14 +40,18 @@ npm start
 
 ## カタログデータの更新
 
-塗料カタログは `data/official_catalog.sqlite3`(クロール結果、git管理外)を元に生成しています。
+塗料カタログの正規データはcatalogプロジェクトで管理します。この開発プロジェクトには、catalogプロジェクトで検証・生成したシードをレビュー済みの変更として取り込みます。シードを生成するときはcatalogプロジェクトのルートで実行してください。
 
 ```bash
-python scripts/crawl_official_catalog.py   # 各メーカーサイトをクロールして official_catalog.sqlite3 を更新
-python scripts/generate_seed_catalog.py    # official_catalog.sqlite3 から assets/seed_catalog.json を再生成
+# catalogプロジェクトのルートで実行
+cd ../catalog
+python scripts/validate_catalog.py data/db/official_catalog.sqlite3
+python scripts/generate_seed_catalog.py    # dist/seed_catalog.json を生成
 ```
 
-シード内容を変更したら `lib/db.ts` の `SEED_VERSION` を上げてください(既存端末でも再シードされます)。
+生成された `dist/seed_catalog.json` は、この開発プロジェクトの `assets/seed_catalog.json` へレビュー済みの変更として取り込みます。配布用DBの公開は [`catalog-release-runbook.md`](docs/catalog-release-runbook.md) に従います。
+
+シード内容を変更したら `lib/db/types.ts` の `SEED_VERSION` を上げてください(既存端末でも再シードされます)。
 
 `catalog_paints` の内部一意キーは `catalog_code`(= `brand|series|code`)。品番(`code`)は
 ブランドをまたいで重複する上、同一ブランド内でもシリーズをまたいで再利用される
@@ -59,12 +63,13 @@ python scripts/generate_seed_catalog.py    # official_catalog.sqlite3 から ass
 
 - `app/` — expo-router の画面(タブ: 保管箱/お気に入り/買い物リスト/設定)
 - `components/` — 塗料追加フロー(手動登録/階層ブラウズ/テキスト検索/近似色検索/カメラ)、各種モーダル
-- `lib/` — DB(`db.ts`)、色変換(`color.ts`)、i18n(`i18n.ts`)、ラベル表示ヘルパー
-- `scripts/` — カタログクロール・シード生成用の Python スクリプト
-- `data/` — クロール生成物(git管理外)
+- `lib/` — DB(`db/`)、色変換(`color.ts`)、i18n(`i18n.ts`)、ラベル表示ヘルパー
+- `scripts/` — カタログ配布・シード生成用の Python スクリプト
+- `data/` — カタログ生成時のローカル入力(git管理外)
 - `docs/privacy.html` — ストア掲載用プライバシーポリシー(GitHub Pagesで公開: https://sgwkzy.github.io/colorack/privacy.html)
 
-## アプリのビルド・ストア提出
+## アプリリリース
 
-iOS / Android のリリースは [`docs/app-release-runbook.md`](docs/app-release-runbook.md) に従う。
-バージョン変更はDEV、承認済みコミットのビルドとSubmitはOPSで行う。
+バージョン確認、ビルド前検証、既存端末の移行確認、TestFlight／Google Play内部テスト、
+ストア公開の承認境界は [アプリリリース手順](docs/app-release-runbook.md) に集約しています。
+本番ビルド・ストア提出・公開は、手順書に記載したOPS担当の承認を得て実施してください。

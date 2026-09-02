@@ -4,6 +4,7 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { logEvent } from '../../lib/analytics';
 import { getDB, getListMembership, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
@@ -44,13 +45,17 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const childRequestCloseRef = useRef<() => void>(onClose);
+  const detailRequestCloseRef = useRef<() => void>(() => setDetailPaintId(null));
 
   const isInventory = defaultStatus !== 'favorites' && defaultStatus !== 'wishlist';
 
   // 追加後はモーダルを閉じず、追加した旨を一時表示(連続登録できるように)。
   // opts は手動登録で在庫ステータス/ボックスを個別指定するとき使う。
   const addToInventory = async (paint: Paint, opts?: { status?: PaintStatus; boxId?: number | null }) => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
     const db = getDB();
@@ -66,35 +71,44 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
         'INSERT OR IGNORE INTO lists (type, paint_id) VALUES (?, ?)',
         [defaultStatus, paint.id]
       );
+      logEvent('add_to_list', { list_type: defaultStatus, action: 'add' });
     } else {
       await db.runAsync(
         'INSERT INTO inventory (paint_id, status, box_id) VALUES (?, ?, ?)',
         [paint.id, opts?.status ?? defaultStatus, (opts?.status ?? defaultStatus) === 'used_up' ? null : (opts?.boxId !== undefined ? opts.boxId : boxId)]
       );
+      logEvent('add_to_inventory', { source: tab, brand: paint.brand });
     }
     setToast(paintName(paint.name_ja, paint.name_en) + t('addedToast'));
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 1800);
-    } finally { setBusy(false); }
+    } finally { busyRef.current = false; setBusy(false); }
   };
 
-  // このモーダルは開いたまま、色詳細を別モーダルとして重ねて表示する。
+  // このモーダルは開いたまま、色詳細を埋め込み画面として表示する。
   // 一覧に戻ってきて別の色をまた見る、を繰り返しやすくするため。
   const viewPaintDetail = (paint: Paint) => setDetailPaintId(paint.id);
+  const requestClose = () => {
+    if (detailPaintId != null) {
+      detailRequestCloseRef.current();
+      return;
+    }
+    if (tab === 'hierarchy' || tab === 'manual') {
+      childRequestCloseRef.current();
+      return;
+    }
+    onClose();
+  };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      {/* AndroidではRNのModalが別ウィンドウになるため、app/_layout.tsx の
-          GestureHandlerRootView がここまで届かない。これが無いと
-          SwipeDownHeader の PanGestureHandler がタッチを受け取れず、
-          ヘッダーの下スワイプで閉じられなくなる(iOSでは不要)。 */}
+    <Modal visible={visible} animationType="slide" onRequestClose={requestClose}>
       <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={onClose}>
+          <SwipeDownHeader onClose={requestClose}>
             <View style={styles.header}>
               <Text style={styles.title}>{t('addPaint')}</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel={t('close')}>
+              <TouchableOpacity onPress={requestClose} hitSlop={8} accessibilityLabel={t('close')}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
@@ -115,7 +129,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
             ))}
           </View>
           <View style={styles.content}>
-            {tab === 'hierarchy' && <HierarchyBrowser onSelect={addToInventory} onSelectView={viewPaintDetail} onRequestClose={onClose} />}
+            {tab === 'hierarchy' && <HierarchyBrowser onSelect={addToInventory} onSelectView={viewPaintDetail} onRequestClose={onClose} requestCloseRef={childRequestCloseRef} />}
             {tab === 'textSearch' && <TextSearch onSelect={addToInventory} onSelectView={viewPaintDetail} onRequestClose={onClose} />}
             {tab === 'colorMatch' && <ColorMatcher onSelect={addToInventory} onSelectView={viewPaintDetail} onRequestClose={onClose} />}
             {tab === 'manual' && (
@@ -124,6 +138,8 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
                 showInventory={isInventory}
                 defaultBoxId={boxId}
                 onRequestClose={onClose}
+                visible={visible}
+                requestCloseRef={childRequestCloseRef}
               />
             )}
           </View>
@@ -133,6 +149,8 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
             visible={detailPaintId != null}
             paintId={detailPaintId}
             onClose={() => setDetailPaintId(null)}
+            embedded
+            requestCloseRef={detailRequestCloseRef}
           />
         </SafeAreaView>
       </SafeAreaProvider>

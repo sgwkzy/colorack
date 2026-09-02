@@ -12,6 +12,7 @@ export { getMasterCatalogPaint } from './db/seedCatalog';
 export {
   getOwnedCountMap, getListMembership, removeFromList, type InventoryDetail,
   getInventoryDetail, updateInventoryNote, updateInventoryBox, setInventoryStatus,
+  moveWishlistPaintToBox, undoWishlistPaintMove,
 } from './db/inventory';
 export {
   type KitDetail, getKitDetail, updateKitNote, updateKitName, updateKitMaker,
@@ -19,7 +20,18 @@ export {
   setKitStatus, deleteKit,
 } from './db/kits';
 export { type KitPhoto, getKitPhotos, addKitPhoto, removeKitPhoto, reorderKitPhotos } from './db/kitPhotos';
+export { getMixRecipes, addMixRecipe, updateMixRecipe, removeMixRecipe, reorderMixRecipes } from './db/mixRecipes';
 export {
   type KitColorPaint, type KitColorSummary, getKitColors, addKitColor,
-  updateKitColorName, removeKitColor, reorderKitColors,
+  addKitColorFromSummary, updateKitColor, removeKitColor, reorderKitColors,
 } from './db/kitColors';
+export {
+  type KitWishlistColorSummary, type KitColorPaintInput, getKitWishlistColors,
+  addKitWishlistColor, updateKitWishlistColor, removeKitWishlistColor, reorderKitWishlistColors,
+} from './db/kitWishlistColors';
+export {
+  type KitWishlistItem, type KitWishlistPhoto, type KitWishlistSnapshot, type KitWishlistDraft, getKitWishlistItem, getKitWishlistPhotos,
+  saveKitWishlistItem, addKitWishlistItem,
+  removeKitWishlistItem, restoreKitWishlistItem,
+  moveKitWishlistItemToBox, undoKitWishlistMove,
+} from './db/kitWishlist';

@@ -2,13 +2,14 @@
   "expo": {
     "name": "Colorack",
     "slug": "colorack",
-    "version": "1.1.9",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "buildNumber": "17"
+      "buildNumber": "19",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +25,7 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
       ],
-      "versionCode": 17
+      "versionCode": 18
     },
     "web": {
       "favicon": "./assets/favicon.png"

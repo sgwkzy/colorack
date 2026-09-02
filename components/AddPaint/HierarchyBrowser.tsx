@@ -1,5 +1,5 @@
 // components/AddPaint/HierarchyBrowser.tsx
-import { useEffect, useState, useMemo } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useState, useMemo } from 'react';
 import { View, Text, FlatList, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
@@ -31,8 +31,10 @@ interface Paint {
 interface Props {
   onSelect: (paint: Paint) => void;
   onSelectView: (paint: Paint) => void;
+  selectionOnly?: boolean;
   // 一覧を最上部からさらに引っ張って離した時に親モーダルを閉じる
   onRequestClose?: () => void;
+  requestCloseRef?: MutableRefObject<() => void>;
   // paintType が指定された場合、ブランド/シリーズ/塗料の全階層をその種別のみに絞り込む
   paintType?: string;
 }
@@ -41,7 +43,7 @@ interface Props {
 const ALL = 'ALL';
 type Sort = 'name' | 'code';
 
-export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClose, paintType }: Props) {
+export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly = false, onRequestClose, requestCloseRef, paintType }: Props) {
   const { colors } = useTheme();
   const { listFontSize } = useUiPrefs();
   const styles = useMemo(() => makeStyles(colors, listFontSize), [colors, listFontSize]);
@@ -127,10 +129,15 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
 
   // Androidの戻る: 階層を1つ戻す。最上位ではモーダル側の閉じる処理(onRequestClose)に
   // 委ねる。ここで消費しないと、階層の途中でもモーダルごと閉じてしまう。
-  useAndroidBack(selectedBrand != null, () => {
+  const back = useCallback(() => {
+    if (selectedBrand == null) { onRequestClose?.(); return; }
     if (selectedSeries != null) backFromPaints();
     else setSelectedBrand(null);
-  });
+  }, [onRequestClose, selectedBrand, selectedSeries]);
+  useAndroidBack(selectedBrand != null, back);
+  useEffect(() => {
+    if (requestCloseRef) requestCloseRef.current = back;
+  }, [back, requestCloseRef]);
 
   const q = nameFilter.trim().toLowerCase();
   const shownPaints = q
@@ -149,7 +156,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
           alwaysBounceVertical
         >
           {[ALL, ...brands].map((item) => (
-            <TouchableOpacity key={item} style={[styles.item, item === ALL && styles.allItem]} onPress={() => selectBrand(item)}>
+            <TouchableOpacity accessibilityRole="button" key={item} style={[styles.item, item === ALL && styles.allItem]} onPress={() => selectBrand(item)}>
               <Text style={[styles.itemText, item === ALL && styles.allText]}>{item === ALL ? t('all') : brandLabel(item)}</Text>
               <IconChevronRight color={colors.textPlaceholder} size={18} />
             </TouchableOpacity>
@@ -161,9 +168,9 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
 
   if (!selectedSeries) {
     return (
-      <SwipeBack enabled onBack={() => setSelectedBrand(null)}>
+      <SwipeBack enabled onBack={back}>
       <View style={styles.container}>
-        <TouchableOpacity style={styles.back} onPress={() => setSelectedBrand(null)}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} style={styles.back} onPress={back}>
           <IconChevronLeft color={colors.primary} size={18} />
           <Text style={styles.backText}>{brandLabel(selectedBrand)}</Text>
         </TouchableOpacity>
@@ -173,7 +180,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
           alwaysBounceVertical
         >
           {[{ series: ALL, series_en: null }, ...seriesList].map((item) => (
-            <TouchableOpacity key={item.series} style={[styles.item, item.series === ALL && styles.allItem]} onPress={() => selectSeries(item.series)}>
+            <TouchableOpacity accessibilityRole="button" key={item.series} style={[styles.item, item.series === ALL && styles.allItem]} onPress={() => selectSeries(item.series)}>
               <Text style={[styles.itemText, item.series === ALL && styles.allText]}>{item.series === ALL ? t('all') : seriesLabel(item.series, item.series_en)}</Text>
               <IconChevronRight color={colors.textPlaceholder} size={18} />
             </TouchableOpacity>
@@ -185,10 +192,10 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
   }
 
   return (
-    <SwipeBack enabled onBack={backFromPaints}>
+    <SwipeBack enabled onBack={back}>
     <View style={styles.container}>
       <View style={styles.listHeader}>
-        <TouchableOpacity style={[styles.back, styles.listHeaderBack]} onPress={backFromPaints}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} style={[styles.back, styles.listHeaderBack]} onPress={back}>
           <IconChevronLeft color={colors.primary} size={18} />
           <Text style={styles.backText} numberOfLines={1}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries, paints.find((p) => p.series === selectedSeries)?.series_en)}</Text>
         </TouchableOpacity>
@@ -212,11 +219,15 @@ export default function HierarchyBrowser({ onSelect, onSelectView, onRequestClos
         keyboardShouldPersistTaps="handled"
         keyExtractor={(p) => String(p.id)}
         renderItem={({ item }) => (
-          <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => onSelectView(item)} accessibilityRole={selectionOnly ? 'button' : undefined} accessibilityLabel={selectionOnly ? `${t('add')} ${item.code} ${item.name_ja}` : undefined}>
             <PaintRow paint={item} style={styles.itemPaint} ownedCount={ownedCounts.get(item.id) ?? 0} quietOwnedBadge>
-              <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)} accessibilityLabel={t('add')}>
-                <IconPlus color={colors.primary} size={20} />
-              </TouchableOpacity>
+              {selectionOnly ? (
+                <View pointerEvents="none" style={styles.addBtn}><IconPlus color={colors.primary} size={20} /></View>
+              ) : (
+                <TouchableOpacity style={styles.addBtn} onPress={() => onSelect(item)} accessibilityLabel={t('add')}>
+                  <IconPlus color={colors.primary} size={20} />
+                </TouchableOpacity>
+              )}
             </PaintRow>
           </TouchableOpacity>
         )}
@@ -236,8 +247,8 @@ const makeStyles = (colors: typeof lightColors, listFontSize: ListFontSize) => {
   const ITEM_TEXT_SIZE: Record<ListFontSize, number> = { small: 14, medium: 15, large: 17 };
   return StyleSheet.create({
   container: { flex: 1, justifyContent: 'flex-start' },
-  item: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  itemPaint: { padding: 14 },
+  item: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  itemPaint: { minHeight: touch.min, padding: 14 },
   allItem: { backgroundColor: colors.primarySoft },
   itemText: { flex: 1, fontSize: ITEM_TEXT_SIZE[listFontSize], color: colors.text },
   allText: { color: colors.primaryText, fontWeight: 'bold' },

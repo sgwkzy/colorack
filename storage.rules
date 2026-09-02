@@ -1,0 +1,25 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function accountActive(uid) {
+      return !firestore.exists(
+        /databases/(default)/documents/accountDeletions/$(uid)
+      );
+    }
+
+    function ownsPhotoBackup(uid) {
+      return request.auth != null
+        && request.auth.uid == uid
+        && accountActive(uid)
+        && 'backup_photos' in request.auth.token.get('revenueCatEntitlements', []);
+    }
+
+    match /users/{uid}/kit-photos/{fileName} {
+      allow read: if ownsPhotoBackup(uid);
+      allow create, update: if ownsPhotoBackup(uid)
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType == 'image/jpeg';
+      allow delete: if ownsPhotoBackup(uid);
+    }
+  }
+}

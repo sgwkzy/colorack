@@ -4,7 +4,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as SQLite from 'expo-sqlite';
 import { applyCatalogUpdate, getCatalogAppliedVersion, getSetting, setSetting, SeedRow } from './db';
 
-const MANIFEST_URL = 'https://raw.githubusercontent.com/sgwkzy/colorack/master/catalog-releases/latest.json';
+const MANIFEST_URL = 'https://raw.githubusercontent.com/sgwkzy/colorack/main/catalog-releases/latest.json';
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 8000;
 const MIN_EXPECTED_ROWS = 100;
@@ -21,17 +21,43 @@ export type CatalogManifest = {
 
 export type CatalogUpdateStage = 'downloading' | 'verifying' | 'applying';
 
+export function validateCatalogManifest(value: unknown): CatalogManifest {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('manifest format invalid');
+  }
+  const json = value as Record<string, unknown>;
+  let isValidDownloadUrl = false;
+  try {
+    const url = typeof json.sqlite_url === 'string' ? new URL(json.sqlite_url) : null;
+    isValidDownloadUrl = !!url
+      && url.protocol === 'https:'
+      && url.hostname === 'github.com'
+      && url.username === ''
+      && url.password === '';
+  } catch {
+    isValidDownloadUrl = false;
+  }
+  if (
+    !Number.isInteger(json.version) || (json.version as number) <= 0
+    || !isValidDownloadUrl
+    || typeof json.md5 !== 'string' || !/^[0-9a-f]{32}$/.test(json.md5)
+    || !Number.isInteger(json.size_bytes) || (json.size_bytes as number) <= 0
+    || !Number.isInteger(json.row_count) || (json.row_count as number) < MIN_EXPECTED_ROWS
+    || typeof json.released_at !== 'string' || Number.isNaN(Date.parse(json.released_at))
+    || (json.notes !== undefined && typeof json.notes !== 'string')
+  ) {
+    throw new Error('manifest format invalid');
+  }
+  return json as CatalogManifest;
+}
+
 async function fetchManifest(): Promise<CatalogManifest> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(MANIFEST_URL, { signal: controller.signal });
     if (!res.ok) throw new Error(`manifest fetch failed: HTTP ${res.status}`);
-    const json = await res.json();
-    if (typeof json?.version !== 'number' || typeof json?.sqlite_url !== 'string' || typeof json?.md5 !== 'string') {
-      throw new Error('manifest format invalid');
-    }
-    return json as CatalogManifest;
+    return validateCatalogManifest(await res.json());
   } finally {
     clearTimeout(timeout);
   }

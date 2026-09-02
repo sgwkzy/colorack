@@ -5,7 +5,9 @@ import { useCallback, useState, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconPlus, IconTrash, IconPalette } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
+import { useScreenView } from '../../lib/analytics';
 import { deletePaint, getDB, getOwnedCountMap } from '../../lib/db';
+import { PaintReferencedByColorError } from '../../lib/db/catalog';
 import { t, useLocale } from '../../lib/i18n';
 import { brandLabel } from '../../lib/brands';
 import { paintName, seriesLabel } from '../../lib/paintLabel';
@@ -40,6 +42,8 @@ export default function CatalogScreen() {
   const [editing, setEditing] = useState<EditablePaint | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [detailPaintId, setDetailPaintId] = useState<number | null>(null);
+
+  useScreenView('Catalog');
 
   const loadBrands = useCallback(async () => {
     const db = getDB();
@@ -107,8 +111,17 @@ export default function CatalogScreen() {
       {
         text: t('delete'), style: 'destructive',
         onPress: async () => {
-          await deletePaint(p.id);
-          loadPaints(selectedBrand!, selectedSeries!);
+          try {
+            await deletePaint(p.id);
+            loadPaints(selectedBrand!, selectedSeries!);
+          } catch (e) {
+            if (e instanceof PaintReferencedByColorError) {
+              Alert.alert(t('error'), t('paintReferencedByColor'));
+              return;
+            }
+            console.error('CatalogScreen: failed to delete paint', e);
+            throw e;
+          }
         },
       },
     ]);

@@ -12,6 +12,7 @@
       "distribution": "internal"
     },
     "production": {
+      "environment": "production",
       "env": {
         "EXPO_PUBLIC_ADMOB_APP_ID_IOS": "ca-app-pub-9724024455959596~5547441344",
         "EXPO_PUBLIC_ADMOB_BANNER_AD_UNIT_ID_IOS": "ca-app-pub-9724024455959596/1879659076",

@@ -1,4 +1,4 @@
-const isProductionBuild = process.env.EAS_BUILD_PROFILE === 'production';
+const isProductionBuild = process.env.EAS_BUILD_PROFILE === 'production' && process.env.EAS_BUILD === 'true';
 function env(name, fallback) {
   const value = process.env[name];
   if (value) return value;
@@ -10,6 +10,17 @@ const ADMOB_APP_ID_IOS = env('EXPO_PUBLIC_ADMOB_APP_ID_IOS', 'ca-app-pub-3940256
 const ADMOB_APP_ID_ANDROID = env('EXPO_PUBLIC_ADMOB_APP_ID_ANDROID', 'ca-app-pub-3940256099942544~3347511713');
 const ADMOB_BANNER_AD_UNIT_ID_IOS = env('EXPO_PUBLIC_ADMOB_BANNER_AD_UNIT_ID_IOS', '');
 const ADMOB_BANNER_AD_UNIT_ID_ANDROID = env('EXPO_PUBLIC_ADMOB_BANNER_AD_UNIT_ID_ANDROID', '');
+
+if (isProductionBuild) {
+  env('EXPO_PUBLIC_FIREBASE_WEB_CLIENT_ID', '');
+  if (process.env.EAS_BUILD_PLATFORM === 'ios') {
+    env('EXPO_PUBLIC_REVENUECAT_API_KEY_IOS', '');
+    env('GOOGLE_SERVICE_INFO_PLIST', '');
+  } else if (process.env.EAS_BUILD_PLATFORM === 'android') {
+    env('EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID', '');
+    env('GOOGLE_SERVICES_JSON', '');
+  }
+}
 
 module.exports = ({ config }) => ({
   ...config,
@@ -23,6 +34,7 @@ module.exports = ({ config }) => ({
     ...config.ios,
     supportsTablet: false,
     bundleIdentifier: env('EXPO_PUBLIC_IOS_BUNDLE_IDENTIFIER', 'com.example.colorack'),
+    googleServicesFile: process.env.GOOGLE_SERVICE_INFO_PLIST,
     infoPlist: {
       NSCameraUsageDescription: '塗料の色を読み取るためにカメラを使用します',
       ITSAppUsesNonExemptEncryption: false,
@@ -31,6 +43,7 @@ module.exports = ({ config }) => ({
   android: {
     ...config.android,
     package: env('EXPO_PUBLIC_ANDROID_PACKAGE', 'com.example.colorack'),
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/android-icon-foreground.png',
@@ -60,6 +73,22 @@ module.exports = ({ config }) => ({
       'expo-camera',
       { recordAudioAndroid: false },
     ],
+    'expo-apple-authentication',
+    [
+      'expo-build-properties',
+      {
+        ios: {
+          useFrameworks: 'static',
+          forceStaticLinking: [
+            'RNFBApp',
+            'RNFBAnalytics',
+            'RNFBAuth',
+            'RNFBFirestore',
+            'RNFBStorage',
+          ],
+        },
+      },
+    ],
     [
       'expo-media-library',
       {
@@ -77,6 +106,8 @@ module.exports = ({ config }) => ({
         userTrackingPermission: 'パーソナライズ広告の表示のために使用されます',
       },
     ],
+    '@react-native-firebase/app',
+    '@react-native-google-signin/google-signin',
     [
       'react-native-google-mobile-ads',
       {
