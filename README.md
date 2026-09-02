@@ -44,6 +44,7 @@ npm start
 
 ```bash
 # catalogプロジェクトのルートで実行
+cd ../catalog
 python scripts/validate_catalog.py data/db/official_catalog.sqlite3
 python scripts/generate_seed_catalog.py    # dist/seed_catalog.json を生成
 ```
@@ -63,7 +64,7 @@ python scripts/generate_seed_catalog.py    # dist/seed_catalog.json を生成
 - `app/` — expo-router の画面(タブ: 保管箱/お気に入り/買い物リスト/設定)
 - `components/` — 塗料追加フロー(手動登録/階層ブラウズ/テキスト検索/近似色検索/カメラ)、各種モーダル
 - `lib/` — DB(`db/`)、色変換(`color.ts`)、i18n(`i18n.ts`)、ラベル表示ヘルパー
-- `scripts/` — カタログ配布・シード生成用の Python スクリプト
+- `scripts/` — カタログクロール・シード生成用の Python スクリプト
 - `data/` — カタログ生成時のローカル入力(git管理外)
 - `docs/privacy.html` — ストア掲載用プライバシーポリシー(GitHub Pagesで公開: https://sgwkzy.github.io/colorack/privacy.html)
 
