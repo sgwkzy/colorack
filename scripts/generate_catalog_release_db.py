@@ -10,7 +10,7 @@ duplicated rather than shared, so changes to the bundled seed never
 accidentally affect release builds (and vice versa).
 
 Usage:
-    python scripts/generate_catalog_release_db.py --version 19
+    python scripts/generate_catalog_release_db.py --version <new-version>
 """
 
 from __future__ import annotations

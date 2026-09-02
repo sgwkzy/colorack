@@ -104,8 +104,6 @@ npx eas-cli@latest env:list --environment production
 - `expo-doctor` の警告は、固定している Expo `~54.0.36` との関係を確認して記録する。2026年9月2日時点では Expo `54.0.37`、`expo-constants` `~18.0.14`、`expo-file-system` `~19.0.24` が推奨されるが、候補は `~54.0.36` 系を維持する。警告を消すためだけにExpoやReact Nativeを自動更新しない
 - Production 環境に必要な変数名が存在する（秘密値そのものは出力・記録しない）
 
-今回の `npm audit --omit=dev` は Critical 0、High 14、Moderate 20（合計34件）でした。Expo 57への更新や `expo-router` のメジャー更新を含む提案があるため、この準備では自動修正せず、リリース前にOPS／開発側で影響確認とリスク受容を完了させます。
-
 ## リリース前の手動確認（必須）
 
 本番ビルド・提出へ進む前に、DEVで実施した確認結果と、OPSで確認する結果を分けて記録する。未確認の項目がある場合はリリース候補を承認しない。
