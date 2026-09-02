@@ -40,14 +40,17 @@ npm start
 
 ## カタログデータの更新
 
-塗料カタログは `data/official_catalog.sqlite3`(クロール結果、git管理外)を元に生成しています。
+塗料カタログの正規データはcatalogプロジェクトで管理します。この開発プロジェクトには、catalogプロジェクトで検証・生成したシードをレビュー済みの変更として取り込みます。
 
 ```bash
-python scripts/crawl_official_catalog.py   # 各メーカーサイトをクロールして official_catalog.sqlite3 を更新
-python scripts/generate_seed_catalog.py    # official_catalog.sqlite3 から assets/seed_catalog.json を再生成
+# catalogプロジェクトのルートで実行
+python scripts/validate_catalog.py data/db/official_catalog.sqlite3
+python scripts/generate_seed_catalog.py    # dist/seed_catalog.json を生成
 ```
 
-シード内容を変更したら `lib/db.ts` の `SEED_VERSION` を上げてください(既存端末でも再シードされます)。
+生成された `dist/seed_catalog.json` は、この開発プロジェクトの `assets/seed_catalog.json` へレビュー済みの変更として取り込みます。配布用DBの公開は [`catalog-release-runbook.md`](docs/catalog-release-runbook.md) に従います。
+
+シード内容を変更したら `lib/db/types.ts` の `SEED_VERSION` を上げてください(既存端末でも再シードされます)。
 
 `catalog_paints` の内部一意キーは `catalog_code`(= `brand|series|code`)。品番(`code`)は
 ブランドをまたいで重複する上、同一ブランド内でもシリーズをまたいで再利用される
@@ -59,29 +62,13 @@ python scripts/generate_seed_catalog.py    # official_catalog.sqlite3 から ass
 
 - `app/` — expo-router の画面(タブ: 保管箱/お気に入り/買い物リスト/設定)
 - `components/` — 塗料追加フロー(手動登録/階層ブラウズ/テキスト検索/近似色検索/カメラ)、各種モーダル
-- `lib/` — DB(`db.ts`)、色変換(`color.ts`)、i18n(`i18n.ts`)、ラベル表示ヘルパー
+- `lib/` — DB(`db/`)、色変換(`color.ts`)、i18n(`i18n.ts`)、ラベル表示ヘルパー
 - `scripts/` — カタログクロール・シード生成用の Python スクリプト
-- `data/` — クロール生成物(git管理外)
+- `data/` — カタログ生成時のローカル入力(git管理外)
 - `docs/privacy.html` — ストア掲載用プライバシーポリシー(GitHub Pagesで公開: https://sgwkzy.github.io/colorack/privacy.html)
 
-## Android ビルド・ストア公開
+## アプリリリース
 
-パッケージ名・AdMob ID は `.env`(git管理外)で管理し、`app.config.js` が読み込む。
-EAS のクラウドビルドはローカルの `.env` を見ないため、同じ値を EAS 側にも登録済み
-(`eas env:create --scope project ...`、environment=production)。
-
-```powershell
-. $PROFILE; $env:Path = "$env:APPDATA\npm;$env:Path"
-npx eas-cli build --platform android --profile production --non-interactive
-```
-
-`eas.json` の `cli.appVersionSource` は `local` とし、`app.config.js` の
-`android.versionCode` を手動でインクリメントする運用(EAS のリモート自動採番は
-対話コマンドが必須で自動化しづらいため見送った)。ビルドごとに `versionCode` を
-1つ上げてから実行すること。
-
-ストア掲載アセット(`assets/store-icon-512.png` / `assets/store-feature-graphic.png`)は
-`assets/icon.png` から生成したもの。
-
-Google Play は個人開発者アカウントに「クローズドテストを12人以上・14日間」の
-実施を義務付けており、これを満たすまで本番トラックへは公開できない。
+バージョン確認、ビルド前検証、既存端末の移行確認、TestFlight／Google Play内部テスト、
+ストア公開の承認境界は [アプリリリース手順](docs/app-release-runbook.md) に集約しています。
+本番ビルド・ストア提出・公開は、手順書に記載したOPS担当の承認を得て実施してください。
