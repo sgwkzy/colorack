@@ -40,16 +40,13 @@ npm start
 
 ## カタログデータの更新
 
-塗料カタログの正規データはcatalogプロジェクトで管理します。この開発プロジェクトには、catalogプロジェクトで検証・生成したシードをレビュー済みの変更として取り込みます。シードを生成するときはcatalogプロジェクトのルートで実行してください。
+塗料カタログの正規データはcatalogプロジェクトで管理します。この開発プロジェクトには、catalogプロジェクトで検証・生成したシードをレビュー済みの変更として取り込みます。Colorack側で配布用DBを生成する場合は、検証済みの入力を `data/official_catalog.sqlite3`(git管理外) に用意してから既存スクリプトを実行してください。
 
 ```bash
-# catalogプロジェクトのルートで実行
-cd ../catalog
-python scripts/validate_catalog.py data/db/official_catalog.sqlite3
-python scripts/generate_seed_catalog.py    # dist/seed_catalog.json を生成
+python scripts/generate_seed_catalog.py    # assets/seed_catalog.json を再生成
 ```
 
-生成された `dist/seed_catalog.json` は、この開発プロジェクトの `assets/seed_catalog.json` へレビュー済みの変更として取り込みます。配布用DBの公開は [`catalog-release-runbook.md`](docs/catalog-release-runbook.md) に従います。
+配布用DBの公開は [`catalog-release-runbook.md`](docs/catalog-release-runbook.md) に従います。
 
 シード内容を変更したら `lib/db/types.ts` の `SEED_VERSION` を上げてください(既存端末でも再シードされます)。
 
