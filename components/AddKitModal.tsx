@@ -3,6 +3,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { addKitPhoto, getDB, saveKitWishlistItem } from '../lib/db';
 import { t } from '../lib/i18n';
 import { deleteKitPhoto } from '../lib/kitPhoto';
@@ -142,6 +143,7 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={requestClose}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <SwipeDownHeader onClose={requestClose} enabled={!viewerOpen && !busy}>

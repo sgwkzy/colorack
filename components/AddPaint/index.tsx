@@ -3,6 +3,7 @@ import { useRef, useState, useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { logEvent } from '../../lib/analytics';
 import { getDB, getListMembership, PaintStatus } from '../../lib/db';
 import { t } from '../../lib/i18n';
@@ -101,6 +102,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={requestClose}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
           <SwipeDownHeader onClose={requestClose}>
