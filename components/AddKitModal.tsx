@@ -229,6 +229,7 @@ export default function AddKitModal({ visible, defaultBoxId, saveTarget = 'owned
           </KeyboardAvoidingView>
         </SafeAreaView>
       </SafeAreaProvider>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

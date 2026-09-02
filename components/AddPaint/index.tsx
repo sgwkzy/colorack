@@ -152,6 +152,7 @@ export default function AddPaintModal({ visible, onClose, defaultStatus, boxId =
           />
         </SafeAreaView>
       </SafeAreaProvider>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
