@@ -15,6 +15,7 @@ const revenueCatSecretApiKey = defineSecret('REVENUECAT_SECRET_API_KEY');
 exports.deleteAccount = onRequest(
   {
     region: REGION,
+    cors: ['https://sgwkzy.github.io'],
     secrets: [revenueCatSecretApiKey],
     timeoutSeconds: 120,
   },

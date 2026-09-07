@@ -85,3 +85,7 @@ npx eas-cli build --platform android --profile production --non-interactive
 
 Google Play は個人開発者アカウントに「クローズドテストを12人以上・14日間」の
 実施を義務付けており、これを満たすまで本番トラックへは公開できない。
+
+## 外部アカウント削除ページ
+
+`docs/account-deletion.html` は GitHub Pages 上で Google / Apple OAuth による本人確認を行い、既存の `deleteAccount` Function を呼び出します。公開前に Firebase Authentication で `sgwkzy.github.io` を承認済みドメインへ追加し、Google / Apple プロバイダを有効化してください。Apple は Firebase が指定する `https://colorack-7e436.firebaseapp.com/__/auth/handler` を Return URL として Apple Developer 側にも登録します。
