@@ -1,11 +1,11 @@
 // app/(tabs)/wishlist.tsx
 import { useCallback, useRef, useState, useMemo } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, LayoutAnimation } from 'react-native';
+import { Alert, View, Text, FlatList, TouchableOpacity, StyleSheet, LayoutAnimation } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconShoppingCartPlus } from '@tabler/icons-react-native';
 import { useFocusEffect } from 'expo-router';
 import { logEvent, useScreenView } from '../../lib/analytics';
-import { getDB, getDefaultBoxId } from '../../lib/db';
+import { getDB, moveWishlistPaintToBox, undoWishlistPaintMove } from '../../lib/db';
 import { setAppMode } from '../../lib/appMode';
 import { t, useLocale } from '../../lib/i18n';
 import { paintName } from '../../lib/paintLabel';
@@ -19,6 +19,7 @@ import PaintDetailModal from '../../components/PaintDetailModal';
 import PaintRow from '../../components/PaintRow';
 import Toast from '../../components/Toast';
 import ListActionBar, { ListToolbar } from '../../components/ListActionBar';
+import { boxSelectionPlan } from '../../lib/boxSelection';
 
 interface ListItem {
   id: number;
@@ -32,6 +33,7 @@ interface ListItem {
   paint_type: string | null;
 }
 interface CountRow { n: number; }
+interface BoxChoice { id: number; name: string; }
 
 const EMPTY_FILTER: PaintFilter = { brands: [], series: [], gloss: [], types: [], search: '' };
 
@@ -42,6 +44,10 @@ const SORT_ORDER: Record<Sort, string> = {
   brand: 'c.brand ASC, c.name_ja ASC',
   code: 'c.code COLLATE NOCASE ASC',
 };
+
+function wishlistActionForOpenedSide(direction: 'left' | 'right'): 'move' | 'delete' {
+  return direction === 'right' ? 'delete' : 'move';
+}
 
 export default function WishlistScreen() {
   useLocale(); // ロケール変更で再描画。戻り値は使わない
@@ -147,28 +153,58 @@ export default function WishlistScreen() {
     );
   };
 
-  const markPurchased = async (item: ListItem) => {
+  const moveToBox = async (item: ListItem, boxId: number) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     swipeRefs.current.get(item.id)?.close();
-    const db = getDB();
-    const defaultBoxId = await getDefaultBoxId();
-    const result = await db.runAsync(
-      "INSERT INTO inventory (paint_id, status, box_id) VALUES (?, 'owned', ?)",
-      [item.paint_id, defaultBoxId]
-    );
-    const insertedInventoryId = result.lastInsertRowId;
-    await db.runAsync('DELETE FROM lists WHERE id = ?', [item.id]);
+    let insertedInventoryId: number;
+    try {
+      insertedInventoryId = await moveWishlistPaintToBox(item.id, item.paint_id, boxId);
+    } catch (error) {
+      console.error('WishlistScreen: failed to move paint to Box', error);
+      Alert.alert(t('error'), t('saveFailed'));
+      return;
+    }
     logEvent('wishlist_purchased');
     reload();
     showToast(
       paintName(item.name_ja, item.name_en) + t('purchasedToast'),
       t('undo'),
       async () => {
-        await getDB().runAsync('DELETE FROM inventory WHERE id = ?', [insertedInventoryId]);
-        await getDB().runAsync("INSERT OR IGNORE INTO lists (type, paint_id) VALUES ('wishlist', ?)", [item.paint_id]);
+        try {
+          await undoWishlistPaintMove(insertedInventoryId, item.paint_id);
+        } catch (error) {
+          console.error('WishlistScreen: failed to undo paint move', error);
+          Alert.alert(t('error'), t('saveFailed'));
+          return;
+        }
         reload();
       }
     );
+  };
+
+  const requestMove = async (item: ListItem) => {
+    swipeRefs.current.get(item.id)?.close();
+    let boxes: BoxChoice[];
+    try {
+      boxes = await getDB().getAllAsync<BoxChoice>('SELECT id, name FROM boxes ORDER BY sort_order, id');
+    } catch (error) {
+      console.error('WishlistScreen: failed to load Boxes', error);
+      Alert.alert(t('error'), t('loadFailed'));
+      return;
+    }
+    const plan = boxSelectionPlan(boxes);
+    if (plan.kind === 'unavailable') {
+      Alert.alert(t('error'), t('noBoxAvailable'));
+      return;
+    }
+    if (plan.kind === 'direct') {
+      await moveToBox(item, plan.boxId);
+      return;
+    }
+    setActionSheet({ title: t('targetBox'), buttons: [
+      ...boxes.map((box) => ({ text: box.name, onPress: () => void moveToBox(item, box.id) })),
+      { text: t('cancel'), style: 'cancel' as const },
+    ] });
   };
 
   const openSort = () => {
@@ -200,8 +236,8 @@ export default function WishlistScreen() {
             overshootRight={false}
             overshootLeft={false}
             renderLeftActions={() => (
-              <View style={styles.purchasedAction}>
-                <Text style={styles.purchasedActionText}>{t('purchased')}</Text>
+              <View style={styles.moveAction}>
+                <Text style={styles.moveActionText}>{t('moveToBox')}</Text>
               </View>
             )}
             renderRightActions={() => (
@@ -210,8 +246,9 @@ export default function WishlistScreen() {
               </View>
             )}
             onSwipeableOpen={(direction) => {
-              if (direction === 'right') deleteItem(item);
-              else markPurchased(item);
+              const action = wishlistActionForOpenedSide(direction);
+              if (action === 'delete') deleteItem(item);
+              else void requestMove(item);
             }}
           >
             <TouchableOpacity onPress={() => setDetailPaintId(item.paint_id)}>
@@ -265,8 +302,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   statusBarWrap: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
   statusCount: { color: colors.text, fontSize: 15, fontVariant: ['tabular-nums'] },
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
-  purchasedAction: { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', width: 96 },
-  purchasedActionText: { color: colors.onPrimary, fontWeight: 'bold' },
+  moveAction: { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', width: 96 },
+  moveActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },
 });

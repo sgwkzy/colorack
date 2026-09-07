@@ -1,22 +1,8 @@
 import { getDB } from './connection';
+import type { ColorMixPaint, ColorMixSummary } from '../colorMixDraft';
 
-export interface KitColorPaint {
-  paint_id: number;
-  ratio: number;
-  sort_order: number;
-  name_ja: string;
-  name_en: string | null;
-  code: string;
-  brand: string;
-  hex: string | null;
-}
-
-export interface KitColorSummary {
-  id: number;
-  name: string | null;
-  note: string | null;
-  paints: KitColorPaint[];
-}
+export type KitColorPaint = ColorMixPaint;
+export type KitColorSummary = ColorMixSummary;
 
 export async function getKitColors(kitId: number): Promise<KitColorSummary[]> {
   const db = getDB();
@@ -25,7 +11,7 @@ export async function getKitColors(kitId: number): Promise<KitColorSummary[]> {
     [kitId]
   );
   const paintRows = await db.getAllAsync<KitColorPaint & { kit_color_id: number }>(
-    'SELECT kcp.kit_color_id, kcp.paint_id, kcp.ratio, kcp.sort_order, c.name_ja, c.name_en, c.code, c.brand, c.hex'
+    'SELECT kcp.kit_color_id, kcp.paint_id, kcp.ratio, kcp.sort_order, c.name_ja, c.name_en, c.code, c.brand, c.series, c.series_en, c.hex, c.paint_type'
     + ' FROM kit_color_paints kcp JOIN catalog_paints c ON kcp.paint_id = c.id'
     + ' WHERE kcp.kit_color_id IN (SELECT id FROM kit_colors WHERE kit_id = ?)'
     + ' ORDER BY kcp.sort_order, kcp.id',
@@ -44,18 +30,23 @@ export async function addKitColor(
   paints: { paintId: number; ratio: number }[]
 ): Promise<void> {
   const db = getDB();
-  await db.withTransactionAsync(async () => {
-    const row = await db.getFirstAsync<{ n: number }>(
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    const kit = await tx.getFirstAsync<{ id: number }>(
+      'SELECT id FROM kits WHERE id = ?',
+      [kitId]
+    );
+    if (!kit) throw new Error('Kit not found');
+    const row = await tx.getFirstAsync<{ n: number }>(
       'SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM kit_colors WHERE kit_id = ?',
       [kitId]
     );
-    const result = await db.runAsync(
+    const result = await tx.runAsync(
       'INSERT INTO kit_colors (kit_id, name, note, sort_order) VALUES (?, ?, ?, ?)',
-      [kitId, name, note, row?.n ?? 0]
+      [kitId, name?.trim() === '' ? null : name, note?.trim() === '' ? null : note, row?.n ?? 0]
     );
     const kitColorId = result.lastInsertRowId;
     for (const [index, p] of paints.entries()) {
-      await db.runAsync(
+      await tx.runAsync(
         'INSERT INTO kit_color_paints (kit_color_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
         [kitColorId, p.paintId, p.ratio, index]
       );
@@ -63,9 +54,38 @@ export async function addKitColor(
   });
 }
 
-export async function updateKitColorName(kitColorId: number, name: string): Promise<void> {
-  const normalized = name.trim() === '' ? null : name;
-  await getDB().runAsync('UPDATE kit_colors SET name = ? WHERE id = ?', [normalized, kitColorId]);
+export async function addKitColorFromSummary(
+  kitId: number,
+  summary: ColorMixSummary,
+): Promise<void> {
+  await addKitColor(
+    kitId,
+    summary.name,
+    summary.note,
+    summary.paints.map((paint) => ({ paintId: paint.paint_id, ratio: paint.ratio })),
+  );
+}
+
+export async function updateKitColor(
+  kitColorId: number,
+  name: string | null,
+  note: string | null,
+  paints: { paintId: number; ratio: number }[],
+): Promise<void> {
+  const db = getDB();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'UPDATE kit_colors SET name = ?, note = ? WHERE id = ?',
+      [name?.trim() === '' ? null : name, note?.trim() === '' ? null : note, kitColorId]
+    );
+    await db.runAsync('DELETE FROM kit_color_paints WHERE kit_color_id = ?', [kitColorId]);
+    for (const [index, paint] of paints.entries()) {
+      await db.runAsync(
+        'INSERT INTO kit_color_paints (kit_color_id, paint_id, ratio, sort_order) VALUES (?, ?, ?, ?)',
+        [kitColorId, paint.paintId, paint.ratio, index]
+      );
+    }
+  });
 }
 
 export async function removeKitColor(kitColorId: number): Promise<void> {

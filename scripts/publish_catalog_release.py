@@ -23,7 +23,7 @@ def main() -> int:
     args = parser.parse_args()
     if subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=ROOT).returncode:
         raise SystemExit("Stage unrelated changes before publishing the catalog.")
-    seed_version = int(re.search(r"SEED_VERSION = (\d+)", (ROOT / "lib" / "db.ts").read_text(encoding="utf-8")).group(1))
+    seed_version = int(re.search(r"SEED_VERSION = (\d+)", (ROOT / "lib" / "db" / "types.ts").read_text(encoding="utf-8")).group(1))
     if args.version <= seed_version:
         raise SystemExit(f"version must be greater than bundled seed version {seed_version}")
 

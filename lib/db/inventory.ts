@@ -26,6 +26,31 @@ export async function removeFromList(paintId: number, type: ListType): Promise<v
   await getDB().runAsync('DELETE FROM lists WHERE paint_id = ? AND type = ?', [paintId, type]);
 }
 
+export async function moveWishlistPaintToBox(listId: number, paintId: number, boxId: number): Promise<number> {
+  let inventoryId = 0;
+  await getDB().withExclusiveTransactionAsync(async (tx) => {
+    const inserted = await tx.runAsync(
+      "INSERT INTO inventory (paint_id, status, box_id) VALUES (?, 'owned', ?)",
+      [paintId, boxId]
+    );
+    const removed = await tx.runAsync(
+      "DELETE FROM lists WHERE id = ? AND type = 'wishlist' AND paint_id = ?",
+      [listId, paintId]
+    );
+    if (removed.changes !== 1) throw new Error('Wishlist item not found');
+    inventoryId = inserted.lastInsertRowId;
+  });
+  return inventoryId;
+}
+
+export async function undoWishlistPaintMove(inventoryId: number, paintId: number): Promise<void> {
+  await getDB().withExclusiveTransactionAsync(async (tx) => {
+    const removed = await tx.runAsync('DELETE FROM inventory WHERE id = ? AND paint_id = ?', [inventoryId, paintId]);
+    if (removed.changes !== 1) throw new Error('Moved inventory item not found');
+    await tx.runAsync("INSERT OR IGNORE INTO lists (type, paint_id) VALUES ('wishlist', ?)", [paintId]);
+  });
+}
+
 export interface InventoryDetail {
   id: number;
   paint_id: number;
@@ -85,10 +110,11 @@ export async function updateInventoryBox(inventoryId: number, boxId: number): Pr
 // boxId 未指定時は従来どおり、ボックス未所属ならデフォルトボックスへ入れる。
 export async function setInventoryStatus(inventoryId: number, status: PaintStatus, boxId?: number): Promise<void> {
   if (status !== 'used_up' && boxId != null) {
-    await getDB().runAsync(
-      "UPDATE inventory SET status = ?, box_id = ?, status_changed_at = datetime('now') WHERE id = ?",
-      [status, boxId, inventoryId]
+    const result = await getDB().runAsync(
+      "UPDATE inventory SET status = ?, box_id = ?, status_changed_at = datetime('now') WHERE id = ? AND EXISTS (SELECT 1 FROM boxes WHERE id = ?)",
+      [status, boxId, inventoryId, boxId]
     );
+    if (result.changes === 0) throw new Error('Inventory or Box not found');
     return;
   }
   const defaultBoxId = status === 'used_up' ? null : await getDefaultBoxId();

@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
+import { useMemo, useRef } from 'react';
+import { Modal, Platform, View, Text, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
 
@@ -24,16 +24,28 @@ interface Props {
 export default function ActionSheet({ visible, title, message, buttons, onClose, onDismiss }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const pendingActionRef = useRef<(() => void) | null>(null);
   const press = (btn: ActionSheetButton) => {
+    if (Platform.OS === 'ios') {
+      pendingActionRef.current = btn.onPress ?? null;
+      onClose();
+      return;
+    }
     onClose();
     btn.onPress?.();
+  };
+  const handleDismiss = () => {
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    onDismiss?.();
+    action?.();
   };
   const mainButtons = buttons.filter((b) => b.style !== 'cancel');
   const cancelButtons = buttons.filter((b) => b.style === 'cancel');
   const hasHeader = !!(title || message);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={handleDismiss}>
       <SafeAreaProvider>
         <Pressable style={styles.backdrop} onPress={onClose}>
           <SafeAreaView edges={['bottom']} style={styles.sheetWrap}>
@@ -51,13 +63,22 @@ export default function ActionSheet({ visible, title, message, buttons, onClose,
                     style={[styles.row, (i > 0 || hasHeader) && styles.rowBorder, b.disabled && styles.disabledRow]}
                     onPress={() => press(b)}
                     disabled={b.disabled}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !!b.disabled }}
                   >
                     <Text style={[styles.rowText, b.style === 'destructive' && styles.destructiveText]}>{b.text}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
               {cancelButtons.map((b, i) => (
-                <TouchableOpacity key={i} style={[styles.card, styles.cancelCard]} onPress={() => press(b)}>
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.card, styles.cancelCard, b.disabled && styles.disabledRow]}
+                  onPress={() => press(b)}
+                  disabled={b.disabled}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !!b.disabled }}
+                >
                   <Text style={styles.cancelText}>{b.text}</Text>
                 </TouchableOpacity>
               ))}

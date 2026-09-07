@@ -1,9 +1,8 @@
 // components/PaintDetailModal.tsx
 // 色詳細(閲覧/編集)モーダル。塗料一覧・塗料追加モーダルの各閲覧タブから共通で開く。
-// モーダル方式にしているのは、呼び出し元(一覧やAddPaintモーダル)を閉じずに
-// 「詳細を見る→戻る→別の色を見る」を繰り返せるようにするため。
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Text, TouchableOpacity, View } from 'react-native';
+// 単体利用ではモーダル、親モーダル内ではembedded画面として表示する。
+import { type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { IconCamera, IconChevronDown, IconChevronLeft, IconHeart, IconPencil, IconShoppingCartPlus, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -24,6 +23,7 @@ import {
   updateCatalogPaintNotes,
   updateManualPaint,
 } from '../lib/db';
+import { PaintReferencedByColorError } from '../lib/db/catalog';
 import { glossLabel } from '../lib/gloss';
 import { t, useLocale } from '../lib/i18n';
 import { paintName, seriesLabel } from '../lib/paintLabel';
@@ -37,6 +37,7 @@ import SwipeBack from './SwipeBack';
 import SwipeDownHeader from './SwipeDownHeader';
 import SwipeDownScrollView from './SwipeDownScrollView';
 import Toast from './Toast';
+import { useAndroidBack } from '../lib/androidBack';
 import { useModalLock } from '../lib/modalLock';
 import { CompactInfo, EditField, ReadonlyField } from './PaintDetail/fields';
 import { makeStyles } from './PaintDetail/styles';
@@ -51,6 +52,13 @@ interface Props {
   onChanged?: () => void; // 保存/リセット/削除で内容が変わった時、呼び出し元に一覧再読み込みを促す
   // trueで開くと最初から編集モードで表示する(色編集ボタンからの遷移用)。
   initialEditing?: boolean;
+  embedded?: boolean;
+  requestCloseRef?: MutableRefObject<() => void>;
+}
+
+function isDuplicateCodeError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('UNIQUE constraint failed: catalog_paints.catalog_code');
 }
 
 function toneColors(hex: string | null): string[] {
@@ -63,8 +71,8 @@ function toneColors(hex: string | null): string[] {
   });
 }
 
-export default function PaintDetailModal({ visible, paintId, onClose, onChanged, initialEditing = false }: Props) {
-  useModalLock(visible);
+export default function PaintDetailModal({ visible, paintId, onClose, onChanged, initialEditing = false, embedded = false, requestCloseRef }: Props) {
+  useModalLock(visible && !embedded);
   const locale = useLocale();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -91,6 +99,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   const [stockStatus, setStockStatus] = useState<StockStatusRow[]>([]);
   const loadVersionRef = useRef(0);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   const master = detail?.source === 'catalog' ? getMasterCatalogPaint(detail.catalog_code) : null;
   const isManual = detail?.source === 'manual';
@@ -166,7 +175,8 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   };
 
   const addToBox = async () => {
-    if (!detail || busy) return;
+    if (!detail || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try { await getDB().runAsync(
       'INSERT INTO inventory (paint_id, status, box_id) VALUES (?, ?, ?)',
@@ -174,11 +184,12 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     );
     showToast(paintName(detail.name_ja, detail.name_en) + t('addedToast'));
     onChanged?.();
-    } finally { setBusy(false); }
+    } finally { busyRef.current = false; setBusy(false); }
   };
 
   const toggleList = async (type: 'favorites' | 'wishlist') => {
-    if (!detail || busy) return;
+    if (!detail || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
     const isMember = membership[type];
@@ -193,11 +204,12 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
     }
     setMembership((m) => ({ ...m, [type]: !isMember }));
     onChanged?.();
-    } finally { setBusy(false); }
+    } finally { busyRef.current = false; setBusy(false); }
   };
 
   const save = async () => {
-    if (!detail || busy) return;
+    if (!detail || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     const pairedNameJa = nameJa.trim() || nameEn.trim();
     const pairedNameEn = nameEn.trim() || nameJa.trim();
@@ -211,8 +223,10 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       await load();
       setIsEditing(false);
       onChanged?.();
-    } catch { Alert.alert(t('inputError'), t('duplicateCodeError')); }
-    finally { setBusy(false); }
+    } catch (error) {
+      Alert.alert(t('inputError'), isDuplicateCodeError(error) ? t('duplicateCodeError') : t('saveFailed'));
+    }
+    finally { busyRef.current = false; setBusy(false); }
   };
 
   const resetToMaster = () => {
@@ -238,15 +252,25 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       {
         text: t('delete'), style: 'destructive',
         onPress: async () => {
-          await deletePaint(detail.id);
-          onChanged?.();
-          onClose();
+          try {
+            await deletePaint(detail.id);
+            onChanged?.();
+            onClose();
+          } catch (e) {
+            if (e instanceof PaintReferencedByColorError) {
+              Alert.alert(t('error'), t('paintReferencedByColor'));
+              return;
+            }
+            console.error('PaintDetailModal: failed to delete paint', e);
+            throw e;
+          }
         },
       },
     ]);
   };
 
   const requestClose = () => {
+    if (busyRef.current) return;
     if (!hasUnsavedChanges) {
       onClose();
       return;
@@ -265,6 +289,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   };
 
   const returnToDetail = () => {
+    if (busyRef.current) return;
     if (!hasUnsavedChanges) {
       setIsEditing(false);
       return;
@@ -280,6 +305,12 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
       },
     ]);
   };
+
+  const back = isEditing ? returnToDetail : requestClose;
+  useAndroidBack(visible && embedded, back);
+  useEffect(() => {
+    if (visible && embedded && requestCloseRef) requestCloseRef.current = back;
+  }, [back, embedded, requestCloseRef, visible]);
 
   const masterLine = (currentValue: string | null, masterValue: string | null | undefined, formatter = (v: string) => v) => {
     if (!master || (currentValue ?? '') === (masterValue ?? '')) return null;
@@ -301,20 +332,39 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   // onRequestClose(Androidの戻る)は SwipeBack と同じ出し分けにする。
   // requestClose だけだと編集中に戻るを押したとき、詳細へ戻らずモーダルごと
   // 閉じてしまう(iOSは端スワイプなので差が出ていなかった)。
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={isEditing ? returnToDetail : requestClose}>
-      <SafeAreaProvider>
-        <SwipeBack enabled={visible} onBack={isEditing ? returnToDetail : requestClose}>
-        <SafeAreaView style={styles.container} edges={['top']}>
-          <SwipeDownHeader onClose={isEditing ? returnToDetail : requestClose}>
+  const screen = (
+    <View style={embedded ? [StyleSheet.absoluteFillObject, { zIndex: 100, elevation: 100 }] : { flex: 1 }}>
+        <SwipeBack enabled={visible && !busy} onBack={back}>
+        <SafeAreaView
+          accessibilityViewIsModal={embedded}
+          style={[styles.container, embedded && StyleSheet.absoluteFillObject, embedded && { zIndex: 100, elevation: 100 }, embedded && { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+          edges={embedded ? [] : ['top']}
+        >
+          <SwipeDownHeader onClose={isEditing ? returnToDetail : requestClose} enabled={!busy}>
             <View style={styles.header}>
               {isEditing ? (
-                <TouchableOpacity style={[styles.headerAction, styles.headerBack]} onPress={returnToDetail} hitSlop={8} accessibilityLabel={t('paintDetailTitle')}>
+                <TouchableOpacity
+                  style={[styles.headerAction, styles.headerBack]}
+                  onPress={returnToDetail}
+                  disabled={busy}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: busy, busy }}
+                  accessibilityLabel={t('paintDetailTitle')}
+                >
                   <IconChevronLeft color={colors.text} size={26} />
                 </TouchableOpacity>
               ) : null}
               <Text style={styles.title}>{isEditing ? t('editPaint') : t('paintDetailTitle')}</Text>
-              <TouchableOpacity style={[styles.headerAction, styles.headerClose]} onPress={requestClose} hitSlop={8} accessibilityLabel={t('close')}>
+              <TouchableOpacity
+                style={[styles.headerAction, styles.headerClose]}
+                onPress={requestClose}
+                disabled={busy}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: busy, busy }}
+                accessibilityLabel={t('close')}
+              >
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
@@ -323,7 +373,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
           {!detail ? (
             <Text style={styles.empty}>{t('noResults')}</Text>
           ) : !isEditing ? (
-            <SwipeDownScrollView style={styles.scroll} onClose={requestClose} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.md }]}>
+            <SwipeDownScrollView style={styles.scroll} onClose={requestClose} closeEnabled={!busy} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.md }]}>
               <View style={styles.colorSpecimen}>
               <View style={[styles.swatch, { backgroundColor: swatchColor }]}>
                 {finish ? (
@@ -426,7 +476,7 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
             </SwipeDownScrollView>
           ) : (
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <SwipeDownScrollView style={styles.scroll} onClose={returnToDetail} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
+            <SwipeDownScrollView style={styles.scroll} onClose={returnToDetail} closeEnabled={!busy} contentContainerStyle={styles.content} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">
               <EditField label={t('nameJa')} value={nameJa} onChangeText={setNameJa} styles={styles} />
               {masterLine(nameJa, master?.name_ja)}
               <EditField label={t('nameEn')} value={nameEn} onChangeText={setNameEn} styles={styles} />
@@ -519,8 +569,10 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
           <ColorCameraPicker visible={colorPickerVisible} onClose={() => setColorPickerVisible(false)} onPick={setHex} />
         </SafeAreaView>
         </SwipeBack>
-      </SafeAreaProvider>
-    </Modal>
+    </View>
   );
+
+  if (embedded) return visible ? screen : null;
+  return <Modal visible={visible} animationType="slide" onRequestClose={back}><SafeAreaProvider>{screen}</SafeAreaProvider></Modal>;
 }
 

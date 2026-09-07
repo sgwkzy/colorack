@@ -5,7 +5,7 @@
 // スクロールと閉じる操作の両方が壊れるため、バウンス量(負のcontentOffset)で判定する。
 // ponytail: バウンスの無いAndroidでは本文からは閉じられない(ヘッダーの
 // SwipeDownHeaderは全OSで有効)。必要になればonScrollでオーバースクロール量を自前計算する。
-import { useRef } from 'react';
+import { forwardRef, useRef } from 'react';
 import { NativeScrollEvent, NativeSyntheticEvent, NativeTouchEvent, ScrollView, ScrollViewProps } from 'react-native';
 
 interface Props extends ScrollViewProps {
@@ -27,7 +27,7 @@ export function swipeDownCloseProps(onClose: () => void): Pick<ScrollViewProps, 
   };
 }
 
-export default function SwipeDownScrollView({ onClose, closeEnabled = true, onScroll, onScrollEndDrag, onTouchEnd, onTouchStart, ...rest }: Props) {
+const SwipeDownScrollView = forwardRef<ScrollView, Props>(function SwipeDownScrollView({ onClose, closeEnabled = true, onScroll, onScrollEndDrag, onTouchEnd, onTouchStart, ...rest }, ref) {
   const startY = useRef<number | null>(null);
   const startOffsetY = useRef(0);
   const offsetY = useRef(0);
@@ -56,5 +56,7 @@ export default function SwipeDownScrollView({ onClose, closeEnabled = true, onSc
     startY.current = null;
     onTouchEnd?.(e);
   };
-  return <ScrollView onScroll={handleScroll} scrollEventThrottle={16} onScrollEndDrag={handleScrollEndDrag} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} {...rest} />;
-}
+  return <ScrollView ref={ref} onScroll={handleScroll} scrollEventThrottle={16} onScrollEndDrag={handleScrollEndDrag} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} {...rest} />;
+});
+
+export default SwipeDownScrollView;

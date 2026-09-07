@@ -51,6 +51,7 @@ function applyEntitlements(active: Record<string, unknown>): Promise<void> {
     // 古い参照を再利用せずローカル写真をすべて再アップロードする。
     if (previousPhotoBackup === '0' && next.hasPhotoBackup) {
       await getDB().runAsync('UPDATE kit_photos SET synced_at = NULL, storage_path = NULL');
+      await getDB().runAsync('UPDATE kit_wishlist_photos SET synced_at = NULL, storage_path = NULL');
     }
     await setSetting(PHOTO_BACKUP_ENTITLED_KEY, next.hasPhotoBackup ? '1' : '0');
     entitlements = next;
@@ -99,6 +100,7 @@ export async function linkSubscriptionUser(uid: string | null): Promise<void> {
     if (!anonymous && currentId === uid) return;
     if (!anonymous) {
       await getDB().runAsync('UPDATE kit_photos SET synced_at = NULL, storage_path = NULL');
+      await getDB().runAsync('UPDATE kit_wishlist_photos SET synced_at = NULL, storage_path = NULL');
     }
     const { customerInfo } = await Purchases.logIn(uid);
     await applyEntitlements(customerInfo.entitlements.active);

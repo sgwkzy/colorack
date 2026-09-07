@@ -2,7 +2,7 @@
 // 複数枚(最大10枚)の写真グリッド。1枚目はサムネイル扱いのため枠線で強調する。
 // 並び替えは左右矢印ボタンで一つずつ移動する方式(キットボックスの並び替えと同じ仕組み)。
 import { useMemo, useState } from 'react';
-import { Image, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { IconChevronLeft, IconChevronRight, IconPlus, IconX } from '@tabler/icons-react-native';
 import { pickKitPhotoFromCamera, pickKitPhotosFromLibrary } from '../lib/kitPhoto';
 import { t } from '../lib/i18n';
@@ -22,6 +22,8 @@ interface Props {
   onMove: (key: string | number, direction: -1 | 1) => void;
   // falseの間は削除・並び替えボタンを隠す(閲覧のみ)。タップでの拡大表示と追加は常に可能。
   editable: boolean;
+  // 保存処理中など、写真に対する操作を一時的にすべて止める。
+  disabled?: boolean;
   // trueの間はタップでの拡大表示を無効化する(削除・並び替えボタンと誤操作しやすいため)。
   // editableとは別軸: キット編集モードでのみ拡大を止めたいが、キット新規作成フォームは
   // 常時editableながら拡大表示は常に使いたいため、同じフラグを使い回さない。
@@ -33,11 +35,10 @@ interface Props {
 
 const MAX_PHOTOS = 10;
 
-export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable, disableTapPreview, onViewerChange }: Props) {
+export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable, disabled = false, disableTapPreview, onViewerChange }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'camera' | 'library' | null>(null);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
   const canAddMore = photos.length < MAX_PHOTOS;
 
@@ -65,25 +66,9 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable
     }
   };
 
-  // iOSでは、ActionSheetのModalが完全に閉じ切る前にカメラ/ギャラリーを起動すると
-  // 出てこないことがある(権限確認が即返る2回目以降で顕在化しやすい)。
-  // そのためiOSではModalのonDismiss(閉じ終わった通知)まで起動を遅らせる。
-  // Androidはこの制約がないため即時実行でよい。
-  const requestAction = (action: 'camera' | 'library') => {
-    if (Platform.OS === 'ios') setPendingAction(action);
-    else runAction(action);
-  };
-
-  const handleSheetDismiss = () => {
-    if (!pendingAction) return;
-    const action = pendingAction;
-    setPendingAction(null);
-    runAction(action);
-  };
-
   const buttons: ActionSheetButton[] = [
-    { text: t('takePhoto'), onPress: () => requestAction('camera') },
-    { text: t('chooseFromLibrary'), onPress: () => requestAction('library') },
+    { text: t('takePhoto'), onPress: () => runAction('camera'), disabled },
+    { text: t('chooseFromLibrary'), onPress: () => runAction('library'), disabled },
     { text: t('cancel'), style: 'cancel' },
   ];
 
@@ -92,16 +77,18 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.grid}>
         {photos.map((photo, index) => (
           <View key={photo.key} style={[styles.tile, index === 0 && styles.thumbnailTile]}>
-            <TouchableOpacity activeOpacity={0.8} disabled={disableTapPreview} onPress={() => openViewer(photo.uri)}>
+            <TouchableOpacity activeOpacity={0.8} disabled={disabled || disableTapPreview} onPress={() => openViewer(photo.uri)}>
               <Image source={{ uri: photo.uri }} style={styles.image} resizeMode="cover" />
             </TouchableOpacity>
             {editable ? (
               <TouchableOpacity
                 style={styles.removeBtn}
                 onPress={() => onRemove(photo.key)}
+                disabled={disabled}
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel={t('removePhoto')}
+                accessibilityState={{ disabled }}
               >
                 <IconX color="#fff" size={14} />
               </TouchableOpacity>
@@ -110,9 +97,11 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable
               <TouchableOpacity
                 style={styles.moveLeftBtn}
                 onPress={() => onMove(photo.key, -1)}
+                disabled={disabled}
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel={t('moveLeft')}
+                accessibilityState={{ disabled }}
               >
                 <IconChevronLeft color="#fff" size={14} />
               </TouchableOpacity>
@@ -121,9 +110,11 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable
               <TouchableOpacity
                 style={styles.moveRightBtn}
                 onPress={() => onMove(photo.key, 1)}
+                disabled={disabled}
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel={t('moveRight')}
+                accessibilityState={{ disabled }}
               >
                 <IconChevronRight color="#fff" size={14} />
               </TouchableOpacity>
@@ -134,8 +125,10 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable
           <TouchableOpacity
             style={styles.tile}
             onPress={() => setPickerOpen(true)}
+            disabled={disabled}
             accessibilityRole="button"
             accessibilityLabel={t('kitPhoto')}
+            accessibilityState={{ disabled }}
           >
             <View style={styles.placeholder}><IconPlus color={colors.textFaint} size={28} /></View>
           </TouchableOpacity>
@@ -146,7 +139,6 @@ export default function KitPhotoGrid({ photos, onAdd, onRemove, onMove, editable
         title={t('kitPhoto')}
         buttons={buttons}
         onClose={() => setPickerOpen(false)}
-        onDismiss={handleSheetDismiss}
       />
       {viewerUri ? <PhotoViewerModal uri={viewerUri} uris={photos.map((photo) => photo.uri)} visible onClose={closeViewer} /> : null}
     </View>

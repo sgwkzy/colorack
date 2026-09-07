@@ -25,8 +25,22 @@
 
 <p>本アプリ「Colorack」（以下「本アプリ」）は、模型塗料の在庫管理を行うiOS/Androidアプリです。本ポリシーは、本アプリが取り扱う情報について説明します。</p>
 
-<h2>収集する情報</h2>
-<p>本アプリは、サインインにGoogleまたはAppleを選択した場合、Firebase Authenticationでアカウント識別子、メールアドレス（Appleの非公開リレーアドレスを含む）および認証情報を処理します。クラウドバックアップを有効にした場合、在庫・キット情報をFirestoreへ保存し、スタンダードプランで写真バックアップを有効にした場合はキット写真をFirebase Storageへ保存します。クラウド機能を使わない場合、在庫データは端末内に保存されます。</p>
+<h2>取り扱う情報</h2>
+<p>本アプリでは、機能の利用状況に応じて次の情報を取り扱います。入力した塗料、在庫、ボックス、キット、使用色、混色レシピ、購入候補などのデータは、基本的に端末内のローカルデータベースへ保存されます。</p>
+
+<h2>アカウントとクラウドバックアップ</h2>
+<p>GoogleまたはAppleによるサインインは任意です。サインインを利用すると、Firebase Authenticationを通じて、アカウント識別子、認証プロバイダ、プロバイダから提供される表示名やメールアドレス（Appleの非公開リレーアドレスを含む）、認証情報等が取り扱われます。</p>
+<p>有料プランに加入し、サインインしたうえでクラウドバックアップを利用する場合、在庫、ボックス、キット、使用色、混色レシピその他のアプリデータがFirebase Firestoreへ保存されます。クラウドバックアップは任意の機能であり、利用しないデータは端末内に保存されます。</p>
+
+<h2>キット写真</h2>
+<p>キット写真や購入候補の写真は端末内に保存されます。写真バックアップを含むStandardプランを利用している場合に限り、長辺を縮小しJPEG圧縮したキット写真や購入候補の写真をFirebase Storageへ保存します。カメラで塗料の色を読み取る処理は端末内で行い、色の読み取りだけを目的に撮影した画像を本アプリから外部へ送信しません。</p>
+
+<h2>サブスクリプションと決済</h2>
+<p>サブスクリプションの購入状態と利用可能な機能の判定にはRevenueCatを利用します。購入処理はApp StoreまたはGoogle Playを通じて行われ、クレジットカード番号などの決済情報を本アプリが取得することはありません。RevenueCatでは、購入状態の確認に必要なアプリユーザー識別子、端末情報、購入・契約情報等が取り扱われます。</p>
+<p>RevenueCatとFirebaseのアカウント連携には、同じアカウントを識別するためのFirebaseユーザー識別子を使用します。</p>
+
+<h2>利用状況の分析</h2>
+<p>本アプリはFirebase Analyticsを利用して、画面表示や機能の利用状況を集計します。Analyticsの利用は本アプリの設定画面から無効にできます。Firebase Analyticsが取り扱う情報については<a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebaseのプライバシーとセキュリティ</a>をご確認ください。</p>
 
 <h2>広告について</h2>
 <p>本アプリはGoogle AdMobを利用して広告を配信しています。AdMobは広告配信のため、広告ID等の情報を収集する場合があります。詳細は下記のGoogleのプライバシーポリシーをご確認ください。</p>
@@ -34,14 +48,19 @@
 <p>広告のパーソナライズ設定は、お使いの端末のOS設定（広告IDのリセット・広告のパーソナライズをオプトアウト等）から変更できます。</p>
 <p>本アプリはFirebase Analyticsも利用します。設定画面で分析を無効にした場合、アプリからのAnalytics収集を停止します。</p>
 
-<h2>カメラの利用</h2>
-<p>本アプリは塗料の色を撮影してHEX値を取得する機能のためにカメラ機能を使用する場合がありますが、撮影した画像を外部に送信することはなく、読み取り処理は端末内で完結します。</p>
+<h2>情報の削除</h2>
+<p>設定画面の「アカウントを削除」または<a href="https://sgwkzy.github.io/colorack/account-deletion.html">公開アカウント削除ページ</a>から、本人確認後にアカウントを削除できます。アカウント削除を実行すると、Firebaseのアカウント、Firestoreに保存されたクラウドバックアップ、RevenueCatの顧客情報、およびFirebase Storageに保存されたキット・購入候補の写真を削除します。端末内のローカルデータは残ります。また、App StoreやGoogle Playのサブスクリプションは自動的には解約されないため、必要に応じて各ストアの設定から解約してください。</p>
+<p>本アプリは、外部サービスにおける保存期間を独自に保証していません。各サービスの取り扱いについては、それぞれのプライバシーポリシーをご確認ください。</p>
+
+<h2>外部サービス</h2>
+<p>本アプリが利用する主な外部サービスのプライバシー情報は、以下をご確認ください。</p>
+<p><a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase プライバシーとセキュリティ</a><br>
+<a href="https://www.revenuecat.com/privacy/" target="_blank" rel="noopener">RevenueCat Privacy Policy</a><br>
+<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google プライバシーポリシー</a><br>
+<a href="https://www.apple.com/legal/privacy/" target="_blank" rel="noopener">Apple プライバシーポリシー</a></p>
 
 <h2>本サイトのアクセス解析について</h2>
-<p>本サイト（このWebページ）では、Google アナリティクスを利用してアクセス状況を分析しています。Google アナリティクスはCookie等を使用してデータを収集しますが、個人を特定する情報は含まれません。詳細は<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Googleのプライバシーポリシー</a>をご確認ください。</p>
-
-<h2>アカウントの削除</h2>
-<p>設定画面の「アカウントを削除」または<a href="https://sgwkzy.github.io/colorack/account-deletion.html">公開アカウント削除ページ</a>から、本人確認後にアカウントを削除できます。Firebase Authenticationのアカウント、クラウドバックアップ、キット写真、サブスクリプションサービスのユーザー情報を削除します。端末内のデータとApp Store / Google Playの定期購入は自動では削除・解約されないため、必要に応じて端末からデータを削除し、ストアで別途解約してください。</p>
+<p>本サイト（このWebページ）では、Google アナリティクスを利用してアクセス状況を分析しています。Google アナリティクスはCookie等を使用してデータを収集します。詳細は<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Googleのプライバシーポリシー</a>をご確認ください。</p>
 
 <h2>お問い合わせ</h2>
 <p>本ポリシーに関するお問い合わせは、開発者までご連絡ください。</p>

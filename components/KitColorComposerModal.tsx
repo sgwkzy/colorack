@@ -1,275 +1,299 @@
-// components/KitColorComposerModal.tsx
-import { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { IconChevronDown, IconChevronLeft, IconChevronUp, IconTrash, IconX } from '@tabler/icons-react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { addKitColor } from '../lib/db';
-import { mixHexColors } from '../lib/colorMix';
-import { t } from '../lib/i18n';
+import { type MutableRefObject, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { IconChevronLeft, IconChevronRight, IconFlask, IconPalette, IconPlus, IconX } from '@tabler/icons-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAndroidBack } from '../lib/androidBack';
+import { getDB, getMixRecipes } from '../lib/db';
+import { ColorMixSummary, draftFromSummary } from '../lib/colorMixDraft';
+import { t, useLocale } from '../lib/i18n';
 import { paintName } from '../lib/paintLabel';
-import { paintTypeLabel } from '../lib/paintType';
-import { useModalLock } from '../lib/modalLock';
-import { lightColors, radius, spacing, useTheme } from '../lib/theme';
-import ClearableInput from './ClearableInput';
-import HierarchyBrowser from './AddPaint/HierarchyBrowser';
-import ColorMatcher from './AddPaint/ColorMatcher';
+import { lightColors, radius, spacing, touch, useTheme } from '../lib/theme';
+import ColorMixCard from './ColorMixCard';
+import ColorMixEditorModal from './ColorMixEditorModal';
+import ColorMixPaintPickerModal from './ColorMixPaintPickerModal';
 import SwipeDownHeader from './SwipeDownHeader';
 
-interface SelectedPaint {
-  paintId: number;
-  name_ja: string;
-  name_en: string | null;
-  hex: string;
-  ratio: number; // 0-100 (%) while composing; normalized to 0-1 at save time
-}
+type Route = 'source' | 'paint' | 'saved' | 'newMix';
 
 interface Props {
   visible: boolean;
-  kitId: number;
+  requestCloseRef: MutableRefObject<() => void>;
   onClose: () => void;
-  onAdded: () => void;
+  onSaveColor: (
+    name: string | null,
+    note: string | null,
+    paints: { paintId: number; ratio: number }[],
+  ) => Promise<void>;
 }
 
-const MAX_PAINTS = 5;
-const TABS = ['hierarchy', 'colorMatch'] as const;
-const PAINT_TYPES = ['ラッカー塗料', '水性アクリル塗料', 'エナメル塗料', 'エマルジョン系水性塗料'];
+interface SourceOptionProps {
+  icon: ReactNode;
+  title: string;
+  help: string;
+  onPress: () => void;
+  styles: ReturnType<typeof makeStyles>;
+  chevronColor: string;
+}
 
-export default function KitColorComposerModal({ visible, kitId, onClose, onAdded }: Props) {
-  useModalLock(visible);
+function SourceOption({ icon, title, help, onPress, styles, chevronColor }: SourceOptionProps) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={`${title}。${help}`}
+      onPress={onPress}
+      style={styles.sourceButton}
+    >
+      <View style={styles.sourceIcon}>{icon}</View>
+      <View style={styles.sourceText}>
+        <Text style={styles.sourceTitle}>{title}</Text>
+        <Text style={styles.sourceHelp}>{help}</Text>
+      </View>
+      <IconChevronRight color={chevronColor} size={20} />
+    </TouchableOpacity>
+  );
+}
+
+export default function KitColorComposerModal({ visible, requestCloseRef, onClose, onSaveColor }: Props) {
+  useLocale();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [step, setStep] = useState<'setup' | 'pick'>('setup');
-  const [name, setName] = useState('');
-  const [paintType, setPaintType] = useState<string | null>(null);
-  const [tab, setTab] = useState<typeof TABS[number]>('hierarchy');
-  const [selectedPaints, setSelectedPaints] = useState<SelectedPaint[]>([]);
-  const [accordionOpen, setAccordionOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const canSave = selectedPaints.length > 0;
+  const initialDraft = useMemo(() => draftFromSummary(), [visible]);
+  const [route, setRoute] = useState<Route>('source');
+  const [recipes, setRecipes] = useState<ColorMixSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [savingId, setSavingId] = useState<number | null>(null);
+  const savingRef = useRef(false);
+
+  const loadRecipes = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      setRecipes(await getMixRecipes());
+    } catch (error) {
+      console.error('KitColorComposerModal: failed to load saved mixes', error);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (visible) {
-      setStep('setup');
-      setName('');
-      setPaintType(null);
-      setTab('hierarchy');
-      setSelectedPaints([]);
-      setAccordionOpen(false);
+    if (!visible) {
+      setRoute('source');
+      setRecipes([]);
+      setLoading(false);
+      setLoadError(false);
+      setSavingId(null);
+      return;
     }
-  }, [visible]);
+    if (route === 'saved') void loadRecipes();
+  }, [visible, route, loadRecipes]);
 
-  const previewHex = useMemo(
-    () => mixHexColors(selectedPaints.map((p) => ({ hex: p.hex, ratio: p.ratio }))),
-    [selectedPaints]
-  );
+  const back = useCallback(() => {
+    if (savingRef.current) return;
+    if (route === 'source') onClose();
+    else setRoute('source');
+  }, [route, onClose]);
+  const close = () => { if (!savingRef.current) onClose(); };
+  useAndroidBack(visible && route !== 'newMix', back);
+  useEffect(() => {
+    if (visible && route !== 'newMix') requestCloseRef.current = back;
+  }, [visible, route, requestCloseRef, back]);
 
-  const addPaintToMix = (paint: { id: number; name_ja: string; name_en: string | null; hex: string }) => {
-    setSelectedPaints((current) => {
-      if (current.length >= MAX_PAINTS) return current;
-      const next = [...current, { paintId: paint.id, name_ja: paint.name_ja, name_en: paint.name_en, hex: paint.hex, ratio: 0 }];
-      const equalShare = 100 / next.length;
-      return next.map((p) => ({ ...p, ratio: equalShare }));
-    });
+  const saveColor = async (
+    name: string | null,
+    note: string | null,
+    paints: { paintId: number; ratio: number }[],
+  ) => {
+    await onSaveColor(name, note, paints);
+    onClose();
   };
 
-  const removePaintFromMix = (index: number) => {
-    setSelectedPaints((current) => {
-      const next = current.filter((_, i) => i !== index);
-      if (next.length === 0) return next;
-      const equalShare = 100 / next.length;
-      return next.map((p) => ({ ...p, ratio: equalShare }));
-    });
-  };
-
-  const setRatio = (index: number, value: string) => {
-    const parsed = Number(value.replace(/[^0-9.]/g, ''));
-    setSelectedPaints((current) => current.map((p, i) => (i === index ? { ...p, ratio: Number.isFinite(parsed) ? parsed : 0 } : p)));
-  };
-
-  const goToPicker = () => {
-    if (!paintType) return;
-    setStep('pick');
-  };
-
-  const backToSetup = () => {
-    setSelectedPaints([]);
-    setAccordionOpen(false);
-    setStep('setup');
-  };
-
-  const save = async () => {
-    if (!canSave || busy) return;
-    setBusy(true);
-    const total = selectedPaints.reduce((sum, p) => sum + p.ratio, 0);
-    const normalized = total > 0
-      ? selectedPaints.map((p) => ({ paintId: p.paintId, ratio: p.ratio / total }))
-      : selectedPaints.map((p) => ({ paintId: p.paintId, ratio: 1 / selectedPaints.length }));
+  const addPaint = async ({ id }: { id: number }): Promise<boolean> => {
+    if (savingRef.current) return false;
+    savingRef.current = true;
+    setSavingId(id);
     try {
-      await addKitColor(kitId, name.trim() || null, null, normalized);
-      onAdded();
-      onClose();
-    } finally { setBusy(false); }
+      const paint = await getDB().getFirstAsync<{ id: number; name_ja: string; name_en: string | null }>(
+        'SELECT id, name_ja, name_en FROM catalog_paints WHERE id = ?',
+        [id],
+      );
+      if (!paint) throw new Error('paint_not_found');
+      await saveColor(paintName(paint.name_ja, paint.name_en), null, [{ paintId: paint.id, ratio: 1 }]);
+      return true;
+    } catch (error) {
+      console.error('KitColorComposerModal: failed to add paint', error);
+      Alert.alert(t('error'), t('saveFailed'));
+      return false;
+    } finally {
+      savingRef.current = false;
+      setSavingId(null);
+    }
   };
 
+  const addSavedMix = async (recipe: ColorMixSummary) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSavingId(recipe.id);
+    try {
+      await saveColor(
+        recipe.name,
+        recipe.note,
+        recipe.paints.map((paint) => ({ paintId: paint.paint_id, ratio: paint.ratio })),
+      );
+    } catch (error) {
+      console.error('KitColorComposerModal: failed to copy saved mix', error);
+      Alert.alert(t('error'), t('saveFailed'));
+    } finally {
+      savingRef.current = false;
+      setSavingId(null);
+    }
+  };
+
+  const displayName = (recipe: ColorMixSummary) => recipe.name?.trim()
+    || (recipe.paints[0] ? paintName(recipe.paints[0].name_ja, recipe.paints[0].name_en) : t('mixResult'));
+
+  if (!visible) return null;
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaProvider>
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-          <SwipeDownHeader onClose={onClose}>
+    <View accessibilityViewIsModal style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {route === 'newMix' ? (
+        <ColorMixEditorModal
+          visible
+          embedded
+          requestCloseRef={requestCloseRef}
+          title={t('createKitMix')}
+          saveLabel={t('saveToKit')}
+          initialDraft={initialDraft}
+          onBack={back}
+          onSave={(draft) => saveColor(
+            draft.name.trim() || null,
+            draft.note.trim() || null,
+            draft.paints.map((paint) => ({ paintId: paint.paint_id, ratio: paint.percentage / 100 })),
+          )}
+          onClose={close}
+        />
+      ) : (
+        <>
+          <SwipeDownHeader onClose={back} enabled={savingId == null}>
             <View style={styles.header}>
-              {step === 'pick' ? (
-                <TouchableOpacity onPress={backToSetup} hitSlop={8} style={styles.backBtn}>
-                  <IconChevronLeft color={colors.primary} size={22} />
-                  <Text style={styles.backText}>{t('back')}</Text>
+              {route === 'saved' ? (
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back')} accessibilityState={{ disabled: savingId != null }} disabled={savingId != null} onPress={back} style={styles.headerButton}>
+                  <IconChevronLeft color={colors.primary} size={24} />
                 </TouchableOpacity>
-              ) : (
-                <Text style={styles.title}>{t('addColor')}</Text>
-              )}
-              <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel={t('close')}>
+              ) : <View style={styles.headerButton} />}
+              <Text numberOfLines={1} style={styles.headerTitle}>{t(route === 'saved' ? 'pickMixForKit' : 'chooseColorSource')}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('close')} accessibilityState={{ disabled: savingId != null }} disabled={savingId != null} onPress={close} style={styles.headerButton}>
                 <IconX color={colors.text} size={24} />
               </TouchableOpacity>
             </View>
           </SwipeDownHeader>
 
-          {step === 'setup' ? (
-            <View style={styles.setupContent}>
-              <ClearableInput
-                style={styles.nameInput}
-                value={name}
-                onChangeText={setName}
-                placeholder={t('colorNameLabel')}
-              />
-              <Text style={styles.sectionLabel}>{t('paintType')}</Text>
-              <View style={styles.typeGrid}>
-                {PAINT_TYPES.map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    style={[styles.typeChip, paintType === type && styles.typeChipActive]}
-                    onPress={() => setPaintType(type)}
-                  >
-                    <Text style={[styles.typeChipText, paintType === type && styles.typeChipTextActive]}>
-                      {paintTypeLabel(type)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TouchableOpacity
-                style={[styles.nextBtn, !paintType && styles.nextBtnDisabled]}
-                onPress={goToPicker}
-                disabled={!paintType}
-              >
-                <Text style={styles.nextBtnText}>{t('next')}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <KeyboardAvoidingView
-              style={styles.pickContent}
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            >
-              <View style={styles.tabBar}>
-                {TABS.map((tabKey) => (
-                  <TouchableOpacity
-                    key={tabKey}
-                    style={[styles.tabBtn, tab === tabKey && styles.tabBtnActive]}
-                    onPress={() => setTab(tabKey)}
-                  >
-                    <Text style={[styles.tabText, tab === tabKey && styles.tabTextActive]}>{t(tabKey)}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={styles.pickerArea}>
-                {tab === 'hierarchy' ? (
-                  <HierarchyBrowser
-                    paintType={paintType ?? undefined}
-                    onSelect={(paint) => addPaintToMix({ id: paint.id, name_ja: paint.name_ja, name_en: paint.name_en, hex: paint.hex })}
-                    onSelectView={(paint) => addPaintToMix({ id: paint.id, name_ja: paint.name_ja, name_en: paint.name_en, hex: paint.hex })}
-                  />
-                ) : (
-                  <ColorMatcher
-                    lockedPaintType={paintType ?? undefined}
-                    onSelect={(paint) => addPaintToMix({ id: paint.id, name_ja: paint.name_ja, name_en: paint.name_en, hex: paint.hex })}
-                    onSelectView={(paint) => addPaintToMix({ id: paint.id, name_ja: paint.name_ja, name_en: paint.name_en, hex: paint.hex })}
-                  />
-                )}
-              </View>
-
-              <View style={styles.accordion}>
-                <TouchableOpacity style={styles.accordionHeader} onPress={() => setAccordionOpen((o) => !o)}>
-                  <View style={[styles.previewSwatch, { backgroundColor: previewHex ?? colors.chip }]} />
-                  <Text style={styles.accordionTitle}>{t('currentColor')}</Text>
-                  {accordionOpen
-                    ? <IconChevronDown size={18} color={colors.textMuted} />
-                    : <IconChevronUp size={18} color={colors.textMuted} />}
+          {route === 'saved' ? (
+            loading ? (
+              <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
+            ) : loadError ? (
+              <View style={styles.center}>
+                <Text accessibilityRole="alert" style={styles.message}>{t('loadFailed')}</Text>
+                <TouchableOpacity accessibilityRole="button" onPress={loadRecipes} style={styles.retryButton}>
+                  <Text style={styles.retryText}>{t('retry')}</Text>
                 </TouchableOpacity>
-                {accordionOpen && (
-                  <View style={styles.paintList}>
-                    {selectedPaints.map((p, index) => (
-                      <View key={index} style={styles.paintRow}>
-                        <View style={[styles.miniSwatch, { backgroundColor: p.hex }]} />
-                        <Text numberOfLines={1} style={styles.paintName}>{paintName(p.name_ja, p.name_en)}</Text>
-                        <TextInput
-                          style={styles.ratioInput}
-                          keyboardType="numeric"
-                          value={String(Math.round(p.ratio))}
-                          onChangeText={(v) => setRatio(index, v)}
-                        />
-                        <Text style={styles.percentSign}>%</Text>
-                        <TouchableOpacity onPress={() => removePaintFromMix(index)} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('removeFromMix')}>
-                          <IconTrash color={colors.danger} size={18} />
-                        </TouchableOpacity>
-                      </View>
-                    ))}
+              </View>
+            ) : (
+              <FlatList
+                data={recipes}
+                keyExtractor={(recipe) => String(recipe.id)}
+                contentContainerStyle={[styles.listContent, recipes.length === 0 && styles.emptyList]}
+                ItemSeparatorComponent={() => <View style={styles.separator} />}
+                ListEmptyComponent={<Text style={styles.message}>{t('savedMixPickerEmpty')}</Text>}
+                renderItem={({ item }) => (
+                  <View style={savingId != null && styles.disabled}>
+                    <ColorMixCard
+                      color={item}
+                      disabled={savingId != null}
+                      accessibilityLabel={`${displayName(item)}。${t('addMixToKit')}`}
+                      onPress={() => addSavedMix(item)}
+                      dragHandle={
+                        savingId === item.id ? (
+                          <View style={styles.cardAction}><ActivityIndicator color={colors.primary} /></View>
+                        ) : (
+                          <TouchableOpacity
+                            accessible={false}
+                            disabled={savingId != null}
+                            onPress={() => addSavedMix(item)}
+                            style={styles.cardAction}
+                          >
+                            <IconPlus color={colors.primary} size={22} />
+                          </TouchableOpacity>
+                        )
+                      }
+                    />
                   </View>
                 )}
-              </View>
-
-              <TouchableOpacity style={[styles.saveBtn, (!canSave || busy) && styles.saveBtnDisabled]} onPress={save} disabled={!canSave || busy}>
-                <Text style={styles.saveBtnText}>{t('save')}</Text>
-              </TouchableOpacity>
-            </KeyboardAvoidingView>
+              />
+            )
+          ) : (
+            <View style={styles.sourceList}>
+              <SourceOption
+                icon={<IconPalette color={colors.primary} size={24} />}
+                title={t('choosePaint')}
+                help={t('choosePaintHelp')}
+                onPress={() => setRoute('paint')}
+                styles={styles}
+                chevronColor={colors.textMuted}
+              />
+              <SourceOption
+                icon={<IconFlask color={colors.primary} size={24} />}
+                title={t('chooseSavedMix')}
+                help={t('chooseSavedMixHelp')}
+                onPress={() => setRoute('saved')}
+                styles={styles}
+                chevronColor={colors.textMuted}
+              />
+              <SourceOption
+                icon={<IconPlus color={colors.primary} size={24} />}
+                title={t('createKitMix')}
+                help={t('createKitMixHelp')}
+                onPress={() => setRoute('newMix')}
+                styles={styles}
+                chevronColor={colors.textMuted}
+              />
+            </View>
           )}
-        </SafeAreaView>
-      </SafeAreaProvider>
-    </Modal>
+
+          <ColorMixPaintPickerModal
+            visible={visible && route === 'paint'}
+            embedded
+            title={t('pickPaintForKit')}
+            onBack={back}
+            onSelect={addPaint}
+            onClose={close}
+          />
+        </>
+      )}
+    </View>
   );
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
-  backBtn: { flexDirection: 'row', alignItems: 'center' },
-  backText: { fontSize: 15, color: colors.primaryText, marginLeft: 2 },
-  setupContent: { flex: 1, padding: spacing.xl, gap: spacing.lg },
-  nameInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
-  sectionLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  typeChip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.chip },
-  typeChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  typeChipText: { fontSize: 14, color: colors.text },
-  typeChipTextActive: { color: colors.onPrimary, fontWeight: '700' },
-  nextBtn: { minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md, marginTop: 'auto' },
-  nextBtnDisabled: { backgroundColor: colors.primaryDisabled },
-  nextBtnText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
-  pickContent: { flex: 1 },
-  tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  tabBtn: { flex: 1, padding: spacing.md, alignItems: 'center' },
-  tabBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-  tabText: { fontSize: 13, color: colors.textPlaceholder },
-  tabTextActive: { color: colors.primaryText, fontWeight: 'bold' },
-  pickerArea: { flex: 1 },
-  accordion: { borderTopWidth: 1, borderTopColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
-  accordionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg },
-  previewSwatch: { width: 28, height: 28, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
-  accordionTitle: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.text },
-  paintList: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.sm },
-  paintRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  miniSwatch: { width: 22, height: 22, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
-  paintName: { flex: 1, fontSize: 13, color: colors.text },
-  ratioInput: { width: 48, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 4, color: colors.text, textAlign: 'right' },
-  percentSign: { fontSize: 13, color: colors.textMuted },
-  saveBtn: { minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, margin: spacing.xl, borderRadius: radius.md },
-  saveBtnDisabled: { backgroundColor: colors.primaryDisabled },
-  saveBtnText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
+  container: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100, backgroundColor: colors.surface },
+  header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  headerButton: { width: touch.min, height: touch.min, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, color: colors.text, fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  sourceList: { padding: spacing.xl, gap: spacing.md },
+  sourceButton: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+  sourceIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.primarySoft },
+  sourceText: { flex: 1, minWidth: 0, gap: 2 },
+  sourceTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  sourceHelp: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
+  listContent: { padding: spacing.xl },
+  emptyList: { flexGrow: 1, justifyContent: 'center' },
+  separator: { height: spacing.md },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.lg, padding: spacing.xl },
+  message: { color: colors.textMuted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  retryButton: { minWidth: 120, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primary, borderRadius: radius.md },
+  retryText: { color: colors.primaryText, fontWeight: '700' },
+  cardAction: { width: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  disabled: { opacity: 0.55 },
 });

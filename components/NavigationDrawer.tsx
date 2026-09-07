@@ -53,7 +53,7 @@ export default function NavigationDrawer({ onClose, refreshToken = 0 }: Props) {
       db.getAllAsync<Box>('SELECT id, name, icon, icon_color FROM kit_boxes ORDER BY sort_order, id'),
       db.getAllAsync<CountRow>("SELECT box_id, COUNT(*) AS n FROM kits WHERE status != 'completed' GROUP BY box_id"),
       db.getFirstAsync<TotalRow>("SELECT COUNT(*) AS n FROM kits WHERE status = 'completed'"),
-      db.getFirstAsync<TotalRow>('SELECT COUNT(*) AS n FROM kit_lists'),
+      db.getFirstAsync<TotalRow>('SELECT COUNT(*) AS n FROM kit_wishlist'),
     ]);
     setBoxes(boxRows);
     setBoxCounts(new Map(countRows.map((row) => [row.box_id, row.n])));
@@ -81,7 +81,7 @@ export default function NavigationDrawer({ onClose, refreshToken = 0 }: Props) {
     notifyKitBoxesChanged();
     await loadBoxes();
   };
-  const go = (pathname: '/owned' | '/used' | '/favorites' | '/wishlist' | '/kit-wishlist' | '/catalog' | '/settings', boxId?: number | 'all') => {
+  const go = (pathname: '/owned' | '/used' | '/favorites' | '/wishlist' | '/kit-wishlist' | '/catalog' | '/mixing' | '/settings', boxId?: number | 'all') => {
     if (pathname === '/owned' && boxId !== undefined) setActiveBox(boxId);
     onClose();
     if (boxId !== undefined) router.navigate({ pathname, params: { boxId: String(boxId) } });
@@ -155,6 +155,7 @@ export default function NavigationDrawer({ onClose, refreshToken = 0 }: Props) {
             )}
             <View style={styles.divider} />
             {item(t('catalog'), () => go('/catalog'), <IconPalette color={colors.textMuted} size={22} />, pathname.endsWith('/catalog'))}
+            {item(t('mixingSimulator'), () => go('/mixing'), <IconFlask color={colors.textMuted} size={22} />, pathname.endsWith('/mixing'))}
             {item(t('settings'), () => go('/settings'), <IconSettings color={colors.textMuted} size={22} />, pathname.endsWith('/settings'))}
           </ScrollView>
           <BoxEditorModal visible={editingBox === 'new'} title={t('addBox')} onSave={saveBox} onClose={() => setEditingBox(null)} />

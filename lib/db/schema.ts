@@ -2,7 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { _setDB } from './connection';
 import { SEED_VERSION } from './types';
 import { upsertCatalogFromSeed } from './seedCatalog';
-import { migrateKitPhotoUris } from '../kitPhoto';
+import { cleanupOrphanedKitPhotos, migrateKitPhotoUris } from '../kitPhoto';
 
 export async function initDB(): Promise<void> {
   const db = await SQLite.openDatabaseAsync('colorack.db');
@@ -49,10 +49,19 @@ export async function initDB(): Promise<void> {
     "  status TEXT NOT NULL DEFAULT 'not_started' CHECK(status IN ('not_started','building','completed'))," +
     "  added_at TEXT DEFAULT (datetime('now')), status_changed_at TEXT DEFAULT (datetime('now'))" +
     ');' +
-    'CREATE TABLE IF NOT EXISTS kit_lists (' +
+    'CREATE TABLE IF NOT EXISTS kit_wishlist (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-    '  kit_id INTEGER NOT NULL,' +
+    '  name TEXT NOT NULL, maker TEXT NOT NULL, series TEXT, category TEXT, scale TEXT, note TEXT, price INTEGER,' +
     "  added_at TEXT DEFAULT (datetime('now'))" +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_wishlist_colors (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  wishlist_id INTEGER NOT NULL, name TEXT, note TEXT, sort_order INTEGER NOT NULL DEFAULT 0,' +
+    "  added_at TEXT DEFAULT (datetime('now'))" +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_wishlist_color_paints (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  wishlist_color_id INTEGER NOT NULL, paint_id INTEGER NOT NULL, ratio REAL NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0' +
     ');' +
     'CREATE TABLE IF NOT EXISTS kit_colors (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
@@ -63,17 +72,35 @@ export async function initDB(): Promise<void> {
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     '  kit_color_id INTEGER NOT NULL, paint_id INTEGER NOT NULL, ratio REAL NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0' +
     ');' +
+    'CREATE TABLE IF NOT EXISTS mix_recipes (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name TEXT,' +
+    '  note TEXT,' +
+    '  sort_order INTEGER NOT NULL DEFAULT 0,' +
+    '  added_at TEXT DEFAULT (datetime(\'now\')),' +
+    '  updated_at TEXT DEFAULT (datetime(\'now\'))' +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS mix_recipe_paints (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  mix_recipe_id INTEGER NOT NULL,' +
+    '  paint_id INTEGER NOT NULL,' +
+    '  ratio REAL NOT NULL,' +
+    '  sort_order INTEGER NOT NULL DEFAULT 0' +
+    ');' +
     'CREATE TABLE IF NOT EXISTS kit_photos (' +
     '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
     '  kit_id INTEGER NOT NULL, uri TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0,' +
     "  added_at TEXT DEFAULT (datetime('now'))" +
+    ');' +
+    'CREATE TABLE IF NOT EXISTS kit_wishlist_photos (' +
+    '  id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  wishlist_id INTEGER NOT NULL, uri TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0,' +
+    "  added_at TEXT DEFAULT (datetime('now')), synced_at TEXT, storage_path TEXT" +
     ');'
   );
   await db.execAsync(
     'DELETE FROM lists WHERE id NOT IN (SELECT MIN(id) FROM lists GROUP BY type, paint_id);' +
-    'CREATE UNIQUE INDEX IF NOT EXISTS idx_lists_type_paint ON lists(type, paint_id);' +
-    'DELETE FROM kit_lists WHERE id NOT IN (SELECT MIN(id) FROM kit_lists GROUP BY kit_id);' +
-    'CREATE UNIQUE INDEX IF NOT EXISTS idx_kit_lists_kit ON kit_lists(kit_id);'
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_lists_type_paint ON lists(type, paint_id);'
   );
 
   // 既存DBに gloss 列が無ければ追加(SQLiteは IF NOT EXISTS 非対応なので try/catch)
@@ -86,10 +113,24 @@ export async function initDB(): Promise<void> {
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN series TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN category TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kits ADD COLUMN price INTEGER'); } catch { /* 既にある */ }
+  const hasLegacyKitLists = await db.getFirstAsync<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'kit_lists'"
+  );
+  if (hasLegacyKitLists) {
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        'INSERT INTO kit_wishlist (name, maker, series, category, scale, note, price, added_at)' +
+        ' SELECT k.name, k.maker, k.series, k.category, k.scale, k.note, k.price, l.added_at' +
+        ' FROM kit_lists l JOIN kits k ON k.id = l.kit_id'
+      );
+      await db.execAsync('DROP TABLE kit_lists');
+    });
+  }
   try { await db.execAsync('ALTER TABLE kit_colors ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kit_photos ADD COLUMN synced_at TEXT'); } catch { /* 既にある */ }
   try { await db.execAsync('ALTER TABLE kit_photos ADD COLUMN storage_path TEXT'); } catch { /* 既にある */ }
   await migrateKitPhotoUris(db);
+  await cleanupOrphanedKitPhotos(db);
   await db.runAsync(
     'UPDATE inventory SET status_changed_at = added_at WHERE status_changed_at IS NULL OR status_changed_at < added_at'
   );

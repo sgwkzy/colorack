@@ -12,6 +12,18 @@ export default function Toast({ message, actionLabel, onAction }: Props) {
   const { colors, isDark } = useTheme();
   const styles = useMemo(() => makeStyles(colors, isDark), [colors, isDark]);
   const opacity = useRef(new Animated.Value(0)).current;
+  const actionConsumedRef = useRef(false);
+
+  useEffect(() => {
+    actionConsumedRef.current = false;
+  }, [message, onAction]);
+
+  const handleAction = () => {
+    if (!onAction) return;
+    if (actionConsumedRef.current) return;
+    actionConsumedRef.current = true;
+    onAction();
+  };
 
   useEffect(() => {
     if (!message) return;
@@ -25,7 +37,7 @@ export default function Toast({ message, actionLabel, onAction }: Props) {
     <Animated.View style={[styles.toast, { opacity }]} pointerEvents={onAction ? 'box-none' : 'none'}>
       <Text style={styles.toastText} numberOfLines={1} ellipsizeMode="tail">{message}</Text>
       {onAction && actionLabel ? (
-        <TouchableOpacity onPress={onAction} hitSlop={8} style={styles.actionBtn}>
+        <TouchableOpacity onPress={handleAction} accessibilityRole="button" accessibilityLabel={actionLabel} hitSlop={8} style={styles.actionBtn}>
           <Text style={styles.actionText}>{actionLabel}</Text>
         </TouchableOpacity>
       ) : null}

@@ -83,6 +83,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="favorites" options={{ title: t('favorites') }} />
       <Tabs.Screen name="wishlist" options={{ title: t('wishlist') }} />
       <Tabs.Screen name="catalog" options={{ title: t('catalog') }} />
+      <Tabs.Screen name="mixing" options={{ title: t('mixingSimulator') }} />
       <Tabs.Screen name="settings" options={{ title: t('settings') }} />
     </Tabs>
     </DrawerLayout>
