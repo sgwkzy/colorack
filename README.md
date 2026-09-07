@@ -73,3 +73,7 @@ python scripts/generate_seed_catalog.py    # dist/seed_catalog.json を生成
 バージョン確認、ビルド前検証、既存端末の移行確認、TestFlight／Google Play内部テスト、
 ストア公開の承認境界は [アプリリリース手順](docs/app-release-runbook.md) に集約しています。
 本番ビルド・ストア提出・公開は、手順書に記載したOPS担当の承認を得て実施してください。
+
+## 外部アカウント削除ページ
+
+`docs/account-deletion.html` は GitHub Pages 上で Google / Apple OAuth による本人確認を行い、既存の `deleteAccount` Function を呼び出します。公開前に Firebase Authentication で `sgwkzy.github.io` を承認済みドメインへ追加し、Google / Apple プロバイダを有効化してください。Apple は Firebase が指定する `https://colorack-7e436.firebaseapp.com/__/auth/handler` を Return URL として Apple Developer 側にも登録します。

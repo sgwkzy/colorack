@@ -5,6 +5,7 @@ const { spawnSync } = require('node:child_process');
 const root = process.cwd();
 const testFiles = [
   'app.config.test.cjs',
+  'docs/account-deletion.test.cjs',
   ...fs.readdirSync(path.join(root, 'lib'))
     .filter((name) => name.endsWith('.test.cjs'))
     .map((name) => path.join('lib', name)),

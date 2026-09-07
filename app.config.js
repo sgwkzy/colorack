@@ -77,6 +77,10 @@ module.exports = ({ config }) => ({
     [
       'expo-build-properties',
       {
+        android: {
+          enableMinifyInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
+        },
         ios: {
           useFrameworks: 'static',
           forceStaticLinking: [
@@ -119,6 +123,7 @@ module.exports = ({ config }) => ({
     // expo prebuild --clean を安全に再実行でき、上のプラグイン設定や
     // app.json のバージョンが Android ビルドへ確実に反映される。
     './plugins/withAndroidReleaseSigning',
+    './plugins/withAndroidR8Optimization',
   ],
   scheme: 'colorack',
   extra: {
