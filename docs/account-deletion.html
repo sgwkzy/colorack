@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html lang="ja" data-lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25,43 +25,49 @@
   [hidden] { display: none !important; }
   a { color: var(--primary); }
   footer { margin-top: 1.5rem; color: var(--muted); font-size: .9rem; }
+  html[data-lang="ja"] [lang="en"], html[data-lang="en"] [lang="ja"] { display: none; }
+  .language-bar { display: flex; justify-content: flex-end; margin-bottom: .75rem; }
+  #lang-toggle { border: 1px solid var(--line); border-radius: 999px; padding: .35rem .8rem; background: var(--card); color: var(--primary); font: inherit; cursor: pointer; }
 </style>
 </head>
 <body>
 <main>
+  <div class="language-bar">
+    <button id="lang-toggle" type="button" aria-label="英語に切り替え"><span lang="ja">English</span><span lang="en">日本語</span></button>
+  </div>
   <div class="card">
-    <h1>Colorack アカウント削除</h1>
-    <p class="muted">Colorackに登録したGoogleまたはAppleのアカウントで本人確認を行い、アカウントとクラウドデータを削除します。</p>
+    <h1><span lang="ja">Colorack アカウント削除</span><span lang="en">Delete your Colorack account</span></h1>
+    <p class="muted"><span lang="ja">Colorackに登録したGoogleまたはAppleのアカウントで本人確認を行い、アカウントとクラウドデータを削除します。</span><span lang="en">Sign in with the Google or Apple account registered with Colorack to verify your identity and delete your account and cloud data.</span></p>
 
     <div class="notice">
-      <strong>削除すると元に戻せません。</strong>
-      <p>Firebaseアカウント、クラウドバックアップ、キット写真を削除します。端末内のデータとApp Store / Google Playの定期購入は自動では削除・解約されません。</p>
+      <strong><span lang="ja">削除すると元に戻せません。</span><span lang="en">Deletion cannot be undone.</span></strong>
+      <p><span lang="ja">Firebaseアカウント、クラウドバックアップ、キット写真を削除します。端末内のデータとApp Store / Google Playの定期購入は自動では削除・解約されません。</span><span lang="en">This deletes your Firebase account, cloud backup, and kit photos. Data stored on your device and App Store / Google Play subscriptions are not deleted or canceled automatically.</span></p>
     </div>
 
-    <h2>1. アカウントでサインイン</h2>
-    <p id="account" class="muted">まだサインインしていません。</p>
+    <h2><span lang="ja">1. アカウントでサインイン</span><span lang="en">1. Sign in to your account</span></h2>
+    <p id="account" class="muted" data-message="signedOut">まだサインインしていません。</p>
     <div class="actions">
-      <button id="google-button" type="button">Googleでサインイン</button>
-      <button id="apple-button" type="button">Appleでサインイン</button>
+      <button id="google-button" type="button"><span lang="ja">Googleでサインイン</span><span lang="en">Sign in with Google</span></button>
+      <button id="apple-button" type="button"><span lang="ja">Appleでサインイン</span><span lang="en">Sign in with Apple</span></button>
     </div>
 
     <form id="delete-form" hidden>
-      <h2>2. 削除を確定</h2>
-      <p>削除対象のアカウントを確認し、下の欄に <code>DELETE</code> と入力してください。</p>
-      <label for="confirmation">確認文字列</label>
+      <h2><span lang="ja">2. 削除を確定</span><span lang="en">2. Confirm deletion</span></h2>
+      <p><span lang="ja">削除対象のアカウントを確認し、下の欄に <code>DELETE</code> と入力してください。</span><span lang="en">Confirm the account you want to delete, then type <code>DELETE</code> below.</span></p>
+      <label for="confirmation"><span lang="ja">確認文字列</span><span lang="en">Confirmation text</span></label>
       <input id="confirmation" name="confirmation" autocomplete="off" spellcheck="false" placeholder="DELETE">
-      <button id="delete-button" type="submit" disabled>アカウントを削除する</button>
+      <button id="delete-button" type="submit" disabled><span lang="ja">アカウントを削除する</span><span lang="en">Delete my account</span></button>
     </form>
 
     <p id="status" class="muted" role="status" aria-live="polite"></p>
     <div id="success" hidden>
-      <h2>削除しました</h2>
-      <p>Colorackのアカウントとクラウドデータを削除しました。定期購入を停止する場合は、App StoreまたはGoogle Playの購入管理画面から別途解約してください。</p>
+      <h2><span lang="ja">削除しました</span><span lang="en">Account deleted</span></h2>
+      <p><span lang="ja">Colorackのアカウントとクラウドデータを削除しました。定期購入を停止する場合は、App StoreまたはGoogle Playの購入管理画面から別途解約してください。</span><span lang="en">Your Colorack account and cloud data have been deleted. To stop a subscription, cancel it separately in the App Store or Google Play purchase settings.</span></p>
     </div>
 
-    <h2>削除されるデータ</h2>
-    <p>認証アカウント、Firestoreのクラウドバックアップ、Firebase Storageのキット写真、サブスクリプションサービスのユーザー情報を削除します。端末に保存されたデータはアプリをアンインストールするまで端末に残ります。</p>
-    <p><a href="https://sgwkzy.github.io/colorack/privacy.html">プライバシーポリシー</a> ・ <a href="https://sgwkzy.github.io/colorack/support.html">サポート</a></p>
+    <h2><span lang="ja">削除されるデータ</span><span lang="en">Data that will be deleted</span></h2>
+    <p><span lang="ja">認証アカウント、Firestoreのクラウドバックアップ、Firebase Storageのキット写真、サブスクリプションサービスのユーザー情報を削除します。端末に保存されたデータはアプリをアンインストールするまで端末に残ります。</span><span lang="en">We delete your authenticated account, Firestore cloud backup, kit photos in Firebase Storage, and subscription-service user information. Data saved on your device remains there until you uninstall the app.</span></p>
+    <p><a href="https://sgwkzy.github.io/colorack/privacy.html"><span lang="ja">プライバシーポリシー</span><span lang="en">Privacy policy</span></a> ・ <a href="https://sgwkzy.github.io/colorack/support.html"><span lang="ja">サポート</span><span lang="en">Support</span></a></p>
   </div>
   <footer>© 2026 Colorack</footer>
 </main>
@@ -86,12 +92,57 @@
   providers.Apple.addScope('email');
   providers.Apple.addScope('name');
   const deleteEndpoint = 'https://asia-northeast1-colorack-7e436.cloudfunctions.net/deleteAccount';
+  const messages = {
+    ja: {
+      documentTitle: 'アカウント削除 - Colorack',
+      switchLabel: '英語に切り替え',
+      signedOut: 'まだサインインしていません。',
+      appleRelay: 'Appleの非公開リレーアドレス',
+      signingIn: 'サインインしています…',
+      verified: '本人確認が完了しました。削除内容を確認してください。',
+      signInCanceled: 'サインインをキャンセルしました。',
+      signInFailed: 'サインインに失敗しました。もう一度お試しください。',
+      deleting: 'アカウントとクラウドデータを削除しています…',
+      deletedApple: '削除しました。Apple AccountからColorackの連携も解除してください。',
+      deleted: '削除しました。',
+      recentAuth: '本人確認の有効期限が切れました。サインインし直してから再度お試しください。',
+      deletionFailed: '削除に失敗しました。サインインし直してから再度お試しください。',
+    },
+    en: {
+      documentTitle: 'Delete your Colorack account',
+      switchLabel: 'Switch to Japanese',
+      signedOut: 'You are not signed in.',
+      appleRelay: 'Apple private relay address',
+      signingIn: 'Signing in…',
+      verified: 'Identity verified. Review the deletion details.',
+      signInCanceled: 'Sign-in was canceled.',
+      signInFailed: 'Sign-in failed. Please try again.',
+      deleting: 'Deleting your account and cloud data…',
+      deletedApple: 'Deleted. You should also remove Colorack from your Apple Account.',
+      deleted: 'Deleted.',
+      recentAuth: 'Your verification expired. Sign in again and retry.',
+      deletionFailed: 'Deletion failed. Sign in again and retry.',
+    },
+  };
+  let currentLanguage = /^en(?:-|$)/i.test(navigator.language) ? 'en' : 'ja';
+  function message(key) {
+    return messages[currentLanguage][key];
+  }
+  function setLanguage(language) {
+    currentLanguage = language === 'en' ? 'en' : 'ja';
+    document.documentElement.dataset.lang = currentLanguage;
+    document.documentElement.lang = currentLanguage;
+    document.title = message('documentTitle');
+    document.getElementById('lang-toggle').setAttribute('aria-label', message('switchLabel'));
+    if (!session) account.textContent = message('signedOut');
+  }
   const account = document.getElementById('account');
   const status = document.getElementById('status');
   const form = document.getElementById('delete-form');
   const confirmation = document.getElementById('confirmation');
   const deleteButton = document.getElementById('delete-button');
   let session = null;
+  setLanguage(currentLanguage);
 
   function setStatus(message, error) {
     status.textContent = message;
@@ -99,14 +150,14 @@
   }
 
   function showSignedIn(user, providerName) {
-    account.textContent = `${providerName}: ${user.email || 'Appleの非公開リレーアドレス'}`;
+    account.textContent = providerName + ': ' + (user.email || message('appleRelay'));
     form.hidden = false;
     confirmation.value = '';
     deleteButton.disabled = true;
   }
 
   async function signIn(providerName) {
-    setStatus('サインインしています…');
+    setStatus(message('signingIn'));
     document.querySelectorAll('button').forEach((button) => { button.disabled = true; });
     try {
       const result = await signInWithPopup(auth, providers[providerName]);
@@ -118,12 +169,12 @@
           : null,
       };
       showSignedIn(session.user, providerName);
-      setStatus('本人確認が完了しました。削除内容を確認してください。');
+      setStatus(message('verified'));
     } catch (error) {
       session = null;
-      account.textContent = 'まだサインインしていません。';
+      account.textContent = message('signedOut');
       form.hidden = true;
-      setStatus(error?.code === 'auth/popup-closed-by-user' ? 'サインインをキャンセルしました。' : 'サインインに失敗しました。もう一度お試しください。', true);
+      setStatus(error?.code === 'auth/popup-closed-by-user' ? message('signInCanceled') : message('signInFailed'), true);
     } finally {
       document.querySelectorAll('button').forEach((button) => { button.disabled = false; });
       deleteButton.disabled = !session || confirmation.value !== 'DELETE';
@@ -132,13 +183,14 @@
 
   document.getElementById('google-button').addEventListener('click', () => { void signIn('Google'); });
   document.getElementById('apple-button').addEventListener('click', () => { void signIn('Apple'); });
+  document.getElementById('lang-toggle').addEventListener('click', () => { setLanguage(currentLanguage === 'ja' ? 'en' : 'ja'); });
   confirmation.addEventListener('input', () => { deleteButton.disabled = !session || confirmation.value !== 'DELETE'; });
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!session || confirmation.value !== 'DELETE' || auth.currentUser?.uid !== session.user.uid) return;
     deleteButton.disabled = true;
-    setStatus('アカウントとクラウドデータを削除しています…');
+    setStatus(message('deleting'));
     let appleManualRevocationRequired = false;
     try {
       if (session.providerName === 'Apple') {
@@ -163,9 +215,9 @@
       form.hidden = true;
       document.getElementById('success').hidden = false;
       account.textContent = '';
-      setStatus(appleManualRevocationRequired ? '削除しました。Apple AccountからColorackの連携も解除してください。' : '削除しました。');
+      setStatus(appleManualRevocationRequired ? message('deletedApple') : message('deleted'));
     } catch (error) {
-      setStatus(error?.message === 'recent-authentication-required' ? '本人確認の有効期限が切れました。サインインし直してから再度お試しください。' : '削除に失敗しました。サインインし直してから再度お試しください。', true);
+      setStatus(error?.message === 'recent-authentication-required' ? message('recentAuth') : message('deletionFailed'), true);
       deleteButton.disabled = false;
     }
   });

@@ -23,3 +23,17 @@ test('account deletion page exposes authenticated Google and Apple self-service 
 
   assert.doesNotMatch(html, /REVENUECAT_SECRET|private_key|serviceAccount/i);
 });
+
+test('account deletion page provides an accessible Japanese and English toggle', () => {
+  const html = fs.readFileSync(pagePath, 'utf8');
+
+  for (const marker of [
+    '<html lang="ja" data-lang="ja">',
+    'id="lang-toggle"',
+    'lang="en"',
+    'Delete your Colorack account',
+    'navigator.language',
+  ]) {
+    assert.ok(html.includes(marker), `missing ${marker}`);
+  }
+});
