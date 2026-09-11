@@ -1,5 +1,6 @@
 import { ReactNode, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle, StyleProp } from 'react-native';
+import type { AccessibilityActionEvent, AccessibilityActionInfo } from 'react-native';
 import { brandLabel } from '../lib/brands';
 import { glossLabel } from '../lib/gloss';
 import { t } from '../lib/i18n';
@@ -28,6 +29,8 @@ interface Props {
   ownedCount?: number;
   quietOwnedBadge?: boolean;
   onPress?: () => void;
+  accessibilityActions?: ReadonlyArray<AccessibilityActionInfo>;
+  onAccessibilityAction?: (event: AccessibilityActionEvent) => void;
 }
 
 const FONT_SIZES: Record<ListFontSize, { name: number; compactName: number; code: number; compactCode: number; sub: number; compactSub: number; badge: number }> = {
@@ -36,7 +39,7 @@ const FONT_SIZES: Record<ListFontSize, { name: number; compactName: number; code
   large: { name: 18, compactName: 16, code: 13, compactCode: 12, sub: 13, compactSub: 12, badge: 12 },
 };
 
-export default function PaintRow({ paint, children, style, borderColor, subSuffix, compact = false, ownedCount = 0, quietOwnedBadge = false, onPress }: Props) {
+export default function PaintRow({ paint, children, style, borderColor, subSuffix, compact = false, ownedCount = 0, quietOwnedBadge = false, onPress, accessibilityActions, onAccessibilityAction }: Props) {
   const { colors } = useTheme();
   const { listFontSize } = useUiPrefs();
   const styles = useMemo(() => makeStyles(colors, listFontSize), [colors, listFontSize]);
@@ -58,7 +61,7 @@ export default function PaintRow({ paint, children, style, borderColor, subSuffi
       <View style={[styles.swatch, swatchColor ? { backgroundColor: swatchColor } : styles.emptySwatch]}>
         {!swatchColor ? <Text style={styles.emptySwatchText}>—</Text> : null}
       </View>
-      {onPress ? <TouchableOpacity style={styles.body} onPress={onPress} accessibilityRole="button">{details}</TouchableOpacity> : <View style={styles.body}>{details}</View>}
+      {onPress || accessibilityActions ? <TouchableOpacity style={styles.body} onPress={onPress} accessibilityRole="button" accessibilityActions={accessibilityActions} onAccessibilityAction={onAccessibilityAction}>{details}</TouchableOpacity> : <View style={styles.body}>{details}</View>}
       {ownedCount > 0 ? (
         <View style={[styles.ownedBadge, quietOwnedBadge && styles.quietOwnedBadge]}>
           <Text style={[styles.ownedBadgeText, quietOwnedBadge && styles.quietOwnedBadgeText]}>{ownedLabel}</Text>
@@ -87,7 +90,7 @@ const makeStyles = (colors: typeof lightColors, fontSize: ListFontSize) => {
   body: { flex: 1 },
   name: { fontSize: sizes.name, color: colors.text },
   compactName: { fontSize: sizes.compactName },
-  code: { fontSize: sizes.code, color: colors.textPlaceholder, fontWeight: 'normal' },
+  code: { fontSize: sizes.code, color: colors.textSecondary, fontWeight: 'normal' },
   compactCode: { fontSize: sizes.compactCode },
   subRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
   sub: { fontSize: sizes.sub, color: colors.textMuted, flexShrink: 1 },

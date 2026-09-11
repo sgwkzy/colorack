@@ -56,8 +56,8 @@ export default function TextSearch({ onSelect, onSelectView, onRequestClose }: P
     const args: string[] = [];
     if (q.trim()) {
       const like = `%${q.trim()}%`;
-      where.push('(name_ja LIKE ? OR name_en LIKE ? OR brand LIKE ? OR series LIKE ?)');
-      args.push(like, like, like, like);
+      where.push('(name_ja LIKE ? OR name_en LIKE ? OR brand LIKE ? OR series LIKE ? OR code LIKE ?)');
+      args.push(like, like, like, like, like);
     }
     const addIn = (column: string, values: string[]) => {
       if (!values.length) return;
@@ -93,6 +93,7 @@ export default function TextSearch({ onSelect, onSelectView, onRequestClose }: P
           value={query}
           onChangeText={search}
         />
+        <Text style={styles.resultLimit}>{t('searchLimitHint')}</Text>
         <View style={styles.filterRow}>
           {results.length > 0 ? <View style={styles.resultSummary}>
             <Text style={styles.resultTitle}>{t('textSearch')}</Text>
@@ -148,6 +149,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md, gap: spacing.sm },
   inputLabel: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: colors.textSecondary },
   input: { height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, borderCurve: 'continuous', paddingHorizontal: spacing.lg, color: colors.text },
+  resultLimit: { fontSize: 12, color: colors.textMuted },
   filterRow: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   filterButton: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderLight, borderRadius: radius.md, borderCurve: 'continuous', backgroundColor: colors.surfaceAlt },
   filterButtonActive: { backgroundColor: colors.primarySoft, borderColor: colors.primarySoft },

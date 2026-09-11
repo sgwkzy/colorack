@@ -237,7 +237,7 @@ const makeStyles = (colors: typeof lightColors, listFontSize: ListFontSize) => {
     checkIcon: { marginRight: 10 },
     checkLabel: { fontSize: sizes.checkLabel, color: colors.text },
     emptyOpt: { color: colors.textPlaceholder, paddingVertical: spacing.md },
-    applyBtn: { backgroundColor: colors.primary, padding: spacing.xl, alignItems: 'center' },
+    applyBtn: { backgroundColor: colors.primaryAction, padding: spacing.xl, alignItems: 'center' },
     applyText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
   });
 };

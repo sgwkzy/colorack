@@ -68,7 +68,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text, minHeight: touch.min },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: spacing.xl },
   button: { minHeight: touch.min, minWidth: 72, paddingHorizontal: spacing.xl, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.md },
-  okButton: { backgroundColor: colors.primary },
+  okButton: { backgroundColor: colors.primaryAction },
   okButtonDisabled: { backgroundColor: colors.primaryDisabled },
   cancelText: { color: colors.primaryText, fontWeight: 'bold' },
   okText: { color: colors.onPrimary, fontWeight: 'bold' },

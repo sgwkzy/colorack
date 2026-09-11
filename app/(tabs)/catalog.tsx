@@ -201,7 +201,7 @@ export default function CatalogScreen() {
 
   // --- 塗料一覧 ---
   const q = nameFilter.trim().toLowerCase();
-  const shown = q ? paints.filter((p) => p.name_ja.toLowerCase().includes(q) || (p.name_en ?? '').toLowerCase().includes(q) || (p.code ?? '').toLowerCase().includes(q)) : paints;
+  const shown = q ? paints.filter((p) => p.name_ja.toLowerCase().includes(q) || (p.name_en ?? '').toLowerCase().includes(q) || p.brand.toLowerCase().includes(q) || p.series.toLowerCase().includes(q) || (p.code ?? '').toLowerCase().includes(q)) : paints;
   const currentSeries = paints.find((p) => p.series === selectedSeries);
   return (
     <SwipeBack enabled onBack={backFromPaints}>
@@ -210,7 +210,7 @@ export default function CatalogScreen() {
         <IconChevronLeft color={colors.primary} size={18} />
         <Text style={styles.backText}>{selectedSeries === ALL ? (selectedBrand === ALL ? t('all') : brandLabel(selectedBrand)) : seriesLabel(selectedSeries || '—', currentSeries?.series_en)}</Text>
       </TouchableOpacity>
-      <ClearableInput style={styles.filterInput} placeholder={t('colorName')} value={nameFilter} onChangeText={setNameFilter} />
+      <ClearableInput style={styles.filterInput} placeholder={t('searchPlaceholder')} value={nameFilter} onChangeText={setNameFilter} />
       <View style={styles.adBar}><AdBanner /></View>
       <FlatList
         data={shown}
@@ -255,7 +255,7 @@ const makeStyles = (colors: typeof lightColors, listFontSize: ListFontSize) => {
   backText: { fontSize: 15, color: colors.primaryText },
   filterInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: spacing.md, margin: spacing.lg },
   delBtn: { padding: spacing.md, marginLeft: spacing.md },
-  fab: { position: 'absolute', bottom: spacing.xxl, zIndex: 20, elevation: 20, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  fab: { position: 'absolute', bottom: spacing.xxl, zIndex: 20, elevation: 20, width: 56, height: 56, borderRadius: radius.fab, backgroundColor: colors.primaryAction, alignItems: 'center', justifyContent: 'center' },
   fabLeft: { left: spacing.xxl },
   fabRight: { right: spacing.xxl },
   // 他の一覧画面と同じく、最終行がFABに隠れない余白を確保する。

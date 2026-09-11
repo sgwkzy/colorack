@@ -211,7 +211,7 @@ export default function SettingsScreen() {
       },
       {
         text: t('cloudKeepDeviceData'),
-        style: 'cancel',
+        style: 'destructive',
         onPress: () => {
           setAccountBusy(true);
           markCloudBackupReady(expectedUid)
@@ -221,9 +221,10 @@ export default function SettingsScreen() {
               console.error('showConflictAlert: failed to keep device data', e);
               Alert.alert(t('error'), t('cloudBackupError'));
             })
-            .finally(() => setAccountBusy(false));
+          .finally(() => setAccountBusy(false));
         },
       },
+      { text: t('cancel'), style: 'cancel' },
     ]);
   };
 
@@ -252,7 +253,8 @@ export default function SettingsScreen() {
                 },
               },
               {
-                text: isJa ? '端末データを引き継ぎ（クラウドを上書き）' : 'Adopt device data (overwrite cloud)',
+                text: t('cloudKeepDeviceData'),
+                style: 'destructive',
                 onPress: () => {
                   setAccountBusy(true);
                   markCloudBackupReady(expectedUid)
@@ -711,7 +713,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   langRow: { flexDirection: 'row', alignItems: 'center' },
   themeRow: { flexDirection: 'row' },
   themeBtn: { flex: 1, padding: spacing.lg, borderRadius: radius.sm, backgroundColor: colors.chip, marginRight: spacing.md, alignItems: 'center' },
-  themeBtnOn: { backgroundColor: colors.primary },
+  themeBtnOn: { backgroundColor: colors.primaryAction },
   themeBtnText: { color: colors.textSecondary },
   themeBtnTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   resetBtn: { backgroundColor: colors.dangerSoft, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
@@ -719,7 +721,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   accountText: { fontSize: 16, fontWeight: 'bold', color: colors.text, marginBottom: spacing.xs },
   accountSubText: { fontSize: 14, color: colors.textSecondary, marginBottom: spacing.md },
   accountLinkBox: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: spacing.lg },
-  accountBtn: { backgroundColor: colors.primary, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
+  accountBtn: { backgroundColor: colors.primaryAction, borderRadius: radius.sm, padding: spacing.lg, marginBottom: spacing.md },
   appleSignInBtn: { width: '100%', height: 44, marginBottom: spacing.md },
   appleSignInBtnDisabled: { opacity: 0.5 },
   accountBtnDisabled: { backgroundColor: colors.primaryDisabled },

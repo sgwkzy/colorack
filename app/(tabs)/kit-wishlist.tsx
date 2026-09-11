@@ -397,7 +397,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   list: { paddingBottom: 104 },
   loadError: { alignItems: 'center', gap: spacing.md, padding: spacing.lg },
   loadErrorText: { color: colors.textMuted },
-  retryButton: { minHeight: touch.min, paddingHorizontal: spacing.xl, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.primary },
+  retryButton: { minHeight: touch.min, paddingHorizontal: spacing.xl, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.primaryAction },
   retryText: { color: colors.onPrimary, fontWeight: '700' },
   row: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surface },
   thumb: { width: 48, height: 48, borderRadius: radius.sm },
@@ -405,7 +405,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   rowInfo: { flex: 1 },
   rowName: { fontSize: 15, fontWeight: '600', color: colors.text },
   rowSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  moveAction: { width: 128, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  moveAction: { width: 128, backgroundColor: colors.primaryAction, alignItems: 'center', justifyContent: 'center' },
   deleteAction: { width: 88, backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
   swipeActionText: { color: colors.onPrimary, fontWeight: 'bold' },
 });

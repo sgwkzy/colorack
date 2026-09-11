@@ -95,8 +95,8 @@ export default function WishlistScreen() {
     }
     if (f.search.trim()) {
       const like = `%${f.search.trim()}%`;
-      where.push('(c.name_ja LIKE ? OR c.name_en LIKE ?)');
-      args.push(like, like);
+      where.push('(c.name_ja LIKE ? OR c.name_en LIKE ? OR c.brand LIKE ? OR c.series LIKE ? OR c.code LIKE ?)');
+      args.push(like, like, like, like, like);
     }
 
     const [totalRow, nextFilterOptions, rows] = await Promise.all([
@@ -302,7 +302,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   statusBarWrap: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.surfaceAlt },
   statusCount: { color: colors.text, fontSize: 15, fontVariant: ['tabular-nums'] },
   adBar: { borderTopWidth: 1, borderTopColor: colors.borderLight },
-  moveAction: { backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', width: 96 },
+  moveAction: { backgroundColor: colors.primaryAction, justifyContent: 'center', alignItems: 'center', width: 96 },
   moveActionText: { color: colors.onPrimary, fontWeight: 'bold' },
   deleteAction: { backgroundColor: colors.danger, justifyContent: 'center', alignItems: 'center', width: 88 },
   deleteActionText: { color: colors.onPrimary, fontWeight: 'bold' },

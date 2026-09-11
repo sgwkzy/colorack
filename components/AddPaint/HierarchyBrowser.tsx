@@ -144,6 +144,8 @@ export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly
     ? paints.filter((p) =>
         p.name_ja.toLowerCase().includes(q)
         || (p.name_en ?? '').toLowerCase().includes(q)
+        || p.brand.toLowerCase().includes(q)
+        || p.series.toLowerCase().includes(q)
         || (p.code ?? '').toLowerCase().includes(q))
     : paints;
 
@@ -205,7 +207,7 @@ export default function HierarchyBrowser({ onSelect, onSelectView, selectionOnly
       </View>
       <ClearableInput
         style={styles.filterInput}
-        placeholder={t('colorName')}
+        placeholder={t('searchPlaceholder')}
         value={nameFilter}
         onChangeText={setNameFilter}
       />

@@ -210,7 +210,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   title: { fontSize: 18, fontWeight: 'bold', color: colors.text },
   preview: { height: 40, borderRadius: 6, marginTop: spacing.lg },
-  btn: { backgroundColor: colors.primary, minHeight: touch.min, padding: spacing.xl, alignItems: 'center', justifyContent: 'center' },
+  btn: { backgroundColor: colors.primaryAction, minHeight: touch.min, padding: spacing.xl, alignItems: 'center', justifyContent: 'center' },
   btnDisabled: { backgroundColor: colors.primaryDisabled },
   btnText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
 });

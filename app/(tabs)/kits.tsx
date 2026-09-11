@@ -163,7 +163,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
       + ' ORDER BY ' + orderBy;
 
     const [totalRow, nextFilterOptions, nextItems] = await Promise.all([
-      db.getFirstAsync<CountRow>("SELECT COUNT(*) AS n FROM kits WHERE status IN ('not_started','building')" + totalWhere, totalArgs),
+      db.getFirstAsync<CountRow>(`SELECT COUNT(*) AS n FROM kits WHERE ${completedScreen ? "status = 'completed'" : "status IN ('not_started','building')"}${completedScreen ? '' : totalWhere}`, completedScreen ? [] : totalArgs),
       db.getAllAsync<{ maker: string; series: string | null; category: string | null; scale: string | null }>(
         'SELECT DISTINCT maker, series, category, scale FROM kits'
       ),
@@ -257,8 +257,8 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
     ? statuses.length === 1 && statuses[0] === 'completed'
     : statuses.length === 2 && statuses.includes('not_started') && statuses.includes('building');
   const filterActive = !statusDefault || filter.makers.length > 0 || filter.series.length > 0 || filter.categories.length > 0 || filter.scales.length > 0 || filter.search.trim() !== '';
-  const trulyEmpty = completedScreen ? items.length === 0 : !filterActive && statusDefault && kitTotal === 0;
-  const emptyMessage = trulyEmpty ? t('emptyKits') : t('noResults');
+  const trulyEmpty = !filterActive && kitTotal === 0;
+  const emptyMessage = trulyEmpty ? t(completedScreen ? 'emptyCompletedKits' : 'emptyKits') : t('noResults');
 
   const openSort = () => {
     const opts: { key: KitSort; label: string }[] = [
@@ -275,7 +275,7 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
   return (
     <View style={styles.container}>
       <View style={styles.statusBarWrap}>
-        <Text style={styles.statusCount}>{t('kitCount', { total: completedScreen ? items.length : kitTotal, shown: items.length })}</Text>
+        <Text style={styles.statusCount}>{t('kitCount', { total: kitTotal, shown: items.length })}</Text>
         <ListToolbar onFilter={() => setShowFilter(true)} onSort={openSort} filterActive={filterActive} />
       </View>
 
@@ -347,13 +347,13 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
           <EmptyState
             icon={IconBox}
             title={emptyMessage}
-            actionLabel={trulyEmpty ? t('addKit') : undefined}
-            onAction={trulyEmpty ? () => setShowAdd(true) : undefined}
+            actionLabel={trulyEmpty && !completedScreen ? t('addKit') : undefined}
+            onAction={trulyEmpty && !completedScreen ? () => setShowAdd(true) : undefined}
           />
         )}
       />
 
-      <ListActionBar onAdd={() => setShowAdd(true)} />
+      {!completedScreen && <ListActionBar onAdd={() => setShowAdd(true)} />}
 
       <KitFilterModal
         visible={showFilter}
@@ -366,11 +366,13 @@ export function KitsScreen({ completedScreen = false }: { completedScreen?: bool
         onClose={() => setShowFilter(false)}
       />
 
-      <AddKitModal
-        visible={showAdd}
-        defaultBoxId={completedScreen || selected === 'all' ? defaultBoxId : selected}
-        onClose={() => { setShowAdd(false); reload(); }}
-      />
+      {!completedScreen ? (
+        <AddKitModal
+          visible={showAdd}
+          defaultBoxId={selected === 'all' ? defaultBoxId : selected}
+          onClose={() => { setShowAdd(false); reload(); }}
+        />
+      ) : null}
       <KitDetailModal
         visible={detailKitId != null}
         kitId={detailKitId}

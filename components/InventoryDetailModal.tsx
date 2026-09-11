@@ -4,7 +4,7 @@
 // 最終更新日・メモ)を主役として大きく扱う。ボックス・ステータスはここで直接変更できる。
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { IconChevronDown, IconChevronRight, IconX } from '@tabler/icons-react-native';
+import { IconChevronDown, IconChevronRight, IconTrash, IconX } from '@tabler/icons-react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { logEvent } from '../lib/analytics';
@@ -49,6 +49,7 @@ interface Props {
   inventoryId: number | null;
   onClose: () => void;
   onChanged?: () => void;
+  onDelete?: (detail: InventoryDetail) => void;
 }
 
 function readableTextColor(hex: string | null, colors: typeof lightColors): string {
@@ -68,7 +69,7 @@ function toneColors(hex: string | null): string[] {
   });
 }
 
-export default function InventoryDetailModal({ visible, inventoryId, onClose, onChanged }: Props) {
+export default function InventoryDetailModal({ visible, inventoryId, onClose, onChanged, onDelete }: Props) {
   useModalLock(visible);
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -379,6 +380,18 @@ export default function InventoryDetailModal({ visible, inventoryId, onClose, on
                 />
               </View>
 
+              {onDelete ? (
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => onDelete(detail)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('delete')}
+                >
+                  <IconTrash color={colors.danger} size={18} />
+                  <Text style={styles.deleteButtonText}>{t('delete')}</Text>
+                </TouchableOpacity>
+              ) : null}
+
             </SwipeDownScrollView>
           )}
           <Toast message={toast} />
@@ -463,6 +476,8 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 10, color: colors.text },
   quote: { fontSize: 14, lineHeight: 20, color: colors.textSecondary },
   noteInput: { minHeight: 72, alignItems: 'flex-start' },
+  deleteButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, borderWidth: 1, borderColor: colors.danger, borderRadius: radius.md },
+  deleteButtonText: { color: colors.dangerText, fontWeight: '700' },
   inventoryControlCard: { flexDirection: 'row', backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primaryDisabled, borderRadius: radius.md, padding: spacing.lg, gap: spacing.lg },
   inventoryControl: { flex: 1, gap: spacing.sm },
   inventoryDivider: { width: StyleSheet.hairlineWidth, backgroundColor: colors.borderLight },

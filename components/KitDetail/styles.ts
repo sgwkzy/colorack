@@ -38,7 +38,7 @@ export const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   editBar: { flexDirection: 'row', gap: spacing.md, padding: spacing.xl, borderTopWidth: 1, borderTopColor: colors.borderLight },
   deleteBtn: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.danger, borderRadius: radius.md },
   deleteBtnText: { color: colors.dangerText, fontWeight: '700', fontSize: 16 },
-  saveEditBtn: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md },
+  saveEditBtn: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryAction, borderRadius: radius.md },
   saveEditBtnText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
 });
 
