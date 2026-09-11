@@ -214,10 +214,10 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   label: { fontSize: 12, color: colors.textMuted, marginBottom: spacing.xs },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.xs },
   chip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chip, marginRight: spacing.md, marginBottom: spacing.md },
-  chipOn: { backgroundColor: colors.primary },
+  chipOn: { backgroundColor: colors.primaryAction },
   chipText: { fontSize: 13, color: colors.textSecondary },
   chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
-  btn: { backgroundColor: colors.primary, minHeight: 44, padding: spacing.lg, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', marginTop: spacing.md },
+  btn: { backgroundColor: colors.primaryAction, minHeight: 44, padding: spacing.lg, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', marginTop: spacing.md },
   btnDisabled: { backgroundColor: colors.primaryDisabled },
   btnText: { color: colors.onPrimary, fontSize: 16, fontWeight: 'bold' },
 });

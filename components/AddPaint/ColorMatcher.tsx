@@ -208,7 +208,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   targetSwatch: { width: touch.min, height: touch.min, borderRadius: radius.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.border },
   hexInput: { flex: 1, minWidth: 0, height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, borderCurve: 'continuous', paddingHorizontal: spacing.lg, color: colors.text },
   cameraBtn: { width: touch.min, height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
-  matchButton: { minWidth: 64, height: touch.min, paddingHorizontal: spacing.md, borderRadius: radius.md, borderCurve: 'continuous', backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  matchButton: { minWidth: 64, height: touch.min, paddingHorizontal: spacing.md, borderRadius: radius.md, borderCurve: 'continuous', backgroundColor: colors.primaryAction, alignItems: 'center', justifyContent: 'center' },
   matchButtonDisabled: { backgroundColor: colors.primaryDisabled },
   matchButtonText: { color: colors.onPrimary, fontSize: 14, fontWeight: '600' },
   filterRow: { minHeight: touch.min, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

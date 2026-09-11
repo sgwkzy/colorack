@@ -47,7 +47,7 @@ export default function ListActionBar({ onAdd }: Props) {
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  fab: { position: 'absolute', zIndex: 20, elevation: 20, width: 56, height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: radius.fab, backgroundColor: colors.primary, boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)' },
+  fab: { position: 'absolute', zIndex: 20, elevation: 20, width: 56, height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: radius.fab, backgroundColor: colors.primaryAction, boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)' },
   fabLeft: { left: spacing.xl },
   fabRight: { right: spacing.xl },
   toolbar: { flexDirection: 'row', gap: spacing.sm },

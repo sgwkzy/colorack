@@ -36,7 +36,7 @@ export const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   actionText: { color: colors.primaryText, fontWeight: '700' },
   deleteText: { color: colors.dangerText },
   editBar: { padding: spacing.xl, borderTopWidth: 1, borderTopColor: colors.borderLight },
-  saveEditBtn: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, borderRadius: radius.md },
+  saveEditBtn: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryAction, borderRadius: radius.md },
   saveEditBtnDisabled: { backgroundColor: colors.primaryDisabled },
   saveEditBtnText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
 });

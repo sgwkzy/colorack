@@ -245,7 +245,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   label: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.lg, color: colors.text },
   noteInput: { minHeight: 72, alignItems: 'flex-start' },
-  saveBtn: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, margin: spacing.xl, borderRadius: radius.md },
+  saveBtn: { minHeight: touch.min, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primaryAction, margin: spacing.xl, borderRadius: radius.md },
   saveBtnDisabled: { backgroundColor: colors.primaryDisabled },
   saveBtnText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
 });

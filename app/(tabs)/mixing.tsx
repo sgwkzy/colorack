@@ -247,6 +247,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   dragHandleDisabled: { opacity: 0.35 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.lg, padding: spacing.xxl },
   errorText: { color: colors.textMuted },
-  retryButton: { minHeight: touch.min, paddingHorizontal: spacing.xl, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.primary },
+  retryButton: { minHeight: touch.min, paddingHorizontal: spacing.xl, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: colors.primaryAction },
   retryText: { color: colors.onPrimary, fontWeight: '700' },
 });

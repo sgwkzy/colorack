@@ -132,7 +132,7 @@ export default function RootLayout() {
               : 'Restoring from cloud replaces this device data. Adopting this device data overwrites the current cloud backup.',
             [
               { text: t('cloudRestoreFromCloud'), style: 'destructive', onPress: () => { void resolveConflict(true); } },
-              { text: getLocale() === 'ja' ? '端末データを引き継ぎ（クラウドを上書き）' : 'Adopt device data (overwrite cloud)', onPress: () => { void resolveConflict(false); } },
+              { text: t('cloudKeepDeviceData'), style: 'destructive', onPress: () => { void resolveConflict(false); } },
               { text: t('cancel'), style: 'cancel', onPress: clearConflict },
             ],
             { cancelable: false }
@@ -153,8 +153,10 @@ export default function RootLayout() {
       },
       {
         text: t('cloudKeepDeviceData'),
+        style: 'destructive',
         onPress: () => { void resolveConflict(false); },
       },
+      { text: t('cancel'), style: 'cancel', onPress: clearConflict },
     ], { cancelable: false });
   }, [ready, resolvingConflict, startupConflictDialogShown, startupConflictKind, startupConflictUid]);
 

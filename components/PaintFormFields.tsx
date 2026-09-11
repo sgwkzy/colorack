@@ -100,7 +100,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   cameraBtn: { marginLeft: spacing.md, width: touch.min, height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: spacing.xs },
   chip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chip, marginRight: spacing.md, marginBottom: spacing.md },
-  chipOn: { backgroundColor: colors.primary },
+  chipOn: { backgroundColor: colors.primaryAction },
   chipText: { fontSize: 13, color: colors.textSecondary },
   chipTextOn: { color: colors.onPrimary, fontWeight: 'bold' },
   sectionGap: { marginTop: spacing.lg },

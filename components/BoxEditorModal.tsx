@@ -54,6 +54,6 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   selectedColor: { borderWidth: 3, borderColor: colors.surface, outlineColor: colors.text, outlineWidth: 1 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: spacing.xl },
   button: { minWidth: 72, minHeight: touch.min, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, marginLeft: spacing.md },
-  save: { backgroundColor: colors.primary }, saveDisabled: { backgroundColor: colors.primaryDisabled },
+  save: { backgroundColor: colors.primaryAction }, saveDisabled: { backgroundColor: colors.primaryDisabled },
   cancel: { color: colors.primaryText, fontWeight: '700' }, saveText: { color: colors.onPrimary, fontWeight: '700' },
 });

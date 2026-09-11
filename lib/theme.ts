@@ -4,6 +4,7 @@ import { getSetting, setSetting } from './db';
 
 export const lightColors = {
   primary: '#4a90d9',
+  primaryAction: '#1f6fb2',
   primaryText: '#2166a5',
   primarySoft: '#eef4fb',
   primaryDisabled: '#b7cde6',
@@ -45,6 +46,7 @@ export const lightColors = {
 
 export const darkColors: typeof lightColors = {
   primary: '#5b9bdb',
+  primaryAction: '#2b6ea6',
   primaryText: '#5b9bdb',
   primarySoft: '#24384d',
   primaryDisabled: '#3a4a5a',

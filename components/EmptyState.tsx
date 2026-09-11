@@ -29,6 +29,6 @@ export default function EmptyState({ icon: Icon, title, actionLabel, onAction }:
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { alignItems: 'center', justifyContent: 'center', paddingTop: 64, paddingHorizontal: spacing.xxl },
   title: { fontSize: 15, color: colors.textFaint, marginTop: spacing.lg, textAlign: 'center' },
-  actionBtn: { marginTop: spacing.xl, backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xl },
+  actionBtn: { marginTop: spacing.xl, backgroundColor: colors.primaryAction, borderRadius: radius.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xl },
   actionText: { color: colors.onPrimary, fontWeight: 'bold' },
 });

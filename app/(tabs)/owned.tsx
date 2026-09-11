@@ -90,6 +90,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
   const [toastAction, setToastAction] = useState<{ label: string; onPress: () => void } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeRefs = useRef(new Map<number, Swipeable>());
+  const deleteBusyRef = useRef(false);
   const initializedRef = useRef(false);
   const loadVersionRef = useRef(0);
 
@@ -160,8 +161,8 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
     }
     if (f.search.trim()) {
       const like = `%${f.search.trim()}%`;
-      where.push('(c.name_ja LIKE ? OR c.name_en LIKE ?)');
-      args.push(like, like);
+      where.push('(c.name_ja LIKE ? OR c.name_en LIKE ? OR c.brand LIKE ? OR c.series LIKE ? OR c.code LIKE ?)');
+      args.push(like, like, like, like, like);
     }
 
     const sql =
@@ -171,7 +172,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
       + ' ORDER BY ' + SORT_ORDER[sortBy];
     const [defaultBox, totalRow, nextFilterOptions, nextItems] = await Promise.all([
       getDefaultBoxId(),
-      db.getFirstAsync<CountRow>("SELECT COUNT(*) AS n FROM inventory WHERE status IN ('owned','in_use')" + totalWhere, totalArgs),
+      db.getFirstAsync<CountRow>(`SELECT COUNT(*) AS n FROM inventory WHERE ${isUsedScreen ? "status = 'used_up'" : "status IN ('owned','in_use')"}${isUsedScreen ? '' : totalWhere}`, isUsedScreen ? [] : totalArgs),
       db.getAllAsync<{ brand: string; series: string; series_en: string | null; gloss: string | null; paint_type: string | null }>(
         'SELECT DISTINCT c.brand, c.series, c.series_en, c.gloss, c.paint_type FROM inventory i'
         + ' JOIN catalog_paints c ON i.paint_id = c.id'
@@ -226,8 +227,8 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
     ? statuses.length === 1 && statuses[0] === 'used_up'
     : statuses.length === 2 && statuses.includes('owned') && statuses.includes('in_use');
   const filterActive = !statusDefault || filter.brands.length > 0 || filter.series.length > 0 || filter.gloss.length > 0 || filter.types.length > 0 || filter.search.trim() !== '';
-  const trulyEmpty = isUsedScreen ? items.length === 0 : !filterActive && statusDefault && inventoryTotal === 0;
-  const emptyMessage = trulyEmpty ? t('emptyOwned') : t('noResults');
+  const trulyEmpty = !filterActive && inventoryTotal === 0;
+  const emptyMessage = trulyEmpty ? t(isUsedScreen ? 'emptyUsed' : 'emptyOwned') : t('noResults');
 
   const showToast = (message: string, actionLabel?: string, onAction?: () => void) => {
     setToast(message);
@@ -311,21 +312,43 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
     swipeRefs.current.get(item.id)?.close();
     promptAddToWishlist(item);
   };
-  const deleteItem = async (item: InventoryItem) => {
+  const deleteItem = async (item: Pick<InventoryItem, 'id' | 'name_ja' | 'name_en'>) => {
+    if (deleteBusyRef.current) return;
+    deleteBusyRef.current = true;
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     swipeRefs.current.get(item.id)?.close();
+    let confirmed = false;
+    const releaseIfUnconfirmed = () => {
+      if (!confirmed) deleteBusyRef.current = false;
+    };
     Alert.alert(t('deleteInventoryConfirm'), '', [
-      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('cancel'),
+        style: 'cancel',
+        onPress: () => {
+          if (!confirmed) deleteBusyRef.current = false;
+        },
+      },
       {
         text: t('delete'), style: 'destructive',
         onPress: async () => {
-          const db = getDB();
-          await db.runAsync('DELETE FROM inventory WHERE id = ?', [item.id]);
-          reload();
-          showToast(paintName(item.name_ja, item.name_en) + t('removedToast'));
+          if (confirmed) return;
+          confirmed = true;
+          try {
+            const db = getDB();
+            await db.runAsync('DELETE FROM inventory WHERE id = ?', [item.id]);
+            setDetailInventoryId(null);
+            reload();
+            showToast(paintName(item.name_ja, item.name_en) + t('removedToast'));
+          } catch (error) {
+            console.error('owned: failed to delete inventory', error);
+            Alert.alert(t('error'), t('saveFailed'));
+          } finally {
+            deleteBusyRef.current = false;
+          }
         },
       },
-    ]);
+    ], { cancelable: true, onDismiss: releaseIfUnconfirmed });
   };
 
   const openSort = () => {
@@ -358,7 +381,7 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
     <View style={styles.container}>
       {/* 総数と状態フィルタ */}
       <View style={styles.statusBarWrap}>
-        <Text style={styles.statusCount}>{t('paintCount', { total: isUsedScreen ? items.length : inventoryTotal, shown: items.length })}</Text>
+        <Text style={styles.statusCount}>{t('paintCount', { total: inventoryTotal, shown: items.length })}</Text>
         <ListToolbar onFilter={() => setShowFilter(true)} onSort={openSort} filterActive={filterActive} />
       </View>
 
@@ -381,7 +404,14 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
               overshootRight={false}
               overshootLeft={false}
             >
-                <PaintRow paint={item} onPress={() => setDetailInventoryId(item.id)}>
+                <PaintRow
+                  paint={item}
+                  onPress={() => setDetailInventoryId(item.id)}
+                  accessibilityActions={[{ name: 'delete', label: t('delete') }]}
+                  onAccessibilityAction={({ nativeEvent }) => {
+                    if (nativeEvent.actionName === 'delete') deleteItem(item);
+                  }}
+                >
                   {/* 在庫⇄使用中 トグル (使用済の時は非活性) */}
                   <TouchableOpacity
                     style={[styles.statusBadge, {
@@ -405,13 +435,13 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
           <EmptyState
             icon={IconBox}
             title={emptyMessage}
-            actionLabel={trulyEmpty ? t('addPaint') : undefined}
-            onAction={trulyEmpty ? () => setShowAdd(true) : undefined}
+            actionLabel={trulyEmpty && !isUsedScreen ? t('addPaint') : undefined}
+            onAction={trulyEmpty && !isUsedScreen ? () => setShowAdd(true) : undefined}
           />
         )}
       />
 
-      <ListActionBar onAdd={() => setShowAdd(true)} />
+      {!isUsedScreen && <ListActionBar onAdd={() => setShowAdd(true)} />}
 
       <FilterModal
         visible={showFilter}
@@ -424,18 +454,21 @@ export function InventoryScreen({ usedScreen }: { usedScreen: boolean }) {
         onClose={() => setShowFilter(false)}
       />
 
-      <AddPaintModal
-        visible={showAdd}
-        onClose={() => { setShowAdd(false); reload(); }}
-        defaultStatus="owned"
-        boxId={selected === 'all' ? defaultBoxId : selected}
-      />
+      {!isUsedScreen ? (
+        <AddPaintModal
+          visible={showAdd}
+          onClose={() => { setShowAdd(false); reload(); }}
+          defaultStatus="owned"
+          boxId={selected === 'all' ? defaultBoxId : selected}
+        />
+      ) : null}
 
       <InventoryDetailModal
         visible={detailInventoryId != null}
         inventoryId={detailInventoryId}
         onClose={() => setDetailInventoryId(null)}
         onChanged={reload}
+        onDelete={(item) => deleteItem(item)}
       />
       <RestoreToBoxModal
         visible={!!restoreItem}

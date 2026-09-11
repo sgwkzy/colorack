@@ -450,7 +450,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   footerNeutral: { color: colors.textMuted },
   footerInvalid: { color: colors.dangerText },
   footerMixBar: { height: 12, flexDirection: 'row', overflow: 'hidden', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, backgroundColor: colors.chip },
-  saveButton: { minWidth: 104, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: radius.md, backgroundColor: colors.primary },
+  saveButton: { minWidth: 104, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: radius.md, backgroundColor: colors.primaryAction },
   saveText: { color: colors.onPrimary, fontWeight: '700' },
   disabled: { opacity: 0.4 },
 });

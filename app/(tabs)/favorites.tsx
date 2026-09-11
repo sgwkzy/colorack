@@ -89,8 +89,8 @@ export default function FavoritesScreen() {
     }
     if (f.search.trim()) {
       const like = `%${f.search.trim()}%`;
-      where.push('(c.name_ja LIKE ? OR c.name_en LIKE ?)');
-      args.push(like, like);
+      where.push('(c.name_ja LIKE ? OR c.name_en LIKE ? OR c.brand LIKE ? OR c.series LIKE ? OR c.code LIKE ?)');
+      args.push(like, like, like, like, like);
     }
 
     const [totalRow, nextFilterOptions, rows] = await Promise.all([
