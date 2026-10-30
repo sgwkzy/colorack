@@ -37,6 +37,8 @@ test('Firebase file environment variables override gitignored local files', (t) 
   assert.equal(config.ios.googleServicesFile, '/eas/GoogleService-Info.plist');
   assert.equal(config.ios.usesAppleSignIn, true);
   assert.ok(config.plugins.includes('expo-apple-authentication'));
+  assert.ok(config.plugins.includes('expo-status-bar'));
+  assert.ok(config.plugins.includes('expo-font'));
 });
 
 test('production Android config rejects a missing Firebase file variable', (t) => {

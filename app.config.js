@@ -58,6 +58,8 @@ module.exports = ({ config }) => ({
   },
   plugins: [
     'expo-sqlite',
+    'expo-status-bar',
+    'expo-font',
     'expo-router',
     'expo-localization',
     [

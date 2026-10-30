@@ -442,7 +442,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   content: { flexGrow: 1, padding: spacing.xl, paddingBottom: spacing.xl, gap: spacing.lg },
   colorSpecimen: { overflow: 'hidden', borderRadius: radius.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.borderLight },
   swatch: { height: 156, overflow: 'hidden', justifyContent: 'flex-end', paddingVertical: spacing.xxl, paddingHorizontal: spacing.xl },
-  finishOverlay: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  finishOverlay: { ...StyleSheet.absoluteFill, overflow: 'hidden' },
   swatchLabel: { gap: spacing.xs, zIndex: 1, position: 'relative' },
   swatchBrandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   swatchBrand: { fontSize: 14, fontWeight: '600', opacity: 0.82 },

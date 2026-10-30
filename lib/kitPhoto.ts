@@ -5,7 +5,7 @@ import { Image, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import type * as SQLite from 'expo-sqlite';
 
 const KIT_PHOTO_DIR = `${FileSystem.documentDirectory}kit-photos/`;

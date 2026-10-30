@@ -277,7 +277,7 @@ export default function KitColorComposerModal({ visible, requestCloseRef, onClos
 }
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
-  container: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100, backgroundColor: colors.surface },
+  container: { ...StyleSheet.absoluteFill, zIndex: 100, elevation: 100, backgroundColor: colors.surface },
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   headerButton: { width: touch.min, height: touch.min, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, color: colors.text, fontSize: 18, fontWeight: '700', textAlign: 'center' },

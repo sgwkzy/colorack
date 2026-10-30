@@ -2,7 +2,7 @@
 
 Colorack の GitHub `main` にある承認済みコミットから、iOS / Android のストア向けビルドを作成し、各ストアへ提出するための運用手順。
 
-直前のリリース実績はバージョン `1.1.9`（iOS build `17` / Android versionCode `17`）です。今回の候補バージョン・ビルド番号は、DEVで承認されたコミットの `app.json` を正として、手順2でリリース直前に確認します。
+App Storeの公開版は `1.2.0` です。2026年10月30日時点のEASビルド履歴ではiOS build `22`、Android versionCode `19` が最新です。候補の `app.json` とストア・EASの最新値をリリース直前に確認します。
 
 ## リリース範囲
 
@@ -11,9 +11,9 @@ Colorack の GitHub `main` にある承認済みコミットから、iOS / Andro
 - 今回の機能には、混色シミュレーター、保存済み混色、キット使用色、購入候補の使用色・写真、クラウドバックアップ、キット写真が含まれる。
 - 公式カタログだけを更新する場合は、この手順ではなく [`catalog-release-runbook.md`](./catalog-release-runbook.md) を使用する。
 
-アプリ同梱カタログの現行 `SEED_VERSION` は `21` です。リモートカタログだけを更新する場合は、アプリ同梱シードの更新と混同せず、カタログ用ランブックを使用します。
+アプリ同梱カタログの現行 `SEED_VERSION` は `22` です。リモートカタログだけを更新する場合は、アプリ同梱シードの更新と混同せず、カタログ用ランブックを使用します。
 
-2026年9月2日時点で `catalog-releases/latest.json` は v18（アプリ同梱シード v21 より古い）を指しています。今回のバイナリは同梱シード v21 を基準にし、リモートカタログを同時公開する場合だけ、カタログプロジェクト／OPSでシード v21 より大きいSQLite、GitHub Releaseの実アセット、MD5・サイズ・行数が一致する `latest.json` を検証してください。この準備では、未検証のカタログデータやマニフェストを変更しません。
+2026年9月2日時点で `catalog-releases/latest.json` は v18 を指していました。今回のバイナリは同梱シード v22 を基準にし、リモートカタログを同時公開する場合だけ、カタログプロジェクト／OPSでシード v22 より大きいSQLite、GitHub Releaseの実アセット、MD5・サイズ・行数が一致する `latest.json` を検証してください。この準備では、未検証のカタログデータやマニフェストを変更しません。
 
 ## 今回の候補に含まれる機能
 
@@ -21,7 +21,7 @@ Colorack の GitHub `main` にある承認済みコミットから、iOS / Andro
 - Kitrackのキット使用色（買い物リスト候補を含む）
 - キット写真の複数管理とクラウドバックアップ
 - Firebase認証、Firestoreバックアップ、RevenueCatサブスクリプション
-- アプリ内蔵カタログシード `SEED_VERSION = 21`
+- アプリ内蔵カタログシード `SEED_VERSION = 22`
 
 候補に含めない機能や未承認の変更が混在していないことを、リリース元のコミットと実機確認で確定する。
 
@@ -68,7 +68,7 @@ OPS 固有のローカルガードである `AGENTS.md` と `.codex/` だけは�
 
 バージョン変更はアプリ資材の変更なので OPS では行わず、DEV 側で実施して `main` へ反映する。
 
-このリリース準備では、ストアのビルド番号を消費する変更や値のインクリメントを行わない。ビルド直前に、承認済み候補の `app.json` から次の値を読み取り、直前のストア値と比較する。
+DEVで候補の値を更新し、ビルド番号を実際に消費する操作はOPSで行う。ビルド直前に、承認済み候補の `app.json` から次の値を読み取り、直前のストア値と比較する。
 
 `app.json` の次の値を確認する。
 
@@ -90,7 +90,7 @@ npx expo export --platform ios --output-dir .release-check-ios
 npx eas-cli@latest env:list --environment production
 ```
 
-`expo export` 成功後は生成された `.release-check-ios` を削除します。現行のExpo `~54.0.36`固定に対して `expo-doctor` がパッチ差分を報告する場合は、警告として記録し、解消だけを目的にSDKや依存関係を更新しません。
+`expo export` 成功後は生成された `.release-check-ios` を削除します。`expo-doctor` の警告は記録し、解消だけを目的にSDKや依存関係を更新しません。
 
 ローカルの非EAS実行では `app.config.js` のフォールバック値（`com.example.*` やテスト用AdMob値）が解決されます。ストア提出物の確認には使わず、EAS `production` 環境で解決された設定を確認します。
 
@@ -101,7 +101,7 @@ npx eas-cli@latest env:list --environment production
 - `version` / `buildNumber` / `versionCode` が今回のリリース値
 - `eas.json` の Android Submit 先が `internal`
 - `npm audit --omit=dev` のHigh/Criticalは、今回の本番実行経路への影響とリスク受容を確認する。監査のためだけにExpo SDKをメジャー更新しない
-- `expo-doctor` の警告は、固定している Expo `~54.0.36` との関係を確認して記録する。2026年9月2日時点では Expo `54.0.37`、`expo-constants` `~18.0.14`、`expo-file-system` `~19.0.24` が推奨されるが、候補は `~54.0.36` 系を維持する。警告を消すためだけにExpoやReact Nativeを自動更新しない
+- `expo-doctor` の警告は、候補の `package.json` に指定したExpo SDKとの関係を確認して記録する。警告を消すためだけにExpoやReact Nativeを自動更新しない
 - Production 環境に必要な変数名が存在する（秘密値そのものは出力・記録しない）
 
 ## リリース前の手動確認（必須）
@@ -121,8 +121,8 @@ npx eas-cli@latest env:list --environment production
 
 ### カタログとクラウド
 
-- 内蔵カタログの件数、代表色、色形式、シードバージョン21を確認する。
-- リモートカタログを同時公開する場合は、`catalog-releases/latest.json` が内蔵シード21より大きいバージョン（次回は22以上）であること、URL、行数、MD5、サイズが実物と一致し、端末から更新・再起動できることを確認する。バイナリだけをリリースする場合は、現在の v18 マニフェストを変更せず、同梱シード v21 と混同しない。
+- 内蔵カタログの件数、代表色、色形式、シードバージョン22を確認する。
+- リモートカタログを同時公開する場合は、`catalog-releases/latest.json` が内蔵シード22より大きいバージョン（次回は23以上）であること、URL、行数、MD5、サイズが実物と一致し、端末から更新・再起動できることを確認する。バイナリだけをリリースする場合は、現在のマニフェストを変更せず、同梱シード v22 と混同しない。
 - Firebaseログイン、バックアップ、復元、アカウント切替、アカウント削除を検証する。
 - Standardプランのキット写真バックアップと復元、Lightプラン／解約後の写真メタデータ挙動を確認する。
 - RevenueCatのエンタイトルメント、Paywall、購入復元、広告非表示の状態をiOS/Androidで確認する。
@@ -187,7 +187,7 @@ Production EAS Build、iOS TestFlightへのUpload、Android内部テストへの
 
 次の作業はこのリポジトリの準備変更に含めず、運用担当が証跡を残して実施する。
 
-- リモートカタログを同時公開する場合は、GitHub Releaseと `catalog-releases/latest.json` を確認する。公開版は内蔵シード `21` より大きいバージョンで、`catalog_release.sqlite3` のURL・MD5・サイズ・行数が実物と一致している必要がある。バイナリだけをリリースする場合は、v18のマニフェストを更新せず、同梱シード v21をリモート更新と取り違えない
+- リモートカタログを同時公開する場合は、GitHub Releaseと `catalog-releases/latest.json` を確認する。公開版は内蔵シード `22` より大きいバージョンで、`catalog_release.sqlite3` のURL・MD5・サイズ・行数が実物と一致している必要がある。バイナリだけをリリースする場合は、マニフェストを更新せず、同梱シード v22をリモート更新と取り違えない
 - 本番EAS環境変数・Firebaseファイル変数・Android Service Credentialsの存在確認
 - RevenueCat商品、entitlement、Paywall、Firebase Extension、Rulesの本番設定確認
 - App Store Connect / Google Play Consoleのストア掲載情報、プライバシー申告、年齢区分、データ安全性申告の入力
