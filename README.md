@@ -13,7 +13,7 @@
 
 ## 技術スタック
 
-- Expo SDK ~54 / React Native / expo-router
+- Expo SDK 57 / React Native / expo-router
 - expo-sqlite(端末内DB) + `assets/seed_catalog.json`(初期カタログシード)
 - expo-camera / expo-image-manipulator(カメラでの色取得)
 - i18n-js(日本語/英語)

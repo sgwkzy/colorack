@@ -79,7 +79,7 @@ export default function ColorMixPaintPickerModal({ visible, paintType, title, em
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  embedded: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100 },
+  embedded: { ...StyleSheet.absoluteFill, zIndex: 100, elevation: 100 },
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   headerButton: { width: touch.min, height: touch.min, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, color: colors.text, fontSize: 18, fontWeight: '700', textAlign: 'center' },

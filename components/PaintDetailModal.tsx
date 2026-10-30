@@ -333,11 +333,11 @@ export default function PaintDetailModal({ visible, paintId, onClose, onChanged,
   // requestClose だけだと編集中に戻るを押したとき、詳細へ戻らずモーダルごと
   // 閉じてしまう(iOSは端スワイプなので差が出ていなかった)。
   const screen = (
-    <View style={embedded ? [StyleSheet.absoluteFillObject, { zIndex: 100, elevation: 100 }] : { flex: 1 }}>
+    <View style={embedded ? [StyleSheet.absoluteFill, { zIndex: 100, elevation: 100 }] : { flex: 1 }}>
         <SwipeBack enabled={visible && !busy} onBack={back}>
         <SafeAreaView
           accessibilityViewIsModal={embedded}
-          style={[styles.container, embedded && StyleSheet.absoluteFillObject, embedded && { zIndex: 100, elevation: 100 }, embedded && { paddingTop: insets.top, paddingBottom: insets.bottom }]}
+          style={[styles.container, embedded && StyleSheet.absoluteFill, embedded && { zIndex: 100, elevation: 100 }, embedded && { paddingTop: insets.top, paddingBottom: insets.bottom }]}
           edges={embedded ? [] : ['top']}
         >
           <SwipeDownHeader onClose={isEditing ? returnToDetail : requestClose} enabled={!busy}>

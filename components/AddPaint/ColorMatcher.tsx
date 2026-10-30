@@ -1,9 +1,10 @@
 // components/AddPaint/ColorMatcher.tsx
 import { useEffect, useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
-import { IconAdjustmentsHorizontal, IconCamera, IconPlus } from '@tabler/icons-react-native';
+import { IconAdjustmentsHorizontal, IconCamera, IconPhoto, IconPlus } from '@tabler/icons-react-native';
 import ClearableInput from '../ClearableInput';
 import ColorCameraPicker from '../ColorCameraPicker';
+import ColorImagePicker from '../ColorImagePicker';
 import { getDB, getOwnedCountMap } from '../../lib/db';
 import { rgb_to_lab, delta_e, hex_to_rgb } from '../../lib/color';
 import { t } from '../../lib/i18n';
@@ -51,6 +52,7 @@ export default function ColorMatcher({ onSelect, onSelectView, selectionOnly = f
   const [results, setResults] = useState<(Paint & { de: number })[]>([]);
   const [ownedCounts, setOwnedCounts] = useState<Map<number, number>>(new Map());
   const [colorPickerVisible, setColorPickerVisible] = useState(false);
+  const [imagePickerVisible, setImagePickerVisible] = useState(false);
   const [filter, setFilter] = useState<PaintFilter>({ ...EMPTY_FILTER, types: lockedPaintType ? [lockedPaintType] : [] });
   const [filterOptions, setFilterOptions] = useState<FilterOption[]>([]);
   const [showFilter, setShowFilter] = useState(false);
@@ -96,6 +98,12 @@ export default function ColorMatcher({ onSelect, onSelectView, selectionOnly = f
     search(rgb.r, rgb.g, rgb.b);
   };
 
+  const pickColor = (picked: string) => {
+    setHex(picked);
+    const rgb = hex_to_rgb(picked);
+    if (rgb) search(rgb.r, rgb.g, rgb.b);
+  };
+
   const filterCount = filter.brands.length + filter.series.length + filter.gloss.length + (lockedPaintType ? 0 : filter.types.length);
   const filterActive = filterCount > 0;
 
@@ -122,12 +130,20 @@ export default function ColorMatcher({ onSelect, onSelectView, selectionOnly = f
             <IconCamera color={colors.primary} size={20} />
           </TouchableOpacity>
           <TouchableOpacity
+            style={styles.cameraBtn}
+            onPress={() => setImagePickerVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t('pickColorWithImage')}
+          >
+            <IconPhoto color={colors.primary} size={20} />
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.matchButton, !canMatchHex && styles.matchButtonDisabled]}
             onPress={matchHex}
             disabled={!canMatchHex}
             accessibilityRole="button"
           >
-            <Text style={styles.matchButtonText} numberOfLines={1}>{t('colorMatch')}</Text>
+            <Text style={styles.matchButtonText} numberOfLines={1}>{t('textSearch')}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.filterRow}>
@@ -175,12 +191,9 @@ export default function ColorMatcher({ onSelect, onSelectView, selectionOnly = f
       <ColorCameraPicker
         visible={colorPickerVisible}
         onClose={() => setColorPickerVisible(false)}
-        onPick={(picked) => {
-          setHex(picked);
-          const rgb = hex_to_rgb(picked);
-          if (rgb) search(rgb.r, rgb.g, rgb.b);
-        }}
+        onPick={pickColor}
       />
+      <ColorImagePicker visible={imagePickerVisible} onClose={() => setImagePickerVisible(false)} onPick={pickColor} />
       <FilterModal
         visible={showFilter}
         options={filterOptions}
@@ -204,7 +217,7 @@ const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   container: { flex: 1 },
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md, gap: spacing.sm },
   inputLabel: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: colors.textSecondary },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   targetSwatch: { width: touch.min, height: touch.min, borderRadius: radius.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.border },
   hexInput: { flex: 1, minWidth: 0, height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, borderCurve: 'continuous', paddingHorizontal: spacing.lg, color: colors.text },
   cameraBtn: { width: touch.min, height: touch.min, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },

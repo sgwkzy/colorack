@@ -55,7 +55,7 @@ export default function RestoreToBoxModal({ visible, boxes, busy = false, title,
 
 const makeStyles = (colors: typeof lightColors) => StyleSheet.create({
   root: { flex: 1, justifyContent: 'center', padding: spacing.xxl },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.32)' },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.32)' },
   card: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.xl },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   title: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '700' },

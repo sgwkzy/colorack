@@ -1,5 +1,5 @@
 import { useEffect, useReducer } from 'react';
-import { Appearance, ColorSchemeName } from 'react-native';
+import { Appearance } from 'react-native';
 import { getSetting, setSetting } from './db';
 
 export const lightColors = {
@@ -86,7 +86,7 @@ export const darkColors: typeof lightColors = {
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
-export function resolveIsDark(mode: ThemeMode, systemScheme: ColorSchemeName): boolean {
+export function resolveIsDark(mode: ThemeMode, systemScheme: ReturnType<typeof Appearance.getColorScheme>): boolean {
   if (mode === 'light') return false;
   if (mode === 'dark') return true;
   return systemScheme === 'dark';
@@ -102,7 +102,7 @@ if (__DEV__) {
 
 const THEME_MODE_KEY = 'theme_mode';
 let currentMode: ThemeMode = 'system';
-let systemScheme: ColorSchemeName = Appearance.getColorScheme();
+let systemScheme: ReturnType<typeof Appearance.getColorScheme> = Appearance.getColorScheme();
 const listeners = new Set<() => void>();
 
 function notify(): void {
